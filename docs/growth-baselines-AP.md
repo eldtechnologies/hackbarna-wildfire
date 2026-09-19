@@ -21,34 +21,38 @@ is the baseline every learned model beats, typically 2–2.5×.
 ## What was scored
 
 Dataset: the MTG LSA-509 Iberia extract, assembled by `tools/pipeline/` —
-**5,077 samples, 294 fires, 83.2 M cells**, each sample a 128×128 grid at 0.02°.
+**4,789 samples, 260 fires, 78.5 M cells**, each sample a 128×128 grid at 0.02°.
+An earlier revision of `frames.py` produced 5,077 samples from a label window one step
+too short; those shards are superseded here.
 
 Target: will cell (i, j) carry fire in the next **6 h**? `label_frp > 0`.
 
 Split: **leave-one-fire-out** (5 folds by event). A cell-level split would leak the
 fire's identity; the score would be meaningless.
 
-Score: **average precision**, the full held-out fold (true prevalence 0.078 %).
+Score: **average precision**, the full held-out fold (true prevalence 0.087 %).
 
 ## Results
 
 | Predictor | AP | vs persistence |
 | --- | ---: | ---: |
-| persistence (fire stays put) | 0.3917 | 1.00× |
-| drift persistence (extrapolate the 3 h centroid velocity) | 0.0604 | 0.15× |
-| **model — observed fire state only** | 0.4698 | 1.20× |
-| **model + relative position (direction)** | **0.5403** | **1.38×** |
+| persistence (fire stays put) | 0.3659 | 1.00× |
+| drift persistence (extrapolate the 3 h centroid velocity) | 0.0569 | 0.16× |
+| **model — observed fire state only** | 0.4435 | 1.21× |
+| **model + relative position (direction)** | **0.4470** | **1.22×** |
 | terrain + fuel only (geography control) | 0.0017 | 0.00× |
 
 Three things this shows.
 
-1. **A learned model beats persistence on the field's metric.** AP 0.54 against
-   0.39, with no weather, no terrain and no fuel in the winning model — only the
-   observed fire state and the cell's position relative to the fire.
+1. **A learned model beats persistence on the field's metric.** AP 0.44 against
+   0.37, with no weather, no terrain and no fuel — only the observed fire state.
 
-2. **The biggest lever is direction, which is what the Monitoring track asks for.**
-   Adding the cell offset from the fire's FRP-weighted centroid takes AP
-   0.47 → 0.54. The features are computed from the model's own input, so no leak.
+2. **Relative position is the only added feature that helps, and only slightly.**
+   Adding the cell's offset from the fire's FRP-weighted centroid takes AP
+   0.4435 → 0.4470. It is also fold-dependent (it helps on three folds and hurts on
+   two), so on this dataset it is not the decisive lever an earlier run over the
+   stale 5,077-sample shards reported (0.47 → 0.54). The features are computed from
+   the model's own input, so there is no leak; the gain is simply small here.
 
 3. **Terrain and fuel alone score essentially zero (AP 0.0017).** That is the
    control that matters: it proves the model is reading the fire, not memorising
@@ -58,7 +62,7 @@ Three things this shows.
 
 Extrapolating the last 3 h of centroid motion over 9 h scores AP 0.06 — far below
 plain persistence. A short-window velocity is too noisy to extrapolate that far, so
-**plain persistence is the honest strongest baseline**, and the 1.38× is measured
+**plain persistence is the honest strongest baseline**, and the 1.22× is measured
 against it.
 
 ## What is still missing, and why it matters
@@ -73,16 +77,16 @@ not help on this target, which is itself a finding.
 
 ```bash
 # 1. build the dataset shards (needs the MTG archive; see build.py for its source)
-cd tools/pipeline && uv run --with pandas --with numpy python build.py --archive /path/to/LSA_SAF_MTFRPPixel_2026
+cd tools/pipeline && uv run --with-requirements requirements.txt python build.py --archive /path/to/LSA_SAF_MTFRPPixel_2026
 
 # 2. put the DEM and WorldCover tiles for the sample grids under tiles/:
-#      tiles/dem/*.tif   Copernicus DEM GLO-30   (AWS Open Data, no key)
-#      tiles/wc/*.tif    ESA WorldCover v200     (AWS Open Data, no key)
+#      tools/pipeline/tiles/dem/*.tif   Copernicus DEM GLO-30   (AWS Open Data, no key)
+#      tools/pipeline/tiles/wc/*.tif    ESA WorldCover v200     (AWS Open Data, no key)
 #    features_static.py reads the union of the sample grids from these tiles.
 
 # 3. build the coarse static mosaics and score
-uv run --with rasterio --with numpy --with scikit-learn python features_static.py
-uv run --with numpy --with scikit-learn python ap_harness.py
+uv run --with-requirements requirements.txt python features_static.py
+uv run --with-requirements requirements.txt python ap_harness.py
 ```
 
 `ap_harness.py` prints the table above fold by fold.

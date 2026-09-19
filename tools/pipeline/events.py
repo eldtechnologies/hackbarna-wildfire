@@ -46,15 +46,25 @@ def load_hotspots(csv_gz_path: str) -> pd.DataFrame:
     Uses the parallax-corrected position: the raw longitude/latitude are where the
     satellite saw the pixel, and over Iberia at a 40 degree view angle the parallax
     is kilometres - enough to move a detection across the road it is closing.
+
+    A row with no timestamp is dropped here, not carried: `NaT` sorts to the end and
+    then compares False against every window, so it would vanish from the frames
+    silently while still counting as an observation. The dropped count travels on
+    `df.attrs` for the report.
     """
     df = pd.read_csv(csv_gz_path)
     df["t"] = pd.to_datetime(df["observed_at_utc"], utc=True)
+    no_timestamp = int(df["t"].isna().sum())
+    if no_timestamp:
+        df = df[df["t"].notna()]
     df["lon"] = df["LONGITUDE_PARALLAX"]
     df["lat"] = df["LATITUDE_PARALLAX"]
     # PIXEL_SIZE is an area in km2, not a length. Summing it double-counts repeat
     # observations of one pixel, so it is used per-observation only.
     df["pixel_km2"] = df["PIXEL_SIZE"]
-    return df.sort_values("t").reset_index(drop=True)
+    out = df.sort_values("t").reset_index(drop=True)
+    out.attrs["rows_dropped_no_timestamp"] = no_timestamp
+    return out
 
 
 def assign_episodes(df: pd.DataFrame, p: EpisodeParams) -> pd.DataFrame:

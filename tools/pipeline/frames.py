@@ -17,8 +17,8 @@ from dataclasses import dataclass
 import numpy as np
 
 # The archive's own grid is about 1.5 km at nadir over Iberia. A 0.02 degree cell is
-# about 2.2 km east-west at 40 N, which is close to one archive pixel and keeps a
-# patch of 128 cells at roughly 280 km - wider than any single fire here.
+# about 2.2 km north-south and 1.7 km east-west at 40 N - close to one archive pixel -
+# which keeps a patch of 128 cells at roughly 220-280 km, wider than any fire here.
 DEFAULT_CELL_DEG = 0.02
 
 
@@ -138,7 +138,7 @@ def build_samples(
             seen = (history["detections"] > 0) | (window["detections"] > 0)
             if not seen.any():
                 # Nothing observed near t: the sample would be all zeros with a
-                # label from a fire we never saw start. Skipped, and counted.
+                # label from a fire we never saw start. Skipped.
                 t += step
                 continue
             yield (

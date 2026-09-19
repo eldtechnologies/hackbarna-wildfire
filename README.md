@@ -36,3 +36,16 @@ DEEPFIRE_API_KEY=...
 ```
 
 Every `/api/fires` response carries a `provenance` field (`live` or `replay`) so the HUD can show which source served the data. The Deepfire payload shapes are mocked from the public API description in `server/providers/normalize.ts`; adjust that one file when the real spec arrives.
+
+## Data pipeline
+
+`tools/pipeline/` builds the fire-spread training dataset from the MTG FRP archive and scores
+growth baselines on it. It is Python, separate from the console. Its dependencies are in
+`tools/pipeline/requirements.txt`; run its tests with:
+
+```bash
+cd tools/pipeline
+uv run --with-requirements requirements.txt python -m unittest test_pipeline -v
+```
+
+See [`docs/growth-baselines-AP.md`](docs/growth-baselines-AP.md) for the results and how to rebuild them.

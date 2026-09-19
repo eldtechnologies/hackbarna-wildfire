@@ -1,21 +1,24 @@
 {
-  "samples": 5077,
-  "events_with_a_label": 294,
-  "samples_with_fire_in_window": 4380,
-  "samples_with_fire_in_label": 5059,
-  "samples_with_no_detection": 697,
-  "samples_with_fire_that_stops": 18,
+  "samples": 4789,
+  "events_with_samples": 260,
+  "samples_with_fire_in_window": 4130,
+  "samples_with_fire_in_label": 4789,
+  "samples_with_no_detection": 659,
+  "samples_with_fire_that_stops": 0,
   "current_frp_mw": {
-    "p50": 157.98643493652344,
-    "p90": 4863.489843750001,
+    "p50": 167.4805908203125,
+    "p90": 5267.015429687493,
     "max": 182018.21875
   },
-  "observations": 246528,
+  "archive_rows": 246528,
+  "rows_dropped_no_timestamp": 0,
   "observations_span": [
     "2026-01-01 00:08:30+00:00",
     "2026-09-19 09:58:37+00:00"
   ],
+  "observations_in_events": 207410,
   "events": 783,
+  "events_without_samples": 523,
   "cell_deg": 0.02,
   "horizon_hours": 6,
   "history_hours": 3,
@@ -26,6 +29,7 @@
     "gap_hours": 6.0,
     "min_observations": 30
   },
+  "shard_samples": 512,
   "shards": [
     {
       "file": "shard-0000.npz",
@@ -65,8 +69,11 @@
     },
     {
       "file": "shard-0009.npz",
-      "samples": 469
+      "samples": 181
     }
   ],
-  "seconds": 8.7
+  "archive": "/Users/ola/Documents/Codex/2026-09-19/file-users-ola-downloads-hackbarna-20/outputs/LSA_SAF_MTFRPPixel_2026/analysis/iberia_bbox_hotspots.csv.gz",
+  "seconds": 8.4,
+  "git_revision": "90022023b2736e29afd0cc3cdbe3def2da6a8ffd",
+  "git_dirty": false
 }
