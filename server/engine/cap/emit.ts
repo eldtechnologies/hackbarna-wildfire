@@ -153,12 +153,29 @@ export function validateCapSemantics(input: CapAlertInput, xml: string): CapVali
   // the moment that is wired to configuration an unescaped value is markup in a document
   // served unauthenticated. Escaping a value from a closed set costs nothing.
   for (const tag of ['status', 'scope', 'responseType', 'urgency', 'severity', 'certainty']) {
-    for (const m of xml.matchAll(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'g'))) {
-      if (/[<>&"']/.test(m[1])) problems.push(`<${tag}> contains markup that was not escaped: ${m[1]}`);
+    // Located with indexOf rather than matched with `([^<]*)`. The pattern cannot match
+    // content that contains a `<`, so an injected element inside one of these fields made
+    // the match fail and the guard pass — it reported `ok` on a document carrying a tag
+    // it exists to catch. Reading to the first closing tag sees the injection.
+    const open = `<${tag}>`;
+    const close = `</${tag}>`;
+    for (let from = 0; ; ) {
+      const a = xml.indexOf(open, from);
+      if (a === -1) break;
+      const b = xml.indexOf(close, a + open.length);
+      if (b === -1) {
+        problems.push(`<${tag}> is not closed`);
+        break;
+      }
+      const content = xml.slice(a + open.length, b);
+      if (/[<>&"']/.test(content)) problems.push(`<${tag}> contains markup that was not escaped: ${content}`);
+      from = b + close.length;
     }
   }
 
   // Anything that survives escaping as a raw angle bracket means the escaper was bypassed.
+  // The strip removes well-formed tags first, so this sees only an angle bracket that
+  // opens something the document never closes.
   if (/<[a-zA-Z/]/.test(xml.replace(/<[^>]*>/g, ''))) problems.push('document contains unescaped markup outside tags');
 
   // The schema's strictest rule, and the one the rest of this function was quietly

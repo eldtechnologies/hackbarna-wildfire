@@ -138,6 +138,29 @@ test('hostile names cannot escape the document', () => {
 test('stripForbiddenChars leaves the characters XML allows', () => {
   assert.equal(stripForbiddenChars('a\tb\nc\rd'), 'a\tb\nc\rd');
   assert.equal(stripForbiddenChars('a\u0000b'), 'ab');
+  // U+FFFE and U+FFFF are excluded by XML 1.0's Char production outright — they are not
+  // in the C0/C1 ranges, so they used to survive cleaning and reach the served document,
+  // where xmllint rejects them with "Char 0xFFFF out of allowed range".
+  assert.equal(stripForbiddenChars('a￾b￿c'), 'abc');
+  // U+FDD0 is a noncharacter that XML does allow, and must survive.
+  assert.equal(stripForbiddenChars('a﷐b'), 'a﷐b');
+});
+
+test('the enum guard sees an element injected inside one of its own fields', () => {
+  // The guard matched `<tag>([^<]*)</tag>`, which cannot match content containing a `<`.
+  // An injected element made the match fail, so the guard reported `ok` on exactly the
+  // document it exists to catch. Escaping is in place on all six fields, so this was
+  // never a reachable injection — only a guard that could not detect its own bypass.
+  const doc = emit([pkg()]).replace('<status>Test</status>', '<status>Te<evil/>st</status>');
+  const verdict = validateCapSemantics({
+    identifier: 'x', sender: SENDER, sentMs: 0, source: 's',
+    packages: [pkg()], area: BEDAR_RING, eventName: 'e',
+  }, doc);
+  assert.equal(verdict.ok, false, 'a raw element inside a closed-enum field is a failure');
+  assert.ok(
+    verdict.problems.some((p) => p.includes('<status>')),
+    `expected a <status> problem, got ${JSON.stringify(verdict.problems)}`,
+  );
 });
 
 test('escapeXml is idempotent-safe on already-escaped text', () => {

@@ -38,6 +38,12 @@ export function stripForbiddenChars(value: string): string {
   return value
     // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '')
+    // XML 1.0's Char production excludes these two outright, so they are not merely
+    // discouraged — a document containing one is not well-formed and xmllint rejects it
+    // with "Char 0xFFFF out of allowed range". They are not in the C0/C1 ranges above, so
+    // they used to survive cleaning and reach the served document. U+FDD0 is a
+    // noncharacter that XML does allow, and is deliberately left alone.
+    .replace(/[￾￿]/g, '')
     .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
     .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
 }

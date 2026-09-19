@@ -147,6 +147,32 @@ export function buildPairIndex(
   const midLat = (box[1] + box[3]) / 2;
   const mPerDegLat = 110977;
   const mPerDegLon = Math.max(1, 111320 * Math.cos((midLat * Math.PI) / 180));
+
+  // Why 2x is sufficient, stated as the condition it actually is rather than as the
+  // 0.08% approximation error alone.
+  //
+  // The index converts degrees to metres with one scale taken at the box's mid-latitude;
+  // the measurement converts at the detection's own latitude, which is the WGS84 series.
+  // Writing r for the ratio of the two on the longitude axis — the larger of the two
+  // axes — the 3x3 window reaches `cellSize = 2 * maxRadiusM` in the direction where the
+  // detection sits at a cell edge, so a pair is missed only if r > 2. On the committed
+  // data r = 0.998; r exceeds 2 only when a detection is about 45 degrees of latitude
+  // away from the segment cloud's midpoint, which this graph's bbox cannot produce.
+  //
+  // Asserted rather than argued, because the failure is silent and points the dangerous
+  // way: a missed pair is a road that is never cut. If a future graph spans a large
+  // latitude range, this is the line that should stop it.
+  const lonRatio = mPerDegLon / (111320 * Math.cos((box[1] * Math.PI) / 180));
+  const latRatio = mPerDegLat / 110977;
+  const worstRatio = Math.max(lonRatio, latRatio);
+  if (worstRatio > 2) {
+    throw new RangeError(
+      `the pair index cannot cover a ${maxRadiusM} m radius over this bbox: the lattice and ` +
+        `the distance measure disagree by a factor of ${worstRatio.toFixed(3)} across it, and ` +
+        `the 3x3 cell query is only exact below 2. Split the graph by latitude or build the ` +
+        `index at a larger radius.`,
+    );
+  }
   const originLon = box[0];
   const originLat = box[1];
   const toCell = (lon: number, lat: number): [number, number] => [

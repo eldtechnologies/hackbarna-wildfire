@@ -412,6 +412,11 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
       // set is small (four settlements), so one extra solve each is affordable.
       for (const { settlement, node } of settlementNodes) {
         if (node === null || !destinations.has(node)) continue;
+        // The pocket's own node is excluded here too. It is not in `escapeNodes`, so it
+        // cannot be a destination, and solving for it costs a full `latestDeparture` per
+        // configuration to produce a value `routeTo` can never fill — a route to where it
+        // already is does not exist — which the accumulator then drops.
+        if (node === pocketNode) continue;
         const solo = latestDeparture(graph, cuts, [node], { nodeCutSeconds: nodeCut });
         const value = solo.latestDeparture[pocketNode];
         // Infinity is a real answer — nothing on this route is ever cut under this
