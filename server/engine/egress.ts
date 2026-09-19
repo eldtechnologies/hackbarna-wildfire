@@ -29,8 +29,10 @@ import type { LatLon } from '../../shared/fires';
 import { detectionsFromCapture, groupClustersIntoEvents, loadCapture, pickEventForWindow } from './capture';
 import { DEFAULT_GRAPH_PATH, loadGraph, nearestNode, type LoadedGraph } from './graph';
 import { subtractStaticHeatSources, type Detection } from './mask';
+import { loadPocketGeometry } from './pockets';
 import { allNodesSafe, bottleneckOf, latestDeparture, routeTo, type RoadGraph, type Route } from './solve';
 import { SWEEP_CONFIGS, basisFor, sweepField } from './sweep';
+
 import { DEFAULT_LATENCY_SECONDS, LATENCY_SECONDS, fromEpochMs, resolveTimelineOrigin } from './time';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -120,8 +122,6 @@ interface Context {
   originMs: number;
   scenario: string;
   settlements: Settlement[];
-  /** Per-edge latency of the detection that set the nominal cut, seconds. */
-  nominalLatency: number[];
   sweep: ReturnType<typeof sweepField>;
   /** Detections dropped for sitting on persistent industrial heat. */
   staticHeatRemoved: number;
@@ -131,10 +131,14 @@ interface Context {
 }
 
 let cached: Context | null = null;
+/** The path the cache was built from. Without this the guard checked the *requested*
+ * path, so loading a custom graph and then asking for the default returned the custom
+ * one — a caller silently solving on the wrong road network. */
+let cachedPath: string | null = null;
 
 /** Everything that does not depend on the cursor, built once. */
 export function loadContext(graphPath: string = DEFAULT_GRAPH_PATH): Context {
-  if (cached && graphPath === DEFAULT_GRAPH_PATH) return cached;
+  if (cached && cachedPath === graphPath) return cached;
 
   const loaded = loadGraph(graphPath);
   const capture = loadCapture(JSON.parse(readFileSync(CAPTURE_PATH, 'utf8')));
@@ -161,28 +165,28 @@ export function loadContext(graphPath: string = DEFAULT_GRAPH_PATH): Context {
   const heatRings = staticHeatRings(STATIC_HEAT_PATH);
   const { kept: detections, removed } = subtractStaticHeatSources(raw, heatRings);
 
+  // Building counts come from the Catastro fixture rather than being duplicated into
+  // settlements.json, so the two cannot drift. When the fixture is absent the count stays
+  // at zero, which is a count we do not have rather than one we measured.
+  const geometry = loadPocketGeometry();
   const settlements = (
     JSON.parse(readFileSync(SETTLEMENTS_PATH, 'utf8')) as { settlements: Settlement[] }
-  ).settlements;
+  ).settlements.map((s) => {
+    const g = geometry.get(s.id);
+    return g ? { ...s, buildings: g.buildings } : s;
+  });
 
   const edgeGeometries = loaded.graph.edges.map((e) => e.geometry);
-  const sweep = sweepField(edgeGeometries, loaded.graph.nodes, detections);
-
-  const byId = new Map(detections.map((d) => [d.id, d]));
-  const nominalLatency = sweep.field.nominalEvidence.map((ids) => {
-    const first = ids[0];
-    if (!first) return DEFAULT_LATENCY_SECONDS;
-    const det = byId.get(first);
-    if (!det) return DEFAULT_LATENCY_SECONDS;
-    return LATENCY_SECONDS[det.source] ?? DEFAULT_LATENCY_SECONDS;
-  });
+  const latencyOf = (source: string): number => LATENCY_SECONDS[source] ?? DEFAULT_LATENCY_SECONDS;
+  const sweep = sweepField(edgeGeometries, loaded.graph.nodes, detections, undefined, latencyOf);
 
   cached = {
     loaded, graph: loaded.graph, detections, originMs,
-    scenario: capture.scenario, settlements, nominalLatency, sweep,
+    scenario: capture.scenario, settlements, sweep,
     staticHeatRemoved: removed.length, staticHeatPolygons: heatRings.length,
     fireClusterIds: fire.clusterIds,
   };
+  cachedPath = graphPath;
   return cached;
 }
 
@@ -221,14 +225,18 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
   // The cut field as known at the cursor, per configuration.
   const knownCut = (configId: string): number[] => {
     const raw = ctx.sweep.cutByConfig.get(configId);
+    const latency = ctx.sweep.latencyByConfig.get(configId);
     const out = new Array<number>(graph.edges.length).fill(Number.POSITIVE_INFINITY);
     if (!raw) return out;
     for (let i = 0; i < out.length; i++) {
       const cut = raw[i];
       if (!Number.isFinite(cut)) continue;
-      // Known only once the detection that produced it has arrived. The physical cut
-      // time is unchanged; this decides whether anyone could have acted on it yet.
-      if (cut + ctx.nominalLatency[i] <= cursor) out[i] = cut;
+      // Known only once the detection that produced it has arrived, and under this
+      // configuration that is not necessarily the detection the nominal one used — the
+      // two disagree on a large share of cut edges, by up to hours where a polar
+      // detection replaces a geostationary one.
+      const wait = latency ? latency[i] : DEFAULT_LATENCY_SECONDS;
+      if (cut + wait <= cursor) out[i] = cut;
     }
     return out;
   };
@@ -317,7 +325,11 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
         if (node === null || !destinations.has(node)) continue;
         const solo = latestDeparture(graph, cuts, [node], { nodeCutSeconds: nodeCut });
         const value = solo.latestDeparture[pocketNode];
-        if (!Number.isFinite(value)) continue;
+        // Infinity is a real answer — nothing on this route is ever cut under this
+        // configuration — and skipping it silently dropped whole configurations from
+        // the band while the published basis still claimed all twelve contributed.
+        // Only -Infinity, which means no route at all, is a non-answer.
+        if (value === Number.NEGATIVE_INFINITY) continue;
 
         const acc = byDestination.get(settlement.id) ?? { departures: [], configIds: [], route: null };
         acc.departures.push(value);
@@ -337,16 +349,32 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
       const maxValue = Math.max(...acc.departures);
       const minIndex = acc.departures.indexOf(minValue);
       const maxIndex = acc.departures.indexOf(maxValue);
+      // The band is the envelope of whole solves: each end is attained by one named
+      // configuration, so the basis can say which. A per-segment mixture would be
+      // attained by nothing, and in a bottleneck problem its pessimism is contagious.
+      //
+      // Infinity means "nothing on this route is ever cut within the window". When the
+      // pessimistic end is itself unbounded, `earliest` is pinned to the end of the
+      // modelled window — the honest reading is "no departure deadline exists inside the
+      // window" — and `latest` becomes null, which the contract added for exactly this.
+      const neverClosed = !Number.isFinite(minValue);
       const band: TimeBand = {
-        earliest: fromEpochMs(origin + minValue * 1000),
-        latest: fromEpochMs(origin + maxValue * 1000),
-        basis: basisFor(acc.configIds[minIndex], acc.configIds[maxIndex]),
+        earliest: fromEpochMs(origin + Math.min(minValue, windowEndSeconds) * 1000),
+        latest: Number.isFinite(maxValue) ? fromEpochMs(origin + maxValue * 1000) : null,
+        basis: neverClosed
+          ? `no configuration closes this route inside the modelled window (all ${acc.departures.length} of ${SWEEP_CONFIGS.length} unbounded); earliest is the end of the window, not a departure deadline`
+          : basisFor(acc.configIds[minIndex], acc.configIds[maxIndex], acc.departures.length),
       };
       const settlement = ctx.settlements.find((s) => s.id === settlementId);
       // The bypass gate: vehicles divided by the tightest road's throughput. It is what
       // turns a departure time into a question of whether the convoy can physically be
       // gone in time, and it is the acceptance number in docs/work-plan.md.
-      const population = settlement?.population ?? null;
+      //
+      // The population is the POCKET's, not the destination's. Using the destination's
+      // made Bédar's 953 residents clear at Mojácar's 7,680 rate and reported a
+      // fourteen-hour clearance for a village of under a thousand — an eight-fold error
+      // in the number the acceptance criterion is written around.
+      const population = pocket.population ?? null;
       let clearanceMinutes: number | null = null;
       let bottleneckSegmentId: string | null = null;
       if (population !== null && population > 0) {
@@ -379,18 +407,30 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
     }
     routes.sort((a, b) => a.destination.localeCompare(b.destination));
 
-    // The gate is the PESSIMISTIC end of the band: a route counts as usable only if it
-    // is still open under every configuration in the sweep. Gating on the encouraging
-    // end is what reports a road as open when it may not be, and it is the choice that
-    // kills people. It would also make a better demo, which is the trap.
-    const usableRoutes = routes.filter(
-      (r) =>
-        r.lastSafeDeparture !== null &&
-        Date.parse(r.lastSafeDeparture.earliest) / 1000 - origin / 1000 >= cursor,
-    );
+    // The gate is the PESSIMISTIC end of the band, and it is a gate on the DECISION, not
+    // on the departure.
+    //
+    // A departure time is when the last vehicle must be moving. Clearing the pocket takes
+    // `clearanceMinutes` at the tightest point on the route, and the decision has to
+    // precede that by the departure delay. So the question is whether the coordinator can
+    // still start the process in time, which is a stricter question than whether a road
+    // is open — and it is the one docs/work-plan.md makes the acceptance criterion.
+    //
+    // Gating on the encouraging end of the band instead would be more permissive and
+    // would make a better demo. That is the trap.
+    const usable = routes.map((r) => {
+      if (r.lastSafeDeparture === null) return { route: r, startBy: null as number | null, ok: false };
+      const departure = Date.parse(r.lastSafeDeparture.earliest) / 1000 - origin / 1000;
+      const startBy =
+        departure
+        - (r.clearanceMinutes ?? 0) * 60
+        - ASSUMPTIONS.departureDelayMinutes * 60;
+      return { route: r, startBy, ok: startBy >= cursor };
+    });
+    const usableRoutes = usable.filter((u) => u.ok).map((u) => u.route);
+
     const verdict: PocketEgress['verdict'] =
       usableRoutes.length > 0 ? 'routes_open' : 'no_verified_action';
-
     pocketResults.push({ pocketId: pocket.id, routes, verdict });
   }
 

@@ -20,7 +20,8 @@
 
 import type { LatLon } from '../../shared/fires';
 import type { Detection, SweepConfig } from './mask';
-import { buildPairIndex, cutField } from './mask';
+import { buildPairIndex, cutField, maxRadiusAcross } from './mask';
+import { DEFAULT_LATENCY_SECONDS } from './time';
 
 /**
  * The configuration whose numbers are reported as the headline. Chosen to be defensible
@@ -73,6 +74,15 @@ export interface SweepResult {
   cutByConfig: Map<string, Float64Array>;
   /** Each configuration's node cut field, for destination deadlines. */
   nodeCutByConfig: Map<string, Float64Array>;
+  /**
+   * Per configuration, the delivery latency of the detection that set each segment's cut.
+   *
+   * Kept per configuration because it is not the same detection. Applying one
+   * configuration's latency to another's cuts was wrong on 39-75% of cut edges in
+   * measurement, and it moves the published band — and therefore the verdict — in a way
+   * that is not always toward caution.
+   */
+  latencyByConfig: Map<string, Float64Array>;
   usedByConfig: Map<string, number>;
 }
 
@@ -81,11 +91,13 @@ export function sweepField(
   nodes: LatLon[],
   detections: Detection[],
   configs: SweepConfig[] = SWEEP_CONFIGS,
+  latencyOf: (source: string) => number = () => DEFAULT_LATENCY_SECONDS,
 ): SweepResult {
   const total = segments.length + nodes.length;
   const nodePolylines: LatLon[][] = nodes.map((n) => [n]);
-  const maxRadius = Math.max(...configs.map((c) => c.fixedRadiusM ?? 2000 * c.radiusScale));
+  const maxRadius = maxRadiusAcross(configs);
   const pairs = buildPairIndex([...segments, ...nodePolylines], detections, maxRadius);
+  const sourceById = new Map(detections.map((d) => [d.id, d.source]));
 
   const earliest = new Array<number>(segments.length).fill(Number.POSITIVE_INFINITY);
   const latest = new Array<number>(segments.length).fill(Number.NEGATIVE_INFINITY);
@@ -93,6 +105,7 @@ export function sweepField(
   const latestConfig = new Array<string>(segments.length).fill('');
   const cutByConfig = new Map<string, Float64Array>();
   const nodeCutByConfig = new Map<string, Float64Array>();
+  const latencyByConfig = new Map<string, Float64Array>();
   const usedByConfig = new Map<string, number>();
 
   let nominalCut = new Array<number>(segments.length).fill(Number.POSITIVE_INFINITY);
@@ -104,6 +117,14 @@ export function sweepField(
     cutByConfig.set(config.id, Float64Array.from(cut));
     nodeCutByConfig.set(config.id, Float64Array.from(all.cutAtSeconds.slice(segments.length)));
     usedByConfig.set(config.id, all.usedDetections);
+
+    // The latency of the detection that actually set each cut under THIS configuration.
+    const latency = new Float64Array(total);
+    for (let i = 0; i < total; i++) {
+      const first = all.evidenceDetectionIds[i]?.[0];
+      latency[i] = first === undefined ? DEFAULT_LATENCY_SECONDS : latencyOf(sourceById.get(first) ?? '');
+    }
+    latencyByConfig.set(config.id, latency);
 
     if (config.id === NOMINAL_ID) {
       nominalCut = cut;
@@ -135,13 +156,27 @@ export function sweepField(
     },
     cutByConfig,
     nodeCutByConfig,
+    latencyByConfig,
     usedByConfig,
   };
 }
 
-/** Human-readable description of what was swept, printed beside every band. */
-export function basisFor(earliestId: string, latestId: string): string {
+/**
+ * Human-readable description of what was swept, printed beside every band.
+ *
+ * `contributors` is the number of configurations that actually produced a finite answer
+ * for this band. It has to be passed in and reported, because a configuration under which
+ * the route is never cut contributes Infinity and used to be dropped silently — so the
+ * string claimed all twelve while the band was built from fewer. A provenance line that
+ * overstates the evidence is worse than no line.
+ */
+export function basisFor(earliestId: string, latestId: string, contributors?: number): string {
   const label = (id: string): string => SWEEP_CONFIGS.find((c) => c.id === id)?.label ?? id;
-  if (earliestId === latestId) return `all ${SWEEP_CONFIGS.length} configurations agree (${label(earliestId)})`;
-  return `earliest from ${label(earliestId)}; latest from ${label(latestId)}; across ${SWEEP_CONFIGS.length} configurations`;
+  const total = SWEEP_CONFIGS.length;
+  const scope =
+    contributors === undefined || contributors >= total
+      ? `across ${total} configurations`
+      : `across ${contributors} of ${total} configurations (${total - contributors} never close this route inside the window)`;
+  if (earliestId === latestId) return `all contributing configurations agree (${label(earliestId)}); ${scope}`;
+  return `earliest from ${label(earliestId)}; latest from ${label(latestId)}; ${scope}`;
 }

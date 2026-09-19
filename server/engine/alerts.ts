@@ -17,7 +17,7 @@ import type {
   RejectedCandidate,
 } from '../../shared/alerts';
 import type { LatLon } from '../../shared/fires';
-import { buildEgress, loadContext, type EgressOptions, type Settlement } from './egress';
+import { ASSUMPTIONS, buildEgress, loadContext, type EgressOptions, type Settlement } from './egress';
 import { capIdentifier, emitCap, groupByPocket, validateCapSemantics } from './cap/emit';
 import { fillTemplate, languagesFor, templateFor, unresolvedPlaceholders } from './cap/templates';
 import { verifySentence, type Place } from './cap/verify';
@@ -63,7 +63,13 @@ export interface BuildAlertsResult {
 export function instructionFor(
   route: { slowestHighway: string; lastSafeDeparture: { earliest: string } | null } | null,
   cursorMs: number,
+  fireReachesPocket = true,
 ): InstructionId {
+  // A pocket the fire never reaches within the modelled window needs no action, and
+  // saying so is a different statement from "we could not find you a route". Without
+  // this the only outputs were an evacuation or a failure, so a safe pocket would have
+  // been told to evacuate or told nothing useful.
+  if (!fireReachesPocket) return 'no_action';
   if (route === null || route.lastSafeDeparture === null) return 'no_verified_action';
 
   // If the pessimistic end of the band has already passed, there is no longer a
@@ -83,10 +89,21 @@ export function instructionFor(
   return 'evacuate_primary';
 }
 
-/** How wide the out-of-band is, and therefore how sure the message can be. */
+/**
+ * CAP certainty is our confidence in what the message says, so it tracks the width of
+ * the departure band.
+ *
+ * The null case used to return 'Observed' — CAP's most confident value — for the
+ * situation where no route could be verified at all, which is the least confident thing
+ * the engine ever says. The band's absence is a failure to establish a route, not an
+ * observation of one, and the mask it is derived from is itself an inference from
+ * satellite detections rather than a measurement of the fire's edge.
+ */
 function certaintyFor(band: { earliest: string; latest: string | null } | null): AlertPackage['certainty'] {
-  if (band === null) return 'Observed';
-  if (band.latest === null) return 'Possible';
+  if (band === null) return 'Possible';
+  // No upper bound means the route is never cut inside the window, which is the
+  // strongest thing the model can say about it.
+  if (band.latest === null) return 'Likely';
   const widthHours = (Date.parse(band.latest) - Date.parse(band.earliest)) / 3_600_000;
   if (widthHours <= 2) return 'Likely';
   return 'Possible';
@@ -147,7 +164,14 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
       .filter((r) => r.lastSafeDeparture !== null)
       .sort((a, b) => Date.parse(b.lastSafeDeparture!.earliest) - Date.parse(a.lastSafeDeparture!.earliest));
     const chosen = usable[0] ?? null;
-    const instruction = instructionFor(chosen, atMs);
+
+    // Read off the mask, once per pocket: does the fire reach this village within the
+    // modelled window at all? It drives both the instruction and the severity.
+    const pocketNode = nearestNode(graph, { lat: settlement.lat, lon: settlement.lon });
+    const fireReaches =
+      pocketNode === null || nodeCut === undefined ? true : Number.isFinite(nodeCut[pocketNode]);
+
+    const instruction = instructionFor(chosen, atMs, fireReaches);
     const template = templateFor(instruction);
 
     const values = {
@@ -156,11 +180,22 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
       destination: chosen?.destination ?? '',
     };
 
-    // Severity is read off the mask, once per pocket: does the fire reach this village
-    // within the modelled window at all?
-    const pocketNode = nearestNode(graph, { lat: settlement.lat, lon: settlement.lon });
-    const fireReaches =
-      pocketNode === null || nodeCut === undefined ? true : Number.isFinite(nodeCut[pocketNode]);
+    // A template that names a road needs one. Substituting an empty string produces a
+    // grammatical sentence with a hole in it — "Leave Bédar now via  towards Lubrín" —
+    // and every existing check passes it, because the placeholder was filled. Presence
+    // of the value, not just absence of the placeholder, is what has to be verified.
+    if (template.namesRoad && values.road.trim().length === 0) {
+      rejected.push({
+        at: built.response.at,
+        pocketId: settlement.id,
+        instruction,
+        language: languagesFor(settlement)[0],
+        text: '(not composed)',
+        reason: 'unresolved_name',
+        detail: 'the recommended route carries no named road, so the sentence would name nothing',
+      });
+      continue;
+    }
 
     for (const language of languagesFor(settlement)) {
       const text = fillTemplate(template, language, values);
@@ -217,12 +252,24 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
       recordedAt: new Date().toISOString(),
       pocketId: settlement.id,
       recommendation: instruction,
+      // The evidence has to describe the recommendation that was actually made. It was
+      // keyed off whether a route existed rather than off the instruction, so a ledger
+      // entry reading `no_verified_action` could carry the line "recommended Los
+      // Gallardos: 17.5 km, 55 min" — the auditable artifact disagreeing with itself,
+      // and in the encouraging direction.
       evidence: [
-        chosen
-          ? `recommended ${chosen.destination}: ${chosen.distanceKm} km, ${chosen.travelMinutes} min, worst road ${chosen.slowestHighway}`
-          : 'no route survived the sweep',
-        `departure band ${chosen?.lastSafeDeparture ? `${chosen.lastSafeDeparture.earliest} .. ${chosen.lastSafeDeparture.latest ?? 'never closes'}` : 'none'}`,
+        instruction === 'no_action'
+          ? 'the fire does not reach this pocket within the modelled window'
+          : chosen === null
+            ? 'no route survived the sweep from this pocket'
+            : instruction === 'no_verified_action'
+              ? `a route exists to ${chosen.destination} (${chosen.distanceKm} km, ${chosen.travelMinutes} min, worst road ${chosen.slowestHighway}) but its pessimistic departure has passed`
+              : `recommended ${chosen.destination}: ${chosen.distanceKm} km, ${chosen.travelMinutes} min, worst road ${chosen.slowestHighway}`,
+        `departure band ${chosen?.lastSafeDeparture ? `${chosen.lastSafeDeparture.earliest} .. ${chosen.lastSafeDeparture.latest ?? 'never closes inside the window'}` : 'none'}`,
         chosen?.lastSafeDeparture ? `basis: ${chosen.lastSafeDeparture.basis}` : 'basis: n/a',
+        chosen?.clearanceMinutes != null
+          ? `clearance at the tightest point: ${chosen.clearanceMinutes} min (${settlement.population ?? 'unknown'} residents at ${ASSUMPTIONS.mobileFraction} mobile ÷ ${ASSUMPTIONS.vehicleOccupancy} per vehicle)`
+          : 'clearance: not computed',
         `detections ${built.diagnostics.detections}; persistent-heat polygons ${built.diagnostics.staticHeat.polygons}, detections removed ${built.diagnostics.staticHeat.removed}`,
       ],
       inputs: {
@@ -285,35 +332,38 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
 }
 
 /**
- * The road named in the sentence: the named road carrying the most of the route.
+ * The road named in the sentence: the first significant named road on the route, walking
+ * outward from the pocket.
+ *
+ * "First significant" rather than "first" or "longest", because both of those name the
+ * wrong road. The first named edge out of a village is a residential street — "leave via
+ * Calle Llanos" — which is true and useless to someone standing in Bédar. The longest is
+ * wherever the route spends its time, which on a 25 km route to another town is a road
+ * near the far end: that produced "Leave Bédar via Carretera de Turre a Mojácar towards
+ * Mojácar".
+ *
+ * What a person needs is the road they walk out to and join. So: walk from the pocket,
+ * skip the village streets, and take the first named road of a through class. Falls back
+ * to the first named edge of any class when the route never reaches one, and returns
+ * empty when the route has no named edge at all — which the caller treats as a rejection
+ * rather than composing a sentence with a hole in it.
  *
  * Taken from the route the model actually selected, so the name and the geometry cannot
- * disagree — which is what makes the passability check meaningful rather than circular.
- *
- * Longest rather than first, because the first named edge out of a village is a street:
- * taking it produced "leave via Calle Llanos", which is true and useless to someone
- * standing in Bédar. The road they will recognise is the one they spend the journey on.
+ * disagree, which is what makes the passability check meaningful rather than circular.
  */
+const THROUGH_CLASSES = new Set(['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified']);
+
 function roadNameOf(route: { segmentIds: string[] } | null, graph: RoadGraph): string {
   if (route === null) return '';
   const byId = new Map(graph.edges.map((e) => [e.id, e]));
-  const byName = new Map<string, number>();
+  let fallback = '';
   for (const id of route.segmentIds) {
     const edge = byId.get(id);
     if (!edge?.name) continue;
-    // Travel time rather than geometry length: it is already computed, and it weights
-    // the slow mountain road the same way the drive does.
-    byName.set(edge.name, (byName.get(edge.name) ?? 0) + edge.travelSeconds);
+    if (fallback === '') fallback = edge.name;
+    if (THROUGH_CLASSES.has(edge.highway)) return edge.name;
   }
-  let best = '';
-  let bestSeconds = -1;
-  for (const [name, seconds] of byName) {
-    if (seconds > bestSeconds) {
-      bestSeconds = seconds;
-      best = name;
-    }
-  }
-  return best;
+  return fallback;
 }
 
 /**

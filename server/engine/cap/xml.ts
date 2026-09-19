@@ -25,14 +25,21 @@ export function escapeXml(value: string): string {
 
 /**
  * Remove characters XML 1.0 forbids outright, and which no escaping can rescue: C0
- * controls other than tab, newline and carriage return, plus the C1 range.
+ * controls other than tab, newline and carriage return, the C1 range, and unpaired
+ * surrogates.
  *
  * Escaping does not help here — these are invalid at the character level, so a document
- * containing them is not well-formed however it is written.
+ * containing them is not well-formed however it is written. Unpaired surrogates are the
+ * subtle one: they arise from slicing a string that contains an astral character at a
+ * code-unit boundary, which is exactly what truncating a headline does, and they cannot
+ * be represented in UTF-8 output at all.
  */
 export function stripForbiddenChars(value: string): string {
-  // eslint-disable-next-line no-control-regex
-  return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '');
+  return value
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '')
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
+    .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
 }
 
 /** The full treatment for any third-party string entering the document. */

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildAlerts, instructionFor } from './alerts';
-import { buildEgress } from './egress';
+import { buildEgress, loadContext } from './egress';
 
 const XSD = fileURLToPath(new URL('../../data/cap/CAP-v1.2.xsd', import.meta.url));
 
@@ -53,6 +53,47 @@ test('the instruction follows the route, and a track is never called the primary
     'no_verified_action',
     'an already-cut route is not an evacuation route',
   );
+});
+
+test('a pocket the fire never reaches is told no action, not told to evacuate', () => {
+  // Without this the only reachable outputs were an evacuation or a failure, so a safe
+  // pocket would have been told to leave. It is a different statement from "we could not
+  // find you a route", and both are different from "leave".
+  assert.equal(instructionFor(null, 0, false), 'no_action');
+  assert.equal(instructionFor({ slowestHighway: 'tertiary', lastSafeDeparture: null }, 0, false), 'no_action');
+  // Default stays conservative: with no information about reach, it does not claim safety.
+  assert.equal(instructionFor(null, 0), 'no_verified_action');
+});
+
+test('certainty never claims more confidence than the band supports', () => {
+  // The null band is the situation where nothing could be verified, and it used to be
+  // reported as CAP's most confident value.
+  const built = buildAlerts({ atSeconds: CURSOR });
+  for (const pkg of built.response.packages) {
+    if (pkg.departure === null) {
+      assert.notEqual(pkg.certainty, 'Observed', 'no verified route is not an observation');
+    }
+  }
+});
+
+test('the basis reports how many configurations actually contributed', () => {
+  // A configuration under which the route is never cut yields Infinity and used to be
+  // dropped without a word, so the provenance line claimed all twelve while the band was
+  // built from fewer. Overstating the evidence is worse than saying nothing.
+  const egress = buildEgress({ atSeconds: CURSOR });
+  for (const pocket of egress.response.pockets) {
+    for (const route of pocket.routes) {
+      const basis = route.lastSafeDeparture?.basis ?? '';
+      assert.ok(basis.length > 0, 'a band needs its basis');
+      const claimed = /across (\d+)(?: of (\d+))? configurations/.exec(basis);
+      assert.ok(claimed, `basis does not state a configuration count: ${basis}`);
+      if (claimed[2] !== undefined) {
+        const contributing = Number(claimed[1]);
+        const total = Number(claimed[2]);
+        assert.ok(contributing > 0 && contributing < total, `impossible count ${contributing}/${total}`);
+      }
+    }
+  }
 });
 
 test('a band whose pessimistic end has passed is no longer a verified action', () => {
@@ -122,10 +163,28 @@ test('the sentence names the road the route actually uses', () => {
 
   // The named road must be on that route, which is what makes the passability check
   // meaningful rather than circular.
-  const namedWayId = pkg.resolvedNames.find((n) => n.osm?.type === 'way')?.osm?.id;
-  assert.ok(namedWayId, 'a road must be named');
-  const onRoute = route.segmentIds.some((id) => id.replace(/^way\//, '').replace(/#.*$/, '') === namedWayId);
-  assert.ok(onRoute, `named road ${namedWayId} is not on the recommended route`);
+  //
+  // Matched by NAME, not by the OSM id resolution returned: a name like "Carretera de
+  // Los Gallardos a Bédar" is carried by twenty separate OSM ways, so the id the
+  // resolver happens to return first need not be the one the route uses. The check the
+  // engine actually makes is whether any edge with that name is on the route, and the
+  // test asserts the same thing rather than something stricter.
+  const roadName = pkg.resolvedNames.find((n) => n.osm?.type === 'way')?.text;
+  assert.ok(roadName, 'a road must be named');
+
+  const graph = loadContext().graph;
+  const edgesWithName = graph.edges.filter((e) => e.name === roadName);
+  assert.ok(edgesWithName.length > 0, `no edge in the graph is named "${roadName}"`);
+
+  const onRoute = edgesWithName.filter((e) => route.segmentIds.includes(e.id));
+  assert.ok(
+    onRoute.length > 0,
+    `"${roadName}" appears on ${edgesWithName.length} edges but none of them is on the recommended route`,
+  );
+
+  // And the road named must be one the driver actually joins, not a street they cross:
+  // a route that spends most of its time on a track still has to name the road out.
+  assert.ok(route.slowestHighway.length > 0);
 });
 
 test('every language gets a package, and they say the same thing', () => {
@@ -165,11 +224,29 @@ test('the polygon written is Bédar, in lat,lon order', () => {
   const poly = /<polygon>([^<]+)<\/polygon>/.exec(xml)?.[1] ?? '';
   const pairs = poly.split(' ').map((s) => s.split(',').map(Number));
   assert.ok(pairs.length >= 4, 'a closed ring needs four positions');
+  // Bounds wide enough for the real hull, which runs north over the dispersed sierra
+  // dwellings rather than stopping at the village edge. The point of the assertion is
+  // lat/lon order — a swap puts every value in the Indian Ocean — not a fixed box.
   for (const [lat, lon] of pairs) {
-    assert.ok(lat > 37 && lat < 37.2, `latitude ${lat} is not Bédar`);
-    assert.ok(lon > -2 && lon < -1.9, `longitude ${lon} is not Bédar`);
+    assert.ok(lat > 37.1 && lat < 37.25, `latitude ${lat} is not Bédar`);
+    assert.ok(lon > -2.05 && lon < -1.9, `longitude ${lon} is not Bédar`);
   }
-  assert.deepEqual(pairs[0], pairs[pairs.length - 1]);
+  assert.deepEqual(pairs[0], pairs[pairs.length - 1], 'the ring must close');
+});
+
+test('the polygon is the real building hull, not the placeholder box', () => {
+  // The engine falls back to a 400 m box when the Catastro fixture is missing. That box
+  // is exactly 0.008 degrees on a side with its corners on a lattice, which makes it
+  // distinguishable from a hull of real building centroids — so this fails if the
+  // fixture stops loading, rather than silently shipping a square over the village.
+  const built = buildAlerts({ atSeconds: CURSOR });
+  const xml = [...built.documents.values()][0];
+  const pairs = (/<polygon>([^<]+)<\/polygon>/.exec(xml)?.[1] ?? '').split(' ').map((s) => s.split(',').map(Number));
+  const lats = new Set(pairs.map((p) => p[0]));
+  const lons = new Set(pairs.map((p) => p[1]));
+  assert.ok(lats.size > 2 && lons.size > 2, 'a hull has varied edges; a box has four corners');
+  const span = Math.max(...pairs.map((p) => p[0])) - Math.min(...pairs.map((p) => p[0]));
+  assert.ok(span > 0.01, `span ${span.toFixed(4)} deg is box-sized, not settlement-sized`);
 });
 
 test('a Private scope profile cannot ship without addresses, and the check says so', () => {

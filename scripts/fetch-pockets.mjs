@@ -147,9 +147,12 @@ async function main() {
       }
     }
     const rings = [...seen.values()].map((b) => b.ring);
+    // gml:posList is `easting northing` pairs, so a ring point is [e, n] and the
+    // centroid must be built in the same order. Reading it as [n, e] puts the hull in
+    // the wrong hemisphere and every CAP polygon drawn from it off the coast of Africa.
     const centroids = rings.map((r) => [
-      r.reduce((t, p) => t + p[1], 0) / r.length,
       r.reduce((t, p) => t + p[0], 0) / r.length,
+      r.reduce((t, p) => t + p[1], 0) / r.length,
     ]);
     const hull = convexHull(centroids);
     out.settlements.push({

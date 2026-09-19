@@ -27,7 +27,12 @@ export function engineRouter(): Router {
   const parseAt = (raw: unknown): number | undefined => {
     if (typeof raw !== 'string' || raw === '') return undefined;
     const n = Number(raw);
-    return Number.isFinite(n) && n >= 0 ? n : undefined;
+    if (!Number.isFinite(n)) return undefined;
+    // A negative cursor is rejected rather than quietly ignored. Falling back to the
+    // default would serve the most-informed state — the end of the window — to a client
+    // that asked for a time before the fire existed, which is the opposite answer.
+    if (n < 0) throw new RangeError('at must not be negative');
+    return n;
   };
 
   // Warm the context so the first scrub is not a twelve-second stall. The cold build
@@ -62,6 +67,10 @@ export function engineRouter(): Router {
         configurations: SWEEP_CONFIGS.map((c) => ({ id: c.id, label: c.label })),
       });
     } catch (err) {
+      if (err instanceof RangeError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
       console.error('[api] /api/egress failed:', err);
       res.status(502).json({ error: 'egress solve unavailable' });
     }
@@ -119,6 +128,16 @@ export function engineRouter(): Router {
           error: `no CAP document for pocket "${pocketId}"`,
           available: [...built.documents.keys()],
         });
+        return;
+      }
+      // Refuse to serve a document that failed its own checks. A CAP file is the thing
+      // that gets broadcast; emitting one the engine has already flagged, with the
+      // failure visible only in a different endpoint's diagnostics, is how a malformed
+      // alert reaches the public.
+      const validation = built.diagnostics.emitter.validation[pocketId];
+      if (validation && !validation.ok) {
+        console.error(`[api] /api/cap refused to serve ${pocketId}:`, validation.problems);
+        res.status(502).json({ error: 'CAP document failed validation', problems: validation.problems });
         return;
       }
       // Express's res.send(string) defaults to text/html; a CAP consumer wants XML.

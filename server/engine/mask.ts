@@ -91,6 +91,23 @@ export function radiusFor(config: SweepConfig, source: string): number {
   return config.fixedRadiusM ?? SENSOR_RADIUS(source, config.radiusScale);
 }
 
+/** The largest radius any detection can get under this configuration. */
+export function maxRadiusOf(config: SweepConfig): number {
+  if (config.fixedRadiusM !== undefined) return config.fixedRadiusM;
+  const coarsest = Math.max(...Object.values(SENSOR_FOOTPRINT_M), DEFAULT_FOOTPRINT_M);
+  return coarsest * config.radiusScale;
+}
+
+/**
+ * The largest radius the index must cover — derived from the configurations, not a magic
+ * constant. An earlier version hardcoded `2000 * radiusScale`, which built four times the
+ * pairs it needed and, worse, happened to be double the true maximum, which is what was
+ * hiding a gap in the grid query (see `buildPairIndex`).
+ */
+export function maxRadiusAcross(configs: SweepConfig[]): number {
+  return Math.max(0, ...configs.map(maxRadiusOf));
+}
+
 export interface Pair {
   segmentIndex: number;
   detectionIndex: number;
@@ -102,10 +119,18 @@ const cellKey = (cx: number, cy: number): string => `${cx},${cy}`;
 /**
  * Every (segment, detection) pair closer than `maxRadiusM`, measured once.
  *
- * A uniform grid at the query radius: a segment is filed in every cell its own bbox
- * touches, and a detection reads the nine cells around it. Any segment within
- * `maxRadiusM` of the detection necessarily shares one of those nine, because
- * cellSize == maxRadiusM.
+ * A uniform grid: a segment is filed in every cell its own bbox touches, and a detection
+ * reads the nine cells around it.
+ *
+ * The cell is deliberately TWICE the query radius, so the nine cells cover a square of
+ * side six times the radius. Setting cellSize equal to the radius — which is the obvious
+ * choice — covers exactly the radius in the worst case and relies on the degrees-to-metres
+ * conversion in the index matching the WGS84 series used for measurement. It does not
+ * exactly: the two differ by about 0.08%, which is enough to push a point just across a
+ * cell boundary into a cell two away, and the 3x3 query then misses a pair that is
+ * genuinely within the radius. That reads as a road that is never cut, which is the
+ * direction that gets people killed. The cost of the larger cell is more candidates per
+ * query, paid once when the index is built.
  */
 export function buildPairIndex(
   segments: LatLon[][],
@@ -118,7 +143,7 @@ export function buildPairIndex(
   for (const s of segments) all.push(...s);
   const box = bboxOf(all);
   if (!box) return [];
-  const cellSize = maxRadiusM;
+  const cellSize = maxRadiusM * 2;
   const midLat = (box[1] + box[3]) / 2;
   const mPerDegLat = 110977;
   const mPerDegLon = Math.max(1, 111320 * Math.cos((midLat * Math.PI) / 180));

@@ -44,10 +44,15 @@ export const TEMPLATES: CapTemplate[] = [
     responseType: 'Evacuate',
     urgency: 'Immediate',
     namesRoad: true,
+    // States the fact the engine actually establishes — the route needs an unsurfaced
+    // track — rather than a claim it never checks. The previous wording ("the main road
+    // out of {pocket} is not safe") asserted a comparison against a main road that no
+    // part of the engine identifies, and on the measured route it named the same road as
+    // both the unsafe one and the one to take.
     text: {
-      es: 'La vía principal de {pocket} no es segura. Salga por {road} hacia {destination}.',
-      en: 'The main road out of {pocket} is not safe. Leave via {road} towards {destination}.',
-      ca: 'La via principal de {pocket} no és segura. Sortiu per {road} cap a {destination}.',
+      es: 'Salga de {pocket} por {road} hacia {destination}. La ruta incluye un camino sin asfaltar.',
+      en: 'Leave {pocket} via {road} towards {destination}. The route includes an unsurfaced track.',
+      ca: 'Sortiu de {pocket} per {road} cap a {destination}. La ruta inclou un camí sense asfaltar.',
     },
   },
   {
