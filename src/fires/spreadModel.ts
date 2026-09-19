@@ -17,7 +17,7 @@ import { bearingDeg, lerpRings, ringAreaKm2, ringCentroid } from './geometry';
 export interface FireCase {
   cluster: FireCluster;
   /** Observed perimeter (latest one when the provider sends several). */
-  basePerimeter: FirePerimeter;
+  basePerimeter: AnchoredPerimeter;
   /** Future projections sorted by horizonHours ascending, >= 1h. */
   steps: SpreadStep[];
   /** Highest projected horizon in hours, 0 when no steps exist. */
@@ -36,11 +36,21 @@ export interface Projection {
   validAt: string;
   areaKm2: number;
 }
+/** Perimeter with the two fields the spread model cannot work without. */
+type AnchoredPerimeter = FirePerimeter & { clusterId: string; observedAt: string };
+
+// A perimeter with no owning cluster or no observation time cannot anchor
+// time-based projections, so it is dropped here rather than carried as a guess.
+function isAnchored(p: FirePerimeter): p is AnchoredPerimeter {
+  return p.clusterId != null && p.observedAt != null;
+}
+
 export function buildFireCases(response: FiresResponse): FireCase[] {
   const clustersById = new Map(response.clusters.map((c) => [c.id, c]));
 
-  const latestPerimeterByCluster = new Map<string, FirePerimeter>();
+  const latestPerimeterByCluster = new Map<string, AnchoredPerimeter>();
   for (const p of response.perimeters) {
+    if (!isAnchored(p)) continue;
     const current = latestPerimeterByCluster.get(p.clusterId);
     if (!current || p.observedAt > current.observedAt) {
       latestPerimeterByCluster.set(p.clusterId, p);
@@ -74,7 +84,10 @@ export function buildFireCases(response: FiresResponse): FireCase[] {
       maxHorizonHours: steps.length > 0 ? steps[steps.length - 1].horizonHours : 0,
       centroid,
       driftBearingDeg,
-      areaKm2: perimeter.areaKm2 > 0 ? perimeter.areaKm2 : ringAreaKm2(perimeter.polygon),
+      areaKm2:
+        perimeter.areaKm2 != null && perimeter.areaKm2 > 0
+          ? perimeter.areaKm2
+          : ringAreaKm2(perimeter.polygon),
     });
   }
   return cases;

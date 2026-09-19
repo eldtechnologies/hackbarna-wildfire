@@ -213,6 +213,7 @@ export function normalize(
       frpMw: numberOrNull(p.fire_radiative_power),
       confidence: confidenceOf(p.confidence),
       detectedAt: firstNonBlank(p.observed_at),
+      satellite: firstNonBlank(p.source),
       clusterId: firstNonBlank(p.cluster_id == null ? null : String(p.cluster_id)),
     });
   }

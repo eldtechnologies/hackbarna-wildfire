@@ -185,6 +185,14 @@ test('a missing observed_at is null, and the key is still present', () => {
   assert.equal(out.hotspots[0].detectedAt, null);
 });
 
+test('the source satellite passes through, and a blank one is null', () => {
+  const out = run({
+    hotspots: [hotspot(), hotspot({ id: 'h2', source: '  ' })],
+  });
+  assert.equal(out.hotspots[0].satellite, 'VIIRS');
+  assert.equal(out.hotspots[1].satellite, null);
+});
+
 test('a blank observed_watermark falls back instead of surviving as ""', () => {
   // Regression: `??` does not treat '' as nullish, so the empty string won.
   const out = run({ perimeters: [perimeter({ observed_watermark: '' })] });

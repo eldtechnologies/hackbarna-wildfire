@@ -95,6 +95,8 @@ export function initHud(viewer: Viewer, root: HTMLElement): HudHandle {
   return {
     setMode(mode) {
       modeBadge.textContent = mode.toUpperCase();
+      // Live gets the cyan accent; replay keeps the default amber.
+      modeBadge.classList.toggle('hud-badge-live', mode === 'live');
     },
   };
 }

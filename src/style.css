@@ -100,6 +100,11 @@ body,
   font-size: 10px;
 }
 
+.hud-badge-live {
+  color: #4fd8e8;
+  border-color: #4fd8e8;
+}
+
 .hud-clock {
   font-variant-numeric: tabular-nums;
 }
@@ -297,6 +302,76 @@ body,
 
 .hud-layer-row input {
   accent-color: var(--amber);
+}
+
+/* Hotspot metadata panel */
+.hotspot-panel {
+  position: absolute;
+  bottom: 60px;
+  left: 52px;
+  width: 280px;
+  border: 1px solid var(--line);
+  background: rgba(10, 14, 18, 0.88);
+  padding: 10px 14px 12px;
+  /* Closed means fully inert: opacity alone would leave an invisible box
+     swallowing clicks over the FIRES list. */
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.18s ease-out,
+    transform 0.18s ease-out;
+}
+
+.hotspot-panel.open {
+  pointer-events: auto;
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.hotspot-panel-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  color: var(--amber);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+
+.hotspot-panel-close {
+  background: none;
+  border: none;
+  color: var(--dim);
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.hotspot-panel-close:hover {
+  color: var(--amber);
+}
+
+.hotspot-panel-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  line-height: 1.8;
+  font-size: 11px;
+}
+
+.hotspot-panel-label {
+  color: var(--dim);
+}
+
+.hotspot-panel-value {
+  color: var(--cyan);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 /* Keep imagery attribution visible but unobtrusive */
