@@ -1,0 +1,1244 @@
+<!doctype html><html><head><meta charset='utf-8'><title>HackBarna — Wildfire: Last Safe Departure build plan</title><style>body{font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:10.5px;line-height:1.45;max-width:940px;margin:0 auto;color:#111}
+h1{font-size:21px;margin:0 0 8px} h2{font-size:16px;border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:20px}
+h3{font-size:13px;margin-top:14px} h4{font-size:11.5px;margin-top:12px}
+table{border-collapse:collapse;width:100%;margin:8px 0;font-size:9.2px} th,td{border:1px solid #ccc;padding:3px 5px;text-align:left;vertical-align:top}
+th{background:#f2f2f2} code{background:#f4f4f4;padding:1px 3px;border-radius:3px;font-size:9.2px}
+pre{background:#f6f6f6;padding:7px;border-radius:4px;overflow:auto;font-size:8.6px} pre code{background:none}
+a{color:#0a6;text-decoration:none} blockquote{border-left:3px solid #ccc;margin-left:0;padding-left:10px;color:#444}
+hr{border:none;border-top:1px solid #eee}img{max-width:100%;height:auto;display:block;margin:10px 0;border:1px solid #eee}@page{size:A4;margin:12mm}</style></head><body><h1>HackBarna — Wildfire: Last Safe Departure build plan</h1>
+<p>As of 2026-09-18 · spike-verified 2026-09-19 (see <strong>Spike results</strong> below)</p>
+<p>HackBarna 3.0 · Norrsken House Barcelona · 19–20 September 2026 · Challenge run with Deepfire</p>
+<blockquote>
+<p><strong>This is a spike, not a study.</strong> We ran the checks below against the live API and the real data, without a formal methodology, a held-out design, or peer review. The numbers are <strong>what we saw when we ran the data</strong>. They may be wrong, and some have already been corrected or withdrawn. Treat every figure as an observation, not a validated measurement. Where a result could not be reproduced, or relies on unverified steps, it is flagged inline.</p>
+</blockquote>
+<h2>Spike results — observations from the spike (2026-09-19)</h2>
+<p>A spike ran this plan's own go/no-go tests against the live API and the real data. This is the outcome: what is feasible, what is false as written, and what is still unknown. The rest of the document is the original plan, corrected inline where the spike proved it wrong.</p>
+<p>Every experiment behind these results — method, result and figure — is recorded in <strong>Appendix A</strong> at the end.</p>
+<h3>Verified feasible</h3>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fire-spread runs in Spain</td>
+<td>ELMFIRE and ForeFire both <code>COMPLETED</code> at Los Gallardos</td>
+</tr>
+<tr>
+<td>Queue latency is not a blocker</td>
+<td>ELMFIRE point ≤32 s; 10-member × 8 h cluster ensemble ≤3 min; ForeFire ≤4 min</td>
+</tr>
+<tr>
+<td>Ensemble output</td>
+<td>10 members × 8 h = 80 features, each with <code>burn_probability</code> per hour</td>
+</tr>
+<tr>
+<td>Historical replay data exists</td>
+<td>2,660 hotspots, 9–11 Jul 2026, 7 sources; <strong>53 detections inside the 14:35–17:37 UTC evacuation window</strong></td>
+</tr>
+<tr>
+<td>Archived perimeters exist for the July fire</td>
+<td>12 snapshots; first <code>computed_at</code> 2026-07-10T00:24Z (~10 h after ignition)</td>
+</tr>
+<tr>
+<td>Road graph + cut times</td>
+<td>14,819 nodes from OSM; per-segment fire-arrival times computed</td>
+</tr>
+<tr>
+<td>Road-cut field</td>
+<td>Bédar exit road (AL-6109): first detection inside a 200 m buffer at <strong>19:38 CEST</strong></td>
+</tr>
+<tr>
+<td><strong>The road-cut test is inconclusive as a warning</strong></td>
+<td>The 19:38 trigger is a single detection and the data carries no availability timestamp, so no lead time is demonstrated. Retrospective sensitivity only — see A10</td>
+</tr>
+<tr>
+<td>Independent ground truth</td>
+<td>EFFIS burnt area <strong>5,767 ha</strong> (press ≈5,200)</td>
+</tr>
+<tr>
+<td>Wind</td>
+<td>ERA5: 22–25 km/h southerly, gusts 48–54 km/h, 38–40 °C, RH 10 % through the fire window</td>
+</tr>
+</tbody>
+</table>
+<h3>Not feasible as written</h3>
+<table>
+<thead>
+<tr>
+<th>Claim in this plan</th>
+<th>Reality</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>"Ensemble spread from a real Deepfire cluster" drives the replay</td>
+<td><strong>The simulation API cannot run a past date.</strong> Unknown fields are rejected with the accepted list; there is no <code>asOf</code>, and <code>lookbackHours</code> is capped at 168. The replay must be <strong>hotspot-driven</strong>; the ensemble belongs to the live panel only</td>
+</tr>
+<tr>
+<td><code>ensembleMembers</code> on any ignition</td>
+<td><strong>Cluster ignition only.</strong> A point ignition silently runs 1 member</td>
+</tr>
+<tr>
+<td>Ten timed runs to measure latency</td>
+<td><strong>Max 2 simulations in progress</strong> per client (<code>429 too-many-simulations</code>)</td>
+</tr>
+<tr>
+<td>"You reconstruct the Jul 2026 perimeter yourself"</td>
+<td><strong>Wrong — 12 perimeter snapshots exist</strong> for that fire</td>
+</tr>
+<tr>
+<td>Confidence band from ensemble spread (replay)</td>
+<td>Impossible for a past fire. Derive it from detection geometry: VIIRS 375 m vs MTG 1 km, and overpass gaps</td>
+</tr>
+<tr>
+<td>OSM as a values-at-risk source</td>
+<td><strong>OSM has 3 buildings within 1 km of Bédar.</strong> It cannot carry values-at-risk here</td>
+</tr>
+</tbody>
+</table>
+<h3>API constraints this plan did not know</h3>
+<ul>
+<li>Point ignition → 1 member (forced). <code>sources</code> and <code>lookbackHours</code> apply to <code>clusterId</code> only.</li>
+<li>Default seeding <strong>excludes MTG-I1</strong> (geostationary) — a cluster sim needs <code>lookbackHours</code> long enough to cover polar detections.</li>
+<li>Short durations return <code>NO_SPREAD</code> ("did not spread past minimum threshold"). Use ≥6 h.</li>
+<li>A live collection the plan omits: <strong><code>deepfire:static-heat-sources</code></strong> (false-positive mask).</li>
+<li>One fire can carry <strong>two cluster IDs</strong> — identity needs matching.</li>
+</ul>
+<h3>What the data showed that this plan does not contain</h3>
+<ul>
+<li><strong>A 40-minute MTG gap, 16:28→17:08 UTC</strong> — cloud, so no geostationary detection in that window. A detection gap is not evidence that the fire stopped.</li>
+<li><strong>Polar satellites alone are ~2.5 h later.</strong> With MTG the exit road is flagged at 19:38 CEST; without it, 00:03. The 10-minute layer is what makes the earlier time possible.</li>
+<li><strong>Deepfire's perimeter is a fast operational estimate that we refine.</strong> The final perimeter is 9,172 ha (reprojected; the raw <code>area_m2</code> field is 9,178 ha) against EFFIS's 5,767 ha reference. Fusing the two tightens the burnt-area estimate.</li>
+<li><strong><code>active</code> is a time window</strong> — 25 of 94 Iberian clusters have no NASA FIRMS detection within 10 km in 24 h. Read it as "recently seen" and confirm with a fresh detection.</li>
+<li><strong>The MTG archive is the strongest data asset.</strong> A full 2026 archive (36,815 scans, 77 GB) covers the July fire with quality masks, acquisition times and file metadata. Deepfire's 1,932 MTG observations for that fire match the source files exactly — the same lineage, not independent confirmation.</li>
+<li><strong>Wind was the physical driver</strong> — a southerly gusting 54 km/h ran the fire north into Bédar's exit road. This plan has no wind narrative.</li>
+</ul>
+<h3>Still open (not verified)</h3>
+<ul>
+<li><strong>Catastro INSPIRE building footprints — SOLVED.</strong> The blocker was the request form, not the endpoint. The KVP parameter is <strong><code>TYPENAMES</code></strong> (uppercase), the CRS must be <strong>EPSG:25830</strong>, and the bbox must be small (<strong>~500 m per side</strong>) — larger boxes return <em>"Area of extension out of limits"</em>. Verified: <strong>70 building footprints at Bédar</strong>. Tile a municipality in ~500 m boxes to collect all footprints.</li>
+<li><strong>INE padrón — SOLVED.</strong> Operation <strong>22</strong> (<em>Cifras Oficiales de Población de los Municipios Españoles: Revisión del Padrón Municipal</em>); table <code>DATOS_TABLA/2857</code> returns <strong>Bédar 2025 = 953 residents</strong> (481 M / 472 F).</li>
+<li><strong>ES-Alert second-language capability</strong> and <strong>Ley 17/2015 Art. 12.4</strong> — unverified.</li>
+<li><strong>Technosylva's actual scope</strong>, <strong>WUIVAC/PERIL</strong> details — unverified.</li>
+<li>Pending keys: <strong>AEMET</strong>, <strong>OpenCelliD</strong>, <strong>Copernicus Data Space</strong>, <strong>EUMETSAT Data Store</strong>, <strong>TypeSafe/Jev</strong>.</li>
+</ul>
+<h2>Strategic read</h2>
+<p>Pick track 4 — the values-at-risk and evacuation-workflow track.</p>
+<p>The challenge's "resources" link resolves to Deepfire's own platform. Docs at <a href="https://docs.deepfire.co/">docs.deepfire.co</a>.</p>
+<h3>Live now</h3>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>What it gives you</th>
+<th>History</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://docs.deepfire.co/api/hotspots"><code>deepfire:hotspots</code></a></td>
+<td>Points with <code>fire_radiative_power</code> (MW), <code>confidence</code>, <code>observed_at</code>, <code>source</code>, <code>country</code>, <code>cluster_id</code></td>
+<td>Since Jan 2025</td>
+</tr>
+<tr>
+<td><a href="https://docs.deepfire.co/api/clusters"><code>deepfire:clusters</code></a></td>
+<td>Candidate fires. Only <code>first_observed</code>, <code>last_observed</code>, <code>active</code>, <code>id</code>. Point geometry</td>
+<td>Since Jan 2025</td>
+</tr>
+<tr>
+<td><a href="https://docs.deepfire.co/api/satellite-perimeters"><code>deepfire:satellite-perimeters</code></a></td>
+<td>MultiPolygon snapshots with <code>area_m2</code>, <code>computed_at</code>, <code>observed_watermark</code>, <code>n_hotspots</code></td>
+<td>Since Jun 2026 only</td>
+</tr>
+<tr>
+<td><a href="https://docs.deepfire.co/api/fire-spread"><code>/v1/fire-spread/simulations</code></a></td>
+<td>ELMFIRE or ForeFire, <code>ensembleMembers</code> 1–50 (<strong>cluster ignition only</strong> — a point ignition runs 1), <code>durationHours</code> 1–24, one polygon per hour</td>
+<td>Async, poll 10s, fails at 60min. <strong>No historical date</strong> (<code>asOf</code> rejected). <strong>Max 2 concurrent</strong> per client</td>
+</tr>
+<tr>
+<td><a href="https://docs.deepfire.co/ai/connect-to-ai"><code>/mcp</code></a></td>
+<td>MCP server, no auth. Two tools: <code>deepfire_search_fires</code>, <code>deepfire_get_fire</code></td>
+<td>Live</td>
+</tr>
+</tbody>
+</table>
+<h3>Marked "coming soon"</h3>
+<p><code>values-at-risk</code> · <code>official-incidents</code> · <code>ml-detections</code></p>
+<p>Track 4's actual wording: <em>"Build an </em><em>agentic</em><em> system that identifies the infrastructure, people, and assets in danger when a fire breaks out, and helps make evacuation calls (which hospital, which school, etc.)."</em> Note <strong>"agentic"</strong> — this plan has no agent. Add one for orchestration and per-facility reasoning; keep the alert text templated.</p>
+<h3>Free headroom inside the live API</h3>
+<ul>
+<li><strong>Clusters carry no growth attribute.</strong> No area, no rate. Fusing the 1 km geostationary refresh (MTG-I1 / Meteosat-12 FCI) with 375 m VIIRS precision to estimate growth <em>rate</em> rather than position is unclaimed.</li>
+<li><strong>The perimeter layer is built for speed</strong> (<code>cumulative-multihull-v1</code> — a cumulative multi-hull over hotspots) and gives immediate, broad coverage. Fusing it with EFFIS/EMS reference outlines and fuel-aware growth tightens the burnt-area estimate.</li>
+<li><strong><code>observed_watermark</code> vs <code>computed_at</code></strong> gives a measured satellite-acquisition-to-output latency (56–164 min across the 12 July perimeters).</li>
+<li><strong>Perimeters start Jun 2026, hotspots start Jan 2025.</strong> The Jul 2026 Almería fire <strong>does</strong> have archived perimeters (12 snapshots, verified) — do not reconstruct it. Earlier events (the whole Aug 2025 season) you reconstruct yourself. Note the first Los Gallardos perimeter is <code>computed_at</code> 2026-07-10T00:24Z, ~10 h after ignition: no perimeter existed during the evacuation window.</li>
+</ul>
+<h3>Satellites over Iberia</h3>
+<p>Of the 15 sources Deepfire ingests, GOES-18/19 and Himawari-9 are irrelevant here. What matters over Spain: VIIRS ×3 (375 m, polar), Landsat 8/9 (30 m), Sentinel-3A/B SLSTR (1 km), MetOp-B/C (1.1 km), MODIS (1 km), and for temporal density MTG-I1 FCI (nominal 1 km) and Meteosat-9/10 SEVIRI (<strong>3.0 × 4.2 km</strong> over Iberia, not 3 km — see A17).</p>
+<h2>The thesis</h2>
+<p>Burned area is not where people die. The road out closes before the fire reaches the house.</p>
+<p>2025 was genuinely the record: <a href="https://joint-research-centre.ec.europa.eu/jrc-news-and-updates/2025-was-eus-most-destructive-wildfire-season-record-2026-03-31_en">7,783 fires across 25 of 27 EU member states burned 1,079,538 hectares</a>, nearly double the 2006–2024 average, with Germany, Spain, Cyprus and Slovakia at all-time records. A heatwave in the first three weeks of August triggered 22 very large fires in Portugal and Spain almost simultaneously, burning 460,585 hectares — 43% of the EU total.</p>
+<p>But the deadly fire was small.</p>
+<h3>Los Gallardos, Almería — 9 July 2026</h3>
+<table>
+<thead>
+<tr>
+<th>Fact</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Burned area</td>
+<td>~5,200 ha (about 1% of the Aug 2025 Iberian megafires)</td>
+</tr>
+<tr>
+<td>Deaths</td>
+<td>14 (reported)</td>
+</tr>
+<tr>
+<td>Evacuated</td>
+<td>&gt;1,400</td>
+</tr>
+<tr>
+<td>Reported ignition</td>
+<td>Electrical infrastructure; cause under official investigation</td>
+</tr>
+<tr>
+<td>ES-Alert sent</td>
+<td><strong>No</strong></td>
+</tr>
+</tbody>
+</table>
+<p>How they died shapes the design brief:</p>
+<ul>
+<li>Several people died in a vehicle, and others on foot, on the way out. <a href="https://www.infobae.com/espana/2026/07/10/atrapados-por-el-fuego-en-pocos-minutos-el-incendio-en-los-gallardos-almeria-sorprendio-a-las-victimas-mientras-buscaban-una-salida-en-coche-o-a-pie/">Reporting</a> describes victims caught while looking for a route that was not the planned one.</li>
+<li>During the evacuation of Bédar, the main exit road was blocked by fire, forcing evacuees to divert toward Lubrín on improvised routes in dense smoke.</li>
+<li>Beyond the village core, dwellings are scattered across the sierra, many owned by foreign residents, especially British.</li>
+<li>The regional emergencies chief said cell coverage cannot address one settlement without hitting neighbours not in danger: <a href="https://es.euronews.com/my-europe/2026/07/11/por-que-la-junta-de-andalucia-no-activo-el-sistema-es-alert-en-los-gallardos-habria-sido-p">"If we send an ES-Alert message, we send it to 6,000 people."</a> The stated priority was instructions adapted to each settlement, avoiding a general alert that might push people against emergency service orders.</li>
+<li><a href="https://www.elplural.com/autonomias/andalucia/junta-andalucia-acorralada-mar-dudas-actuacion-incendio-gallardos-almeria_396675102">Situación Operativa 1 was not declared until 19:37</a> — <strong>three hours after ignition</strong> (16:25–16:35), not after the first evacuations (~17:30). One source only: El País says 20:08. The deaths fall in <strong>21:00–22:30 CEST</strong>; the roads toward Bédar were reported cut at ~22:30.</li>
+<li>Telephony infrastructure was damaged by the fire itself, degrading comms during the response.</li>
+</ul>
+<h3>This is not an Almerían anomaly</h3>
+<p>Pedrógão Grande, Portugal, June 2017: <a href="https://en.wikipedia.org/wiki/June_2017_Portugal_wildfires">dozens died in or near their cars on the N-236</a>. Portugal's official Independent Technical Commission concluded that <a href="https://www.safecommunitiesportugal.com/pedr%C3%B3g%C3%A3o-grande-fire-report-key-findings/">an early warning could have prevented most of the deaths</a>, and that the absence of early warning "did not allow to prevent most fatalities." Reported ignition: electric discharge from power lines — the same reported cause as Los Gallardos.</p>
+<h3>What follows from first principles</h3>
+<p>Detection latency is not the binding constraint. Neither is spread modelling. The constraint is the gap between a simulation and a sent instruction — and the recurring mechanism is that the escape route can close before the fire reaches the dwelling.</p>
+<p>A values-at-risk system that only asks "which buildings fall inside the burn polygon" misses the mechanism. At Los Gallardos the road was cut first.</p>
+<h2>What to build</h2>
+<p><strong>A last-safe-departure engine that emits ready-to-send alert packages, not a map.</strong></p>
+<p>Working name: <em>Última Salida</em>. The unit of analysis is time-of-arrival, not perimeter; the output is a CAP message, not a dashboard.</p>
+<pre><code class="language-mermaid">flowchart TD
+  A[Deepfire cluster&lt;br/&gt;active, ES] --&gt; B[Ensemble spread&lt;br/&gt;20 members, 6-12h]
+  B --&gt; C[Time-of-arrival&lt;br/&gt;surface]
+  C --&gt; D[Road graph&lt;br/&gt;edge cut times]
+  C --&gt; E[Building pockets&lt;br/&gt;Catastro]
+  D --&gt; F[Last safe&lt;br/&gt;departure time]
+  E --&gt; F
+  F --&gt; G{Route survivable?}
+  G --&gt;|yes| H[Leave via route X]
+  G --&gt;|no| I[No verified action:&lt;br/&gt;operator assessment]
+  H --&gt; J[CAP 1.2 package]
+  I --&gt; J
+  J --&gt; K[ES-Alert footprint&lt;br/&gt;simulation]
+</code></pre>
+<h3>Stage by stage</h3>
+<ol>
+<li><strong>Ensemble spread — live panel only.</strong> <code>POST /v1/fire-spread/simulations</code> with <code>ensembleMembers: 20</code>, <code>durationHours: 8</code> and a <strong><code>clusterId</code></strong> (a point ignition runs 1 member). Returns hourly polygons each carrying <code>burn_probability</code> — a probabilistic time-of-arrival surface rather than one perimeter. <strong>The replay cannot use this</strong>: the API has no historical date, so the past fire is replayed from its observed hotspot timeline.</li>
+<li><strong>Road-graph survivability.</strong> Intersect the time-of-arrival surface with an OSM drive graph. For the live panel it comes from the ensemble; for the replay it is built from observed detections (first detection within a safety buffer of each segment). Every road segment gets a cut time. This is the object nobody operational computes — the spike built it: 14,819 nodes. <strong>Use a safety buffer ≥300 m</strong>; below that a router threads the gaps between detections and the result is unreliable.</li>
+<li><strong>Egress solve.</strong> Cluster building footprints into population pockets. For each pocket, walk forward in time over the graph: which exits remain reachable at hour <em>h</em>? Derive <strong>last safe departure time</strong> per pocket per route, banded from detection geometry — not from an ensemble that cannot run for a past fire. The spike computed a road-cut field for Bédar, but the <em>departure</em> time is sensitivity-bound and not demonstrated as a warning (see A10).</li>
+<li><strong>Protective action.</strong> Where the departure time has passed, or no survivable route is found, the output is <strong>not</strong> automatically shelter-in-place: failing to find a route does not show the building is survivable. The default is "no verified protective action; operator assessment required", unless shelter suitability is independently established. Couple to CAMS smoke so "shelter" is never advised into a lethal column.</li>
+<li><strong>The artifact.</strong> A CAP 1.2 alert package: geometry, <code>urgency</code>/<code>severity</code>/<code>certainty</code>, and message text in Spanish, the co-official language, and the languages implied by the municipality's padrón nationality mix.</li>
+</ol>
+<h3>Verified generation (your anti-hallucination story)</h3>
+<p>Do not let a language model write the instruction. Compose candidate sentences from pre-approved templates in code, one per instruction type and language, then select among them. Every road and place name must resolve to a real OSM feature <strong>and</strong> be model-passable at send time, or the candidate is discarded. See the TypeSafe section below for the selection and verification layer. Have this working and say so unprompted — it is the first thing anyone will probe.</p>
+<h3>The ES-Alert footprint simulation</h3>
+<p>This is the part that directly answers why the alert was withheld. Cell broadcast reaches every handset within the coverage of the activated antennas; the delimitation of the affected area is approximate and depends on the number, position and distribution of antennas (<a href="https://www.proteccioncivil.es/coordinacion/redes/ran/public-warning-system">Protección Civil</a>).</p>
+<p>Pull tower locations from OpenCelliD, approximate served footprints, and report:</p>
+<blockquote>
+<p>Polygon A alerts ~6,200 people, 1,430 of whom are in the modelled danger zone. Polygon B alerts ~2,100 and covers 1,380 of them — 96% of those at risk, 66% less over-alerting. Three pockets need a <em>different</em> instruction and are listed separately.</p>
+</blockquote>
+<p>That turns an intuition made under stress into a quantified, auditable trade-off.</p>
+<h3>The decision ledger</h3>
+<p>Log every recommendation with its evidence and timestamp. An auditable record is itself a feature: it makes the basis of each recommendation reviewable afterwards, for a decision the responsible authority takes under uncertainty.</p>
+<h3>Two things worth knowing</h3>
+<ul>
+<li><strong>ES-Alert already supports a second language</strong>, delivered per Cell Broadcast protocol to handsets configured in a non-Spanish locale. So the constraint is not technical. Our work is about the decision layer, not the delivery layer.</li>
+<li><strong>Authority sits with the CCAA 112 centres</strong> under Ley 17/2015 Art. 12.4. You are building decision support for them, never a public-facing alerting authority. Say this before you are asked.</li>
+</ul>
+<h2>TypeSafe / Jev in the pipeline</h2>
+<p><strong>Jev cannot generate text at all, by design.</strong> That is not a limitation to work around — it is the reason to use it. It forces the alert message to be <em>selected</em> from safe phrasings rather than written, which removes hallucination structurally instead of catching it after the fact.</p>
+<p>Verified against <a href="https://docs.typesafe.ai/api">the HTTP API</a> and <a href="https://docs.typesafe.ai/model-jaggedness/jev-1.13">the jev-1.13 jaggedness page</a> on 18 Sep 2026.</p>
+<h3>The API, exactly</h3>
+<pre><code class="language-http">POST https://api.typesafe.ai/v1/systemone
+Authorization: Bearer &lt;API_KEY&gt;
+Content-Type: application/json
+</code></pre>
+<p>One <code>state</code>, a map of named <code>questions</code>, one typed <code>answer</code> per question under the same keys. Three question types: <code>noul</code> (yes/no probability, no separate confidence), <code>choice</code> (option + full distribution + confidence), <code>score</code> (probability-weighted level + distribution + confidence).</p>
+<table>
+<thead>
+<tr>
+<th>Constraint</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Endpoint</td>
+<td><code>POST /v1/systemone</code>, no streaming</td>
+</tr>
+<tr>
+<td>Model</td>
+<td><code>jev-latest</code> → <code>jev-1.13.0</code></td>
+</tr>
+<tr>
+<td>Choice options</td>
+<td>1–255</td>
+</tr>
+<tr>
+<td>Score levels</td>
+<td>2–10</td>
+</tr>
+<tr>
+<td>Token budget</td>
+<td>~64k state + all questions; ~32k state + longest single question</td>
+</tr>
+<tr>
+<td>Rate limits</td>
+<td>250k tok/s, 1,200 req/min (moving without notice)</td>
+</tr>
+<tr>
+<td>Pricing</td>
+<td>$0.042 / M input tokens, output free</td>
+</tr>
+<tr>
+<td>Reported latency</td>
+<td>~70–500 ms per call</td>
+</tr>
+<tr>
+<td>Errors</td>
+<td>401, 422, 429, 529 — retry 429/529 with backoff</td>
+</tr>
+</tbody>
+</table>
+<h3>Use 1 — Select the alert sentence, do not write it</h3>
+<p>Write the safe phrasings once, in code, per instruction type and per language. Pre-approved, reviewable, finite. Then one Choice picks the right one for this pocket's situation.</p>
+<p>A successful Choice answer cannot contain a value outside your option list. That is a structural guarantee, not a measured one. For safety-critical public instructions, that property is worth more than fluency.</p>
+<pre><code class="language-json">{
+  &quot;state&quot;: { &quot;pocket&quot;: &quot;Bédar - dispersed dwellings NE&quot;,
+             &quot;egress&quot;: &quot;primary route modelled cut before earliest feasible departure&quot;,
+             &quot;alternate&quot;: &quot;secondary route open, longer&quot;,
+             &quot;smoke&quot;: &quot;heavy on alternate&quot; },
+  &quot;model&quot;: &quot;jev-latest&quot;,
+  &quot;questions&quot;: {
+    &quot;instruction&quot;: {
+      &quot;type&quot;: &quot;choice&quot;,
+      &quot;instructions&quot;: &quot;Which protective action instruction fits this pocket's situation?&quot;,
+      &quot;criteria&quot;: {
+        &quot;evacuate_primary&quot;: &quot;Primary route open and reachable in time&quot;,
+        &quot;evacuate_alternate&quot;: &quot;Primary unusable, alternate open and reachable in time&quot;,
+        &quot;shelter_if_verified&quot;: &quot;No route reachable AND shelter suitability independently established&quot;,
+        &quot;no_action&quot;: &quot;Pocket not threatened in the modelled window&quot;
+      }
+    }
+  }
+}
+</code></pre>
+<p>The geometry decides the situation. Jev only maps a described situation to a phrasing.</p>
+<h3>Use 2 — The verification gate</h3>
+<p>Batch every check into one call. Their <a href="https://docs.typesafe.ai/cookbooks/parallel_questions.md">parallel questions cookbook</a> reports 13 questions in a single request being 12.2× cheaper and 10× faster than one at a time, with identical answers.</p>
+<ul>
+<li>Does this message instruct movement toward the described fire position? (Noul)</li>
+<li>Would a reader in a hurry have to guess which of two roads is meant? (Score)</li>
+<li>Does the English carry the same urgency as the Spanish? (Noul)</li>
+<li>Is the wording proportionate to the described certainty? (Score)</li>
+</ul>
+<p>Gate on the numbers. Their <a href="https://docs.typesafe.ai/confidence">confidence guide</a> recommends three bands — act automatically, proceed with caution, do not act — with boundaries set by the stakes of each action, not one global number. Their consistency cookbooks suggest a Noul in roughly 0.3–0.7 means <em>uncertain</em>, not medium intensity, and a top Choice probability under 0.60 should escalate even when confidence reads high. For an evacuation instruction, set the bar high and route everything else to the operator with the failing check attached. That failure lands in the decision ledger, which is the point.</p>
+<h3>Use 3 — Spanish bulletins into typed state</h3>
+<p>Deepfire's <code>official-incidents</code> is not shipped, so authority statements are prose: AEMET CAP warnings, INFOCA and 112 bulletins, DGT road-closure notices. Turning <em>"la carretera AL-6111 permanece cortada"</em> into a typed observation that feeds the road graph is real semantic work.</p>
+<p>Two constraints apply. Retrieve and filter in code first and send only the fields the question needs, because accuracy falls as state fills with irrelevant material. And Jev does not treat state as hostile by default — injected or adversarially framed content can move the answer — so keep this to official sources, not open social feeds.</p>
+<h3>Further uses, ranked</h3>
+<p>Ship the first two. They change the physics of the egress solve, which is the core claim. The rest are stretch.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Use</th>
+<th>Why it earns a call</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>Evacuation-difficulty class per facility</strong></td>
+<td>Score over ordered levels — self-evacuating adults, needs transport, needs assisted transport, needs medical transport. Turns a messy multilingual name-and-tag blob into the required egress time that drives LSDT. This is the variable WUIVAC treats as a constant</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Route usability class</strong></td>
+<td>OSM says an edge exists; whether it is an evacuation route is a different question. Choice over any vehicle / passenger car / 4x4 or emergency only / not an egress route. Reweights the graph per vehicle class — a coach leaving a residencia needs a different graph than a private car</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Cluster ↔ named incident matching</strong></td>
+<td>Deepfire gives <code>cluster_id</code>; authorities say "el incendio de Bédar". Their <a href="https://docs.typesafe.ai/cookbooks/entity_alignment.md">entity-alignment cookbook</a> is this exact shape — one Score whose three levels are merge, leave unlinked, hand to a curator. No threshold to fit</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>Backtest ground truth from Spanish press</strong></td>
+<td>Which settlements were evacuated, when, which roads were reported cut. This is how you get an accuracy number instead of a claim. Time-expensive</td>
+</tr>
+</tbody>
+</table>
+<h4>Why use 1 and 2 matter most</h4>
+<p>Both address what actually killed people. Use 1 supplies the egress time that separates a campsite from a nursing home. Use 2 is the direct answer to victims fleeing down a forest track that turned out to be a dead end — <code>highway=track</code>, <code>surface=unpaved</code>, <code>noexit=yes</code> is a road in the graph and not an escape route.</p>
+<h4>Marginal</h4>
+<ul>
+<li><strong>Ignition-type screening</strong> (wildfire vs. agricultural burn vs. greenhouse). Spain has a lot of <em>quemas agrícolas</em>, so false-positive screening is real. But you have labelled hotspot history back to January 2025 — train a small supervised classifier instead. It will beat a general judgment model on a narrow, data-rich task.</li>
+<li><strong>CAP field coding.</strong> <code>urgency</code>, <code>severity</code> and <code>certainty</code> are closed enums, which fits Choice. But certainty comes from your ensemble and urgency from time-to-arrival; both are computed. Only <code>category</code> and <code>event</code> are judgment, and those are near-constant for wildfire.</li>
+</ul>
+<h4>Ruled out</h4>
+<ul>
+<li>Language selection from padrón nationality mix — a lookup, not a judgment.</li>
+<li>Multi-fire triage ranking — still mostly numeric.</li>
+<li>Anything comparing timestamps.</li>
+</ul>
+<h4>The discipline that matters more than the list</h4>
+<p>Seven plausible uses is seven network calls on a critical path in a 48-hour build, each a new way for the demo to die. Every call needs an answer to "why is a model doing this instead of code?" Expect that question about your weakest use, not your strongest. Ship two, plus the selection-and-verification layer.</p>
+<h3>Where it must not go</h3>
+<table>
+<thead>
+<tr>
+<th>Never</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Road cut times, arrival times, LSDT</td>
+<td>It cannot do arithmetic or count reliably</td>
+</tr>
+<tr>
+<td>Anything comparing timestamps</td>
+<td>Dates are read as text, not ordered values — bucket the comparison in code and pass the label</td>
+</tr>
+<tr>
+<td>Computing how much earlier one route closes</td>
+<td>Score levels are weakly calibrated numerically; threshold only</td>
+</tr>
+<tr>
+<td>Writing the message</td>
+<td>It cannot generate text</td>
+</tr>
+<tr>
+<td>Keeping two answers consistent</td>
+<td>It gives no structural-invariant guarantee; enforce in code</td>
+</tr>
+</tbody>
+</table>
+<h3>Risks, stated plainly</h3>
+<ul>
+<li><strong>Access is a waitlist.</strong> Request a key early. If it does not arrive, the pipeline runs without it — the verification gate falls back to the deterministic OSM checks alone.</li>
+<li><strong>The product is new</strong> (launched 2026-09-17). Call the HTTP endpoint directly; the JS SDK is at v0.6.0.</li>
+<li><strong>Typed output guarantees the interface, not truth.</strong> Calibration is group-level, not a per-answer promise. We use it to select and to check, not as a correctness proof.</li>
+<li><strong>Non-English performance is unverified.</strong> No language limitation appears on the published jaggedness list. Our messages are Spanish and Catalan, so test a Spanish state before relying on it, and report what we find.</li>
+<li><strong>It is optional.</strong> It is not one of the challenge's provided resources. It counts only if the gate visibly works and the rejection log is shown.</li>
+</ul>
+<h2>Tonight: three go/no-go tests</h2>
+<p>Each of these can change the plan. Finding out at hour 20 would leave too little time to adapt. Get the key first: <a href="https://app.deepfire.co/settings/api-clients">app.deepfire.co/settings/api-clients</a>.</p>
+<pre><code class="language-bash">export TOKEN=&quot;...&quot;
+export DF=&quot;https://api.deepfire.co&quot;
+</code></pre>
+<h3>Test 1 — Does fire-spread run in Spain?</h3>
+<p>The docs say a simulation returns <code>FAILED</code> when "the cluster is outside the modelled regions." The worked example in their docs is North Macedonia, so Europe is probably covered. Prove it.</p>
+<pre><code class="language-bash"># Point ignition at Los Gallardos
+curl -s -X POST &quot;$DF/v1/fire-spread/simulations&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot; -H &quot;Content-Type: application/json&quot; \
+  -d '{&quot;latitude&quot;: 37.167, &quot;longitude&quot;: -1.939, &quot;durationHours&quot;: 6}'
+
+# then poll
+curl -s -H &quot;Authorization: Bearer $TOKEN&quot; \
+  &quot;$DF/v1/fire-spread/simulations/&lt;id&gt;&quot;
+</code></pre>
+<p>Watch for <code>status</code>: <code>COMPLETED</code> / <code>NO_SPREAD</code> / <code>FAILED</code>, and read <code>errorMessage</code> if it fails.</p>
+<h3>Test 2 — ForeFire vs ELMFIRE</h3>
+<p>Deepfire defaults to <code>elmfire</code>, calibrated on US LANDFIRE fuels. ForeFire is Corsican, built for Mediterranean shrubland. Run both on the same ignition and compare.</p>
+<pre><code class="language-bash">curl -s -X POST &quot;$DF/v1/fire-spread/simulations&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot; -H &quot;Content-Type: application/json&quot; \
+  -d '{&quot;latitude&quot;: 37.167, &quot;longitude&quot;: -1.939, &quot;durationHours&quot;: 6,
+       &quot;model&quot;: &quot;forefire&quot;, &quot;ensembleMembers&quot;: 10}'
+</code></pre>
+<p>Choosing ForeFire for Almería, and being able to say why in one sentence, is a 30-second credibility win.</p>
+<h3>Test 3 — Real queue latency</h3>
+<p>Simulations can sit <code>QUEUED</code> up to 60 minutes before being marked <code>FAILED</code>. Time ten runs. If it is slow, your real-time claim needs pre-warming and your live demo needs a fallback path.</p>
+<h3>Also pull tonight (slow, do it while you sleep)</h3>
+<pre><code class="language-bash"># Historical hotspots for the Los Gallardos fire window
+curl -sG -H &quot;Authorization: Bearer $TOKEN&quot; \
+  &quot;$DF/ogc/features/v1/collections/deepfire:hotspots/items&quot; \
+  --data-urlencode &quot;bbox=-2.15,37.05,-1.75,37.35&quot; \
+  --data-urlencode &quot;filter-lang=cql2-text&quot; \
+  --data-urlencode &quot;filter=observed_at &gt;= TIMESTAMP('2026-07-09T00:00:00Z') AND observed_at &lt; TIMESTAMP('2026-07-13T00:00:00Z')&quot; \
+  --data-urlencode &quot;limit=10000&quot; \
+  --data-urlencode &quot;f=application/geo+json&quot; &gt; gallardos_hotspots.geojson
+
+# Current active clusters over Iberia (for the live panel)
+curl -sG -H &quot;Authorization: Bearer $TOKEN&quot; \
+  &quot;$DF/ogc/features/v1/collections/deepfire:clusters/items&quot; \
+  --data-urlencode &quot;bbox=-10,36,4,44&quot; \
+  --data-urlencode &quot;filter-lang=cql2-text&quot; \
+  --data-urlencode &quot;filter=active = true&quot; \
+  --data-urlencode &quot;f=application/geo+json&quot;
+</code></pre>
+<p><strong>Request a TypeSafe API key tonight</strong> — access is a waitlist and it will not arrive on demand tomorrow. If it does not come through, the verification gate falls back to deterministic OSM checks and nothing else in the pipeline changes.</p>
+<p>Also: Catastro INSPIRE buildings for Los Gallardos, Bédar, Lubrín and Turre (WFS, tiled in ~500 m boxes — see A13), an OSM extract for the same bbox, and an AEMET OpenData key (free, by email).</p>
+<p><strong>Building footprints are one blocker; the evacuation dataset is the bigger one.</strong> Catastro <strong>now answers</strong> once the request form is right (see A13), but OSM carries only <strong>3 buildings within 1 km of Bédar</strong>. But even with footprints, an evacuation solve still needs occupancy, vehicle demand, departure delays, shelter capacity, a directed road graph, road capacities and usable destinations. None of that is in hand. See A13.</p>
+<h3>Fallback if any test fails</h3>
+<p>Elliptical Rothermel propagation of your own: ESA WorldCover 10 m or CORINE as fuel proxy, Copernicus DEM GLO-30 for slope, AEMET hourly wind. Half a day of work. It de-risks everything downstream and it is worth building the interface for it even if Deepfire's model works, so the demo cannot die on stage.</p>
+<h2>Hour-by-hour</h2>
+<p>The rule: a working end-to-end path by hour 12, then improve one stage at a time. Never leave the pipeline broken overnight.</p>
+<table>
+<thead>
+<tr>
+<th>Window</th>
+<th>Do</th>
+<th>Done means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tonight</td>
+<td>API key, three tests, bulk data pulls</td>
+<td>You know if the spread model works in Spain</td>
+</tr>
+<tr>
+<td>H0–2</td>
+<td>Repo, data loaded locally, bbox fixed to one region</td>
+<td>No network dependency for the replay path</td>
+</tr>
+<tr>
+<td>H2–5</td>
+<td>Ensemble → time-of-arrival raster</td>
+<td>You can render "fire here at hour h, p=0.7"</td>
+</tr>
+<tr>
+<td>H5–9</td>
+<td>OSM graph, edge cut times, egress solve</td>
+<td>One pocket shows a last safe departure time</td>
+</tr>
+<tr>
+<td>H9–12</td>
+<td><strong>End-to-end spike</strong>: hotspot → road cut → one CAP file</td>
+<td>The minimal path works end to end. Capture a snapshot</td>
+</tr>
+<tr>
+<td>H12–16</td>
+<td>Sleep in shifts. Do not skip this</td>
+<td>Somebody is coherent at the end</td>
+</tr>
+<tr>
+<td>H16–20</td>
+<td>Catastro pockets, padrón languages, message generation + verification loop</td>
+<td>Messages name real, passable roads</td>
+</tr>
+<tr>
+<td>H20–26</td>
+<td>OpenCelliD footprint simulation, precision/recall numbers</td>
+<td>The "6,200 vs 2,100" slide exists</td>
+</tr>
+<tr>
+<td>H26–32</td>
+<td>Replay UI with a clock. Backtest against the real Bédar timeline</td>
+<td>The falsification test has an answer</td>
+</tr>
+<tr>
+<td>H32–38</td>
+<td>Live panel on a current Iberian cluster. Decision ledger</td>
+<td>Two panels both work</td>
+</tr>
+<tr>
+<td>H38–44</td>
+<td>Freeze. Rehearse the demo four times, timed</td>
+<td>No feature lands after the freeze</td>
+</tr>
+<tr>
+<td>H44–48</td>
+<td>Buffer for the thing that breaks</td>
+<td>Something always breaks</td>
+</tr>
+</tbody>
+</table>
+<h3>Rules that matter more than the schedule</h3>
+<ul>
+<li><strong>Freeze at H38.</strong> A demo that runs beats a feature that half-works. Every team that loses does so by shipping at hour 47.</li>
+<li><strong>Record a video of the working demo at H32.</strong> If the live path dies on stage, you play it. Say you are playing it.</li>
+<li><strong>One region only.</strong> Almería for the replay, wherever is burning for the live panel. Do not generalise.</li>
+<li><strong>Cache everything.</strong> Deepfire queue latency is outside your control. Pre-run the replay simulations and store the GeoJSON on disk.</li>
+<li><strong>Two people on the pipeline, one on the demo.</strong> The demo is a deliverable, not a wrapper. "Demo quality" is an explicit criterion.</li>
+</ul>
+<h2>Scope tiers</h2>
+<p>Build strictly downward. Nothing from a lower tier starts until the tier above works end to end.</p>
+<h3>Must have — without these there is no submission</h3>
+<ol>
+<li>~~Ensemble spread from a real Deepfire cluster, hourly polygons, ≥10 members.~~ <strong>Shown to run</strong> — 10 × 8 h with <code>burn_probability</code>, but only on an available active <code>clusterId</code> (the spike's run used a cluster near Don Benito, not Los Gallardos).</li>
+<li>~~OSM road graph with per-edge cut times.~~ <strong>Verified</strong> — 14,819-node graph, per-segment cut times.</li>
+<li>~~One last safe departure time for one real population pocket, with a confidence band.~~ <strong>Partially shown</strong> — the Bédar road-cut field is computed; the <em>departure</em> time is sensitivity-bound and not demonstrated as a warning (see A10).</li>
+<li>A valid CAP 1.2 XML file as output, Spanish + English. <em>(not started)</em></li>
+<li>The Los Gallardos replay with a clock. <em>(data verified; build pending)</em></li>
+</ol>
+<h3>Should have — the differentiators</h3>
+<ol start="6">
+<li>Evacuation-difficulty class per facility, feeding required egress time into LSDT.</li>
+<li>Route usability class, so the graph knows which edges are actually escape routes.</li>
+<li>ES-Alert footprint simulation with over-alerting numbers.</li>
+<li>Catastro building pockets rather than hand-drawn ones.</li>
+<li>Language selection from padrón nationality mix.</li>
+<li>Selection-and-verification layer for the alert text.</li>
+<li>Live panel on a currently active Iberian fire.</li>
+</ol>
+<h3>Nice to have — only if you are ahead</h3>
+<ol start="13">
+<li>Decision ledger UI.</li>
+<li>CAMS smoke coupling for shelter-in-place viability.</li>
+<li>Cluster ↔ named official incident matching.</li>
+<li>Backtest ground truth extracted from Spanish press and bulletins.</li>
+<li>Growth-rate estimation from MTG-I1 + VIIRS fusion.</li>
+<li>Re-entry / all-clear timing.</li>
+<li>Enriched perimeters: fuse Deepfire's <code>cumulative-multihull-v1</code> estimate with EFFIS/EMS reference outlines and fuel-aware growth. <strong>Proposed, not implemented</strong> — the spike did not build or test a fusion method.</li>
+</ol>
+<h3>Cut list — drop in this order</h3>
+<p>Drop from 19 downward. Items 6 and 7 come last because they change what the egress model computes, not how it looks — everything above them is presentation or coverage.</p>
+<p>If you are cutting into the must-haves, you have the wrong project; fall back to the replay alone, presented honestly as a retrospective analysis. That still demonstrates the insight and still beats a dashboard.</p>
+<h3>Things that look essential and are not</h3>
+<ul>
+<li><strong>A pretty map.</strong> One clear map beats an interactive one. Spend the time on the computation, not the interaction.</li>
+<li><strong>Authentication, multi-user, persistence.</strong> It is a 48-hour prototype and everyone knows it.</li>
+<li><strong>Covering all of Spain.</strong> One region, done properly, is more defensible than broad but shallow coverage.</li>
+<li><strong>Your own detection model.</strong> The platform already fuses many satellites. A narrower, well-tested scope is worth more here.</li>
+</ul>
+<h2>Data sources</h2>
+<p>The first four are the build. The rest are differentiation.</p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>For</th>
+<th>Access</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://docs.deepfire.co/">Deepfire API</a></td>
+<td>Hotspots, clusters, ensemble spread</td>
+<td>Bearer token, free key</td>
+</tr>
+<tr>
+<td>OpenStreetMap</td>
+<td>Road graph incl. <code>highway=track</code>, dead-end topology</td>
+<td>OSMnx / Geofabrik extract</td>
+</tr>
+<tr>
+<td><a href="https://www.catastro.hacienda.gob.es/webinspire/index.html">Catastro INSPIRE</a></td>
+<td>Building footprints + <code>currentUse</code>, per municipality</td>
+<td>ATOM / WFS, GML, ETRS89, free</td>
+</tr>
+<tr>
+<td><a href="https://opendata.aemet.es/centrodedescargas/inicio">AEMET OpenData</a></td>
+<td>Hourly wind, gusts, station obs, fire-risk maps, CAP warnings</td>
+<td>Free key by email; MCP server <code>@rldona/aemet-mcp</code></td>
+</tr>
+<tr>
+<td>OpenCelliD</td>
+<td>Cell tower positions → ES-Alert footprint simulation</td>
+<td>Free API key, CC-BY-SA</td>
+</tr>
+<tr>
+<td>INE padrón</td>
+<td>Population and <strong>foreign nationality by municipality</strong> → alert languages</td>
+<td>Free download</td>
+</tr>
+<tr>
+<td>CAMS</td>
+<td>Smoke / PM2.5 forecast → shelter-in-place viability</td>
+<td>Copernicus ADS</td>
+</tr>
+<tr>
+<td>Copernicus DEM GLO-30</td>
+<td>Slope for the fallback propagation model</td>
+<td>Free</td>
+</tr>
+<tr>
+<td>ESA WorldCover 10 m / CORINE</td>
+<td>Fuel proxy for the fallback model</td>
+<td>Free</td>
+</tr>
+<tr>
+<td>EFFIS / GWIS</td>
+<td>FWI + <code>fuel_map</code> + <code>modis.ba.poly</code> burnt area (WMS verified; <strong>WFS not served</strong>)</td>
+<td>Free, no key</td>
+</tr>
+<tr>
+<td>NASA FIRMS</td>
+<td>VIIRS 375 m + MODIS active fire, 24 h CSV</td>
+<td>Free; <strong>24 h CSVs need no key</strong> (MAP_KEY only for the area API)</td>
+</tr>
+<tr>
+<td>Open-Meteo</td>
+<td>Hourly wind (ERA5) + air quality (CAMS-backed)</td>
+<td>Free, no key</td>
+</tr>
+<tr>
+<td>EUMETView</td>
+<td>Sentinel-3 SLSTR FRP, MSG fire, RGB imagery</td>
+<td>Free WMS, no key</td>
+</tr>
+<tr>
+<td>LSA SAF (IPMA)</td>
+<td>MTG products: MTFRPPixel (used), MTLST, MTDAL</td>
+<td>Free, no key</td>
+</tr>
+<tr>
+<td>Copernicus DEM GLO-30 / ESA WorldCover</td>
+<td>Slope + fuel, AWS Open Data</td>
+<td>Free, no key</td>
+</tr>
+<tr>
+<td>Copernicus EMS Rapid Mapping</td>
+<td>Official delineation vectors for major fires — ground truth</td>
+<td>Free</td>
+</tr>
+<tr>
+<td>REGA</td>
+<td>Livestock holdings — people die returning for animals</td>
+<td>Public registry</td>
+</tr>
+<tr>
+<td>OSM <code>power=minor_line</code></td>
+<td>Ignition sources; the PSPS bridge</td>
+<td>OSM</td>
+</tr>
+<tr>
+<td>TypeSafe / Jev</td>
+<td>Selecting alert phrasings; verification gate; Spanish bulletins into typed state</td>
+<td>POST /v1/systemone, Bearer key — waitlist, request tonight</td>
+</tr>
+</tbody>
+</table>
+<h3>Notes on the ones with traps</h3>
+<ul>
+<li><strong>Catastro:</strong> Navarra and the Basque Country run separate cadastres with thinner schemas. Irrelevant for an Andalusian or Catalan demo, but do not promise national coverage.</li>
+<li><strong>INE mobile-phone mobility data</strong> looks perfect for de-facto population and is not. Areas have ≥5,000 residents (too coarse for a village pocket), foreign roaming phones are excluded (exactly the tourists and some expats), and it is experimental and historical, not live. Use it as a <strong>seasonal multiplier</strong> only, and say so.</li>
+<li><strong>OpenCelliD</strong> is crowd-sourced and incomplete in rural Spain. Your footprint estimate is an approximation — present it as one. The argument survives: even an approximate footprint beats the intuition it replaces.</li>
+<li><strong>OSM tracks</strong> in rural Almería are decent but variable. The roads people die on are often the ones missing from the dataset you would reach for first. That is worth saying out loud as a limitation rather than letting someone else find it.</li>
+</ul>
+<h3>The creative pick</h3>
+<p>If you do one non-obvious thing, make it <strong>OpenCelliD</strong>. It turns the alert's own reach into a computed number: who each polygon would actually reach, and who it would over-alert.</p>
+<h2>The demo</h2>
+<p>Two panels, no dashboard. Four minutes. Rehearse it timed, four times.</p>
+<h3>Panel 1 — Replay (retrospective)</h3>
+<p>9 July 2026, Los Gallardos. Real Deepfire hotspots, a clock, scrub forward.</p>
+<ol>
+<li>16:48 — first detections appear.</li>
+<li>The live path would run an ensemble; the replay cannot — the API has no historical date — so the surface is built from the observed detections as they appear.</li>
+<li>The moment the model shows the Bédar exit road closing, the system emits the alert package: polygon, footprint estimate, Spanish and English text, per-pocket instructions.</li>
+<li>Show the timestamp against when vehicles were actually trapped.</li>
+<li>One line: no ES-Alert was sent that day.</li>
+</ol>
+<h3>Panel 2 — Live (proves real time)</h3>
+<p><a href="https://joint-research-centre.ec.europa.eu/scientific-activities/natural-and-man-made-hazards/forest-fires/current-wildfire-situation-europe_en">EFFIS forecasts very extreme fire danger across most of France, the Pyrenees and northwestern Morocco for 17–23 September 2026</a>, with extreme to very high danger over much of the Iberian Peninsula. Europe is at 668,035 ha year-to-date against a 20-year average of 346,567 ha.</p>
+<p>Verified 2026-09-19: <strong>94 active clusters over Iberia</strong>, several on the Spanish mainland. Query one live, produce a real alert package on stage, and show the measured latency from <code>observed_watermark</code> to output — <strong>56 min – 2 h 44 min</strong> across the 12 July perimeters.</p>
+<p>Have the recorded fallback ready. If you play it, say you are playing it.</p>
+<h3>Presenting a fatal fire with restraint</h3>
+<p>This matters more than the code. Fourteen people died ten weeks ago and the investigation is open. Spanish attendees will be in the room.</p>
+<p><strong>Do:</strong> present it as "here is what the coordinator could have had on screen." Acknowledge that hindsight is cheap and the inquiry is ongoing. Frame the ES-Alert decision as genuinely hard — public reporting indicates differentiated instructions per settlement were an important consideration — and present the system as a way to make that trade-off computable, not as a judgement on the decision.</p>
+<p><strong>Do not:</strong> show victim details or imagery, name individuals, assert cause, or imply the Junta was negligent. Do not say "we would have saved them."</p>
+<p>Done with restraint this is the most powerful demo at the event. Done wrong it alienates the room. The difference is two or three sentences of framing, so write them in advance rather than improvising.</p>
+<h2>Risks and counterarguments</h2>
+<p>Four places this could be wrong. Know them before anyone else does.</p>
+<h3>Technosylva already does much of this</h3>
+<p>They are Spanish (León), used operationally in Spain by the UME and several regions, and they advertise identifying population at risk, evacuation planning support, sub-30-second simulations, deterministic and probabilistic runs, and <a href="https://technosylva.com/products/overview/">decisions around near-term mitigation, resourcing and placement, and PSPS events</a>. They also compute evacuation time zones, or "firesheds."</p>
+<p>Be precise about the gap rather than claiming novelty you do not have:</p>
+<ul>
+<li>They sell a common operating picture to agencies and utilities. They do not produce the citizen-facing instruction.</li>
+<li>Firesheds buffer the <strong>asset</strong>. They do not appear to model <strong>egress route survivability over time</strong>.</li>
+<li>They cannot send the message. Our work sits between the modelled picture and the instruction.</li>
+</ul>
+<h3>The trigger-buffer concept is 20 years old</h3>
+<p>Cova, Dennison et al. published <a href="https://ui.adsabs.harvard.edu/abs/2005TrGIS...9..603C/abstract">trigger points computed from wind, topography, fuel and estimated evacuation time</a>, where evacuation is recommended once a fire crosses the buffer edge. Formalised as WUIVAC, extended by PERIL. Cite it; do not pretend you invented it.</p>
+<p>Your three actual contributions:</p>
+<ol>
+<li>WUIVAC runs pre-fire what-if scenarios. Yours runs on live satellite-observed position.</li>
+<li>WUIVAC treats evacuation time as a fixed constant. Yours derives it from route survivability.</li>
+<li>WUIVAC buffers the asset. Yours operates on the road network.</li>
+</ol>
+<h3>The over-alerting trade-off has no right answer</h3>
+<p>Many warning researchers argue you alert broadly and early, because the cost of an unnecessary alert sits far below the cost of a death. There is also evidence that frequent alerts cause desensitisation. We do not take a side.</p>
+<p>Present the trade-off as explicit and quantified. "Here is what each polygon costs you" is more defensible under questioning than "we optimised for fewer alerts."</p>
+<h3>The falsification test — run it first</h3>
+<p>If a road-aware egress model, run on the real Deepfire hotspots from 9 July 2026, produces a cut time for the Bédar exit <strong>later</strong> than when vehicles were actually trapped, the thesis fails.</p>
+<p>Run that early, not at hour 30. If it does not hold, pivot to trigger buffers around fixed vulnerable facilities — schools, residencias, campsites — which is weaker but still worth building.</p>
+<p><strong>Run 2026-09-19 — inconclusive as a warning.</strong> The Bédar exit road is the <strong>AL-6109</strong> ("Carretera de Los Gallardos a Bédar"). The first detection inside a 200 m buffer of the road is at <strong>19:38 CEST</strong>, and the first deaths are reported at ~21:00. But that trigger is a single MTG detection, and the data carries <strong>no availability timestamp</strong> — we know when it was observed, not when it could have been acted on. So this is a <strong>retrospective sensitivity result, not a demonstrated lead time</strong>. It is also fragile: at a 100 m buffer the first in-buffer detection is 21:18, and with polar data only it is 00:03. A real product must cut on the burnt area, not a point radius.</p>
+<h3>Technical risks</h3>
+<table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Spread model excludes Spain</td>
+<td><strong>Cleared</strong> — both models run in Spain</td>
+</tr>
+<tr>
+<td>Queue latency kills the live demo</td>
+<td><strong>Cleared</strong> — ≤3 min for a 10 × 8 h ensemble. But <strong>max 2 concurrent</strong>, so pre-warm through a queue</td>
+</tr>
+<tr>
+<td>OSM missing the actual escape tracks</td>
+<td>State it as a limitation; it is also a finding</td>
+</tr>
+<tr>
+<td>OSM missing the actual buildings</td>
+<td><strong>Real</strong> — 3 buildings within 1 km of Bédar. Catastro is not optional</td>
+</tr>
+<tr>
+<td>Ensemble too slow at 20 members</td>
+<td>Drop to 10; the shape of the distribution is what matters</td>
+</tr>
+<tr>
+<td>A model invents a road name</td>
+<td>No free-form generation — the sentence is selected from templates in code, then checked against OSM</td>
+</tr>
+<tr>
+<td>Deepfire's perimeter runs large vs EFFIS (+59 %)</td>
+<td>Expected for a fast estimate. Fuse with EFFIS/EMS before it feeds values-at-risk</td>
+</tr>
+</tbody>
+</table>
+<h3>Ethical boundary</h3>
+<p>This is decision support for authorities, never public-facing. Only CCAA 112 centres can issue ES-Alert. Deepfire's own docs state their perimeters are estimates, "not official surveyed fire boundaries and should not be treated as authoritative for safety or legal purposes." Put that on a slide yourself. Saying it before you are asked reads as operational maturity.</p>
+<h2>Pitch language</h2>
+<h3>The opening, roughly</h3>
+<blockquote>
+<p>Spain's record year burned a million hectares. The fire that killed the most people this year burned five thousand. Fourteen died at Los Gallardos in July — in a car, and on foot, on roads the fire reached first. No mobile alert was sent; public reporting points to the difficulty of one broadcast carrying different instructions to different settlements.</p>
+<p>Detection has improved enormously — the platform fuses many satellites. The harder gap is between an observation and a usable instruction. We built a prototype that explores how to narrow it.</p>
+</blockquote>
+<h3>Map the criteria explicitly</h3>
+<table>
+<thead>
+<tr>
+<th>Criterion</th>
+<th>Your answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Helps first responders do their job</td>
+<td>Produces the artifact a 112 coordinator actually needs: a polygon, a message, a per-pocket instruction</td>
+</tr>
+<tr>
+<td>Technical implementation and accuracy</td>
+<td>Backtested against a real fire with real historical hotspots; measured latency, not claimed</td>
+</tr>
+<tr>
+<td>Creative use of datasets and APIs</td>
+<td>Cluster ensembles with <code>burn_probability</code>, ForeFire over ELMFIRE for Mediterranean fuels, EFFIS burnt-area ground truth, cell towers to model the alert's own footprint</td>
+</tr>
+<tr>
+<td>Demo quality</td>
+<td>Replay with a clock plus a live fire, four minutes, rehearsed</td>
+</tr>
+</tbody>
+</table>
+<h3>Q&amp;A to have ready</h3>
+<ul>
+<li><strong>"How is this different from Technosylva?"</strong> They model fire and show agencies a picture. We produce the message, model who actually receives it, and compute which exits close when. Different layer.</li>
+<li><strong>"Isn't the LLM going to hallucinate a road?"</strong> Every road name is resolved against OSM and checked as passable in the model at send time, or the sentence is rejected. Here is the rejection log.</li>
+<li><strong>"You are second-guessing a real emergency decision."</strong> We are not. Public reporting indicates different settlements needed different instructions and one broadcast could not carry them. We make that trade-off computable instead of a judgement call under stress.</li>
+<li><strong>"What is your accuracy?"</strong> Give the backtest number and its confidence band, and say where the model is weak. Do not give a single number with no error bar.</li>
+<li><strong>"Could this be deployed?"</strong> Not as-is, and not by us. Only CCAA 112 centres can issue ES-Alert. CAP output is the integration point, which is why we emit CAP rather than a UI.</li>
+</ul>
+<h3>Words to avoid</h3>
+<p>Dashboard. Platform. Real-time insights. Anything someone who builds wildfire software hears ten times a day. Say what it computes and what comes out of it.</p>
+<h3>The one sentence to land</h3>
+<p>The fire reached the road before it reached the houses, and nothing in the stack tracked that. That is the gap we set out to close.</p>
+<h2>Appendix A — Experiment log and figures</h2>
+<p>This appendix records every experiment the spike ran: what we did, the method, the result, and the figure. It is <strong>not a scientific study</strong> — no formal design, no replication, no peer review. It is what we saw when we ran the data, and some entries below are flagged as wrong, corrected, or withdrawn. All times are CEST (UTC+2) unless marked UTC.</p>
+<h3>A0. Method and data inventory</h3>
+<p>We pulled the data below, then ran the experiments that follow. The figures are in <code>img/</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th>What we got</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Deepfire hotspots</td>
+<td><strong>2,660</strong> detections, 9–11 Jul 2026, 7 sources</td>
+<td><code>deepfire:hotspots</code></td>
+</tr>
+<tr>
+<td>Deepfire satellite perimeters</td>
+<td><strong>12</strong> snapshots; first <code>computed_at</code> 2026-07-10T00:24Z</td>
+<td><code>deepfire:satellite-perimeters</code></td>
+</tr>
+<tr>
+<td>Deepfire active clusters</td>
+<td><strong>94</strong> over Iberia (19 Sep 2026)</td>
+<td><code>deepfire:clusters</code></td>
+</tr>
+<tr>
+<td>NASA FIRMS 24 h CSVs</td>
+<td>4 sensors: VIIRS SNPP / NOAA-20 / NOAA-21, MODIS</td>
+<td>NASA FIRMS</td>
+</tr>
+<tr>
+<td>MTG-I1 fire product</td>
+<td>LSA-509 MTFRPPIXEL. A <strong>full 2026 archive</strong> (36,815 scans, 73,630 files, 77 GB, Jan–Sep 2026) covers the July fire, with quality masks, per-pixel acquisition times and file metadata</td>
+<td>LSA SAF (IPMA)</td>
+</tr>
+<tr>
+<td>EFFIS burnt area</td>
+<td>vectorised from the <code>modis.ba.poly.season</code> WMS layer</td>
+<td>EFFIS/GWIS</td>
+</tr>
+<tr>
+<td>Terrain</td>
+<td>Copernicus DEM GLO-30 (30 m)</td>
+<td>AWS open data</td>
+</tr>
+<tr>
+<td>Fuel</td>
+<td>ESA WorldCover 2021 v200 (10 m)</td>
+<td>AWS open data</td>
+</tr>
+<tr>
+<td>Roads</td>
+<td>OSM drive graph, <strong>14,819</strong> nodes after 30 m quantisation</td>
+<td>OSM / Overpass</td>
+</tr>
+<tr>
+<td>Buildings</td>
+<td>OSM building footprints in the bbox</td>
+<td>OSM / Overpass</td>
+</tr>
+<tr>
+<td>Wind / weather</td>
+<td>ERA5 hourly, via Open-Meteo</td>
+<td>Open-Meteo</td>
+</tr>
+</tbody>
+</table>
+<p>Two sources we could not use in the spike: <strong>Catastro</strong> (see A13) and <strong>Copernicus EMS Rapid Mapping</strong> (no activation matched the query).</p>
+<h3>A1. The observation timeline</h3>
+<p><strong>What we did.</strong> Plotted every detection by position, time and FRP; binned detections per hour; built hourly maps across the fire window.</p>
+<p><strong>Result.</strong> 2,660 detections. First at <strong>09 Jul 16:48 CEST</strong> (14:48 UTC); last at <strong>11 Jul 12:08 CEST</strong>. Source split: <strong>MTG 1,932</strong>, all polar sensors <strong>728</strong>. <strong>53 detections fall inside the 14:35–17:37 UTC evacuation window</strong> — the fire was observed during the evacuation period.</p>
+<p><img alt="01 — All hotspot detections, colour = time, size = fire radiative power; villages marked." src="img/01_hotspots_timeline.png" /></p>
+<p><img alt="02 — Detections per hour, stacked by source, with the evacuation window marked." src="img/02_detection_cadence.png" /></p>
+<p><img alt="03 — Hourly small multiples, 9 Jul 16:00 → 10 Jul 04:00 CEST: the fire front walking north into Bédar." src="img/03_hotspots_hourly_grid.png" /></p>
+<h3>A2. Source mix and radiative power</h3>
+<p><strong>What we did.</strong> Separated detections by sensor; plotted FRP against time per source.</p>
+<p><strong>Result.</strong> The geostationary layer (MTG-I1 FDIR, nominal 1 km, 10-minute scans) carries the temporal density. The 375 m polar layer (VIIRS) carries the positional precision. Neither alone is enough — see A6 and A10.</p>
+<p><img alt="06 — Per-source panels: positions, time colour, statistics." src="img/06_source_breakdown.png" /></p>
+<p><img alt="07 — Fire radiative power against time per source, log scale, 30-minute median." src="img/07_frp_timeseries.png" /></p>
+<h3>A3. The archived perimeters</h3>
+<p><strong>What we did.</strong> Overlaid the 12 archived perimeter snapshots and compared the final one to the hotspot cloud and to EFFIS.</p>
+<p><strong>Result.</strong> The first perimeter is dated <strong>2026-07-10T00:24Z</strong>, about <strong>10 h after ignition</strong>. <strong>No perimeter existed during the evacuation window</strong> — the observation that kills any "just use the perimeter" design.</p>
+<p><img alt="04 — Perimeter snapshots overlaid, colour = computed_at, area annotated." src="img/04_perimeters_evolution.png" /></p>
+<p><img alt="05 — Final perimeter against all hotspots; evacuation-window detections highlighted." src="img/05_hotspots_vs_perimeters.png" /></p>
+<h3>A4. Fire-spread simulation — can it run in Spain?</h3>
+<p><strong>What we did.</strong> Ran simulations through Deepfire: a point ELMFIRE ignition and a point ForeFire ignition at Los Gallardos, and a 10-member × 8 h <strong>cluster</strong> ensemble. The ensemble is a <strong>different ignition</strong> — the API simulates active clusters, so it ran on a cluster near Don Benito (Badajoz), ~400 km away. All runs used <strong>current (September) weather</strong>, because the API cannot run a historical date.</p>
+<p><strong>Result.</strong> All runs reached <code>COMPLETED</code>. Latency: point ≤32 s; the 10 × 8 h ensemble ≤3 min. So the "spread model excludes Spain" risk is <strong>cleared</strong>, and latency is not the blocker.</p>
+<p><strong>Constraints found.</strong> <code>ensembleMembers</code> needs a <code>clusterId</code> (a point ignition runs 1 member). Max <strong>2 simulations in progress</strong> per client. Short durations return <code>NO_SPREAD</code> — use ≥6 h. The API has <strong>no historical date</strong>, so a past fire cannot be re-simulated.</p>
+<p><img alt="08 — Fire-spread runs: (a) point ELMFIRE and (b) point ForeFire at Los Gallardos; (c) a 10-member cluster ensemble on a different fire (Don Benito, Badajoz), September weather." src="img/08_simulation_spread.png" /></p>
+<p><strong>Decision.</strong> We do <strong>not</strong> build the thesis on the simulation layer. See A14 — the professional model's own validation puts the ceiling on this class of model. The simulation is a supporting input, not the accuracy story.</p>
+<h3>A5. Active clusters over Iberia</h3>
+<p><strong>What we did.</strong> Pulled all <code>active = true</code> clusters over Iberia and checked each against FIRMS.</p>
+<p><strong>Result.</strong> <strong>94 active clusters.</strong> Of these, <strong>25 have no NASA FIRMS detection within 10 km in 24 h</strong> — <code>active</code> is a time window, not a live state. This is the live-panel dataset, and the caveat to state up front.</p>
+<p><img alt="09 — 94 active fire clusters on the Iberian Peninsula, 19 September 2026." src="img/09_active_clusters_iberia.png" /></p>
+<h3>A6. The MTG 10-minute layer</h3>
+<p><strong>What we did.</strong> Read the raw MTG-I1 FCI fire product (LSA-509 MTFRPPIXEL), rendered it three ways, and compared Iberia against Deepfire's clusters.</p>
+<p><strong>Result.</strong> ~2,296 pixels flagged globally. The dense cluster over Africa is <strong>agricultural burning, not wildfire</strong> — the reason fire services filter by region and confidence. Over Iberia the product is sparse but decisive at 10-minute cadence.</p>
+<p><strong>Resolution and timeliness.</strong> Nominal resolution is <strong>1 km</strong> at the sub-satellite point (Iberian detections span 1.34–1.59 km² each), not 2 km. Scans are every <strong>10 minutes</strong>, and the provider states typical delivery of around <strong>20 minutes</strong>, up to 45 — a 10-minute scan cadence does not mean a 10-minute alert. Measured from the archive's own file-creation timestamps (25,348 headers), the median is <strong>~17 minutes</strong> (typical 15–19, p95 20), so the provider's figure is the conservative one. The 2026 archive also covers the whole fire history, not one scan.</p>
+<p><img alt="10 — MTG-I1 FCI active-fire pixels, whole disk. Colour and size = FRP (MW)." src="img/10_mtg_fdir_disk.png" /></p>
+<p><img alt="11 — MTG-I1 fire pixels over Iberia compared with Deepfire clusters." src="img/11_mtg_fdir_iberia_vs_deepfire.png" /></p>
+<p><img alt="12 — The African burning belt, labelled: Zambia, Zimbabwe, Mozambique, Malawi, Angola, Madagascar." src="img/12_mtg_africa_labeled.png" /></p>
+<p><img alt="13 — The African belt over an OpenStreetMap basemap." src="img/13_mtg_osm_africa.png" /></p>
+<p><img alt="14 — Iberia over an OpenStreetMap basemap." src="img/14_mtg_osm_iberia.png" /></p>
+<h3>A7. FIRMS × Deepfire × MTG cross-check</h3>
+<p><strong>What we did.</strong> Loaded all four FIRMS 24 h CSVs for Iberia, then measured each Deepfire cluster's distance to the nearest FIRMS detection.</p>
+<p><strong>Result.</strong> The two layers agree: Deepfire's clusters sit on the same polar detections that FIRMS reports raw. That consistency is a good sign — the fused layer is stable — and the geostationary (MTG) layer is where we add the most.</p>
+<p><img alt="16 — Three fire sources over Iberia: NASA FIRMS (375 m polar), Deepfire clusters, MTG (1 km geostationary)." src="img/16_firms_deepfire_mtg_iberia.png" /></p>
+<h3>A8. Terrain and fuel for a fallback model</h3>
+<p><strong>What we did.</strong> Built a slope raster from Copernicus DEM GLO-30 and a fuel proxy from ESA WorldCover, over the fire area.</p>
+<p><strong>Result.</strong> The fire area is <strong>shrubland and grassland with cropland breaks</strong> on gently to moderately sloping terrain — classic Mediterranean fuel. This is the input set for a fallback Rothermel-style model (A15), and the fuel basis for the FBFM40 problem noted in the main plan.</p>
+<p><img alt="15 — Terrain (slope) and fuel (ESA WorldCover) over the Los Gallardos fire area." src="img/15_terrain_fuel_gallardos.png" /></p>
+<h3>A9. Wind reconstruction (ERA5)</h3>
+<p><strong>What we did.</strong> Pulled hourly ERA5 wind, gust, temperature and humidity for the fire evening.</p>
+<p><strong>Result.</strong> Through the fire window: mean speed <strong>19.3 km/h</strong>, max <strong>25.3 km/h</strong>, gusts to <strong>54.0 km/h</strong>, direction <strong>185–205°</strong> (southerly), temperature to <strong>39.6 °C</strong>, relative humidity down to <strong>10 %</strong>. The southerly gale ran the fire <strong>north</strong> into Bédar's exit road. Wind is the physical driver, and the plan must carry it.</p>
+<h3>A10. The road-cut test — retrospective and sensitivity-bound</h3>
+<p><strong>What we did.</strong> For every drivable OSM way, we assigned a <strong>time of arrival (ToA)</strong> — the earliest detection time within a buffer R of the way. We then compared the modelled cut time of the Bédar exit road (AL-6109) against the known timeline. We repeated at three buffer radii and with polar-only data.</p>
+<p><strong>Timeline anchors (UTC / CEST):</strong> ignition 14:25–14:35; evacuations ~15:30; Situación Operativa 1 17:37–18:08; <strong>deaths 19:00–20:30 UTC (21:00–22:30 CEST)</strong>; roads reported cut ~20:30 UTC (22:30 CEST).</p>
+<p><strong>Result — first detection inside the buffer (retrospective):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Buffer R</th>
+<th>Data</th>
+<th>Earliest AL-6109 cut</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>100 m</td>
+<td>all sources</td>
+<td>09 Jul <strong>21:18</strong> CEST</td>
+</tr>
+<tr>
+<td>200 m</td>
+<td>all sources</td>
+<td>09 Jul <strong>19:38</strong> CEST</td>
+</tr>
+<tr>
+<td>500 m</td>
+<td>all sources</td>
+<td>09 Jul <strong>19:38</strong> CEST</td>
+</tr>
+<tr>
+<td>any R</td>
+<td><strong>polar only</strong></td>
+<td>10 Jul <strong>00:03</strong> CEST</td>
+</tr>
+</tbody>
+</table>
+<p>The first detection inside a 200 m buffer of AL-6109 is at <strong>19:38 CEST</strong>; the first deaths are reported ~21:00. This is <strong>not</strong> a demonstrated warning: the trigger is a single detection at 19:38:21, the data carries no availability timestamp, and a detection gap does not mean the fire stopped. It is also fragile — at a 100 m buffer the first in-buffer detection is 21:18, and with polar-only data 00:03. <strong>This is a retrospective sensitivity result, not verified lead time.</strong></p>
+<p><img alt="17 — Road-cut test: per-segment time-of-arrival against the observed timeline and the AL-6109 cut times. The buffer/source sensitivity is in the table above, not in the figure." src="img/17_falsification_test.png" /></p>
+<h3>A11. The egress cut-time field</h3>
+<p><strong>What we did.</strong> Turned the per-way cut times into a continuous time-of-arrival field over the road network, so every segment carries a colour = when the fire reaches it.</p>
+<p><strong>Result.</strong> The gif we can hand a coordinator: the fire's approach to the road network as a clock, not a perimeter.</p>
+<p><img alt="18 — Egress cut-time field over the road network." src="img/18_egress_cuttime_field.png" /></p>
+<p>The egress solver builds the 14,819-node graph, takes the Bédar pocket and two candidate exits (south toward Los Gallardos, north toward Lubrín), and writes the last feasible departure per exit.</p>
+<h3>A12. Ground-truth comparison</h3>
+<p><strong>What we did.</strong> Vectorised the EFFIS burnt area from its WMS layer and compared it with Deepfire's final perimeter and with the hotspot convex hull.</p>
+<p><strong>Result.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Burnt area</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EFFIS (satellite delineation)</td>
+<td><strong>5,767 ha</strong></td>
+</tr>
+<tr>
+<td>Press ("official", approximate)</td>
+<td>~5,200 ha</td>
+</tr>
+<tr>
+<td>Deepfire final perimeter</td>
+<td><strong>9,172 ha</strong></td>
+</tr>
+<tr>
+<td>Hotspot 300 m buffer / hull</td>
+<td>(see figure)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reading.</strong> Deepfire's perimeter is a fast operational layer. At 9,172 ha (reprojected; the raw <code>area_m2</code> field is 9,178 ha), it runs ~59 % larger than the EFFIS reference of 5,767 ha, with IoU 0.61 — the shape you expect from an immediate estimate. <strong>Caveat:</strong> that reference is not an event-dated delineation. It is derived by selecting green pixels from the seasonal <code>modis.ba.poly.season</code> WMS image, so the comparison is indicative, not a matched-date validation. No fusion method was built or tested; tightening the burnt area with EFFIS/EMS is a proposal, not a result.</p>
+<p><img alt="19 — Ground-truth comparison: EFFIS burnt area vs Deepfire perimeter vs hotspot extent." src="img/19_groundtruth_comparison.png" /></p>
+<h3>A13. Values at risk — what the data does and does not give us</h3>
+<p><strong>What we did.</strong> Counted OSM buildings in the bbox and how many fall inside the burn; measured building density within 1.5 km of each settlement. Then tried the two authority sources: Catastro INSPIRE and INE padrón.</p>
+<p><strong>Result.</strong> <strong>OSM carries only 3 buildings within 1 km of Bédar</strong>, so it is not the values-at-risk source here. Both authority sources are reachable once the request is correct. <strong>Catastro</strong> needs <code>TYPENAMES=bu:Building</code>, CRS <code>EPSG:25830</code> and a ~500 m bbox — verified: <strong>70 building footprints at Bédar</strong>. <strong>INE</strong> operation 22, table <code>DATOS_TABLA/2857</code>, returns <strong>Bédar 2025 = 953</strong> residents (481 M / 472 F).</p>
+<p><img alt="20 — Values at risk: OSM buildings against the EFFIS burnt area and the Deepfire perimeter." src="img/20_values_at_risk.png" /></p>
+<p><strong>Building footprints are not the whole blocker — the evacuation data is.</strong> Even with Catastro, an evacuation solve still needs occupancy, vehicle demand, departure delays, shelter capacity, a directed road graph that preserves real connectivity, road capacities, and usable destinations with capacities. The spike has none of these, and its road prototype merges nearby nodes, treats roads as bidirectional, and checks the next node rather than exposure along each segment. The missing test is one complete Bédar scenario: population and vehicle-demand ranges, a directed graph, and a calculation that shows how long the population takes to clear each bottleneck and when no feasible route remains.</p>
+<h3>A14. The simulation ceiling — ELMFIRE's own validation</h3>
+<p><strong>Why this matters.</strong> We tested the professional side of the simulation layer, because the obvious question is "why not just simulate?". The answer is measured, not assumed.</p>
+<p><strong>What we did.</strong> Cloned ELMFIRE, built it, ran a tutorial case, and read its own validation report (<code>docs/validation_report.pdf</code>).</p>
+<p><strong>Local run.</strong> The stock Dockerfile is <strong>x86-only</strong>; it fails on Apple Silicon (<em>"running an x86 program on an arm64 OS without multi-arch libraries"</em>). One change — the micromamba URL, <code>linux-64</code> → <code>linux-aarch64</code> — builds it natively in <strong>2 m 15 s</strong>. The constant-wind tutorial reaches <em>"End of simulation reached successfully"</em> (9,822.9 acres) and writes time-of-arrival, fireline intensity, spread rate and hourly isochrones. <strong>ELMFIRE runs here.</strong> We ran only the shipped constant-wind tutorial — we did <strong>not</strong> test ELMFIRE's predictive accuracy on our own case, which needs a full FBFM40 fuel deck. Status: runs locally, local accuracy untested.</p>
+<p><strong>Its own validation report</strong> — 1,295 real fires:</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Total cases</td>
+<td>1,295</td>
+</tr>
+<tr>
+<td>Comparable output</td>
+<td><strong>561</strong> (of 1,295 attempted)</td>
+</tr>
+<tr>
+<td>No output reported</td>
+<td><strong>698</strong></td>
+</tr>
+<tr>
+<td>Non-ignited (Jaccard &lt; 0.01)</td>
+<td>36</td>
+</tr>
+<tr>
+<td>Jaccard, ELMFIRE (n=561)</td>
+<td><strong>median 0.133, mean 0.178</strong></td>
+</tr>
+<tr>
+<td>Jaccard, FARSITE (n=512)</td>
+<td>median 0.137, mean 0.176</td>
+</tr>
+<tr>
+<td>Best case (AMARGO)</td>
+<td>0.76</td>
+</tr>
+<tr>
+<td>Example (BRUSH CREEK 2, 2022)</td>
+<td>IoU 0.151; simulated 2.22 km² vs observed 12.89 km²; <strong>area ratio 0.17</strong></td>
+</tr>
+<tr>
+<td>Skill vs wind speed</td>
+<td><strong>R² ≈ 0.001</strong> (none)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Result.</strong> Over the 561 comparable cases, ELMFIRE's median overlap with the observed scar is <strong>0.133</strong> (mean 0.178), and FARSITE scores almost the same. The 698 no-output cases are a reported subset, not proof of a universal failure rate. Point-ignition spread modelling is a coarse instrument for everyone, which is why we lead with observations. Our contribution is to put a measured clock beside the model: observation-driven, with the model filling only the gap after the last observation.</p>
+<p>Caveats: the benchmark is US fires on LANDFIRE fuels; the no-output cases are partly input or queue problems; and this is our read of someone else's report, not our own test.</p>
+<h3>A15. Our own propagation model</h3>
+<p><strong>What we did.</strong> Built a minimal Rothermel-style propagation — ESA WorldCover fuel, Copernicus DEM slope, ERA5 wind — and fit it against the held-out detections.</p>
+<p><strong>Result.</strong> A single-parameter toy model, seeded from detections before 18:00 UTC and scored on the 2,562 held-out detections. Two settings tell the story, and they cannot be quoted together: at <strong>R0 = 0.03 m/s</strong> the arrival-time <strong>MAE is 10.06 h</strong> but the modelled area is <strong>17,534 ha</strong> (~3× the observed 5,767); at <strong>R0 = 0.01 m/s</strong> the area is 6,191 ha (within ~7 %) but the MAE is <strong>23 h</strong>. The timing and the area do not agree at any one setting. A row/index orientation bug was found and fixed (<code>own_sim_fixed.py</code>); it changed the MAE only to 9.85 h. This is a mechanism check, not an accurate predictor. Two further limits: arrival is scored against repeated satellite detections of the same fire, and the parameters were selected on the same observations used to report the score — so it is not a true held-out test.</p>
+<p><img alt="21 — Our own propagation model at R0=0.010 against the observed detections: area within ~7 %, arrival-time MAE 23 h." src="img/21_own_simulation.png" /></p>
+<h3>A16. Experiment outcomes — summary</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Experiment</th>
+<th>Outcome</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A1</td>
+<td>Observation timeline</td>
+<td>2,660 detections; 53 inside the evacuation window</td>
+</tr>
+<tr>
+<td>A2</td>
+<td>Source mix</td>
+<td>MTG 1,932 (10 min) + polar 728 (375 m); neither alone suffices</td>
+</tr>
+<tr>
+<td>A3</td>
+<td>Archived perimeters</td>
+<td>12 snapshots; none during the evacuation window</td>
+</tr>
+<tr>
+<td>A4</td>
+<td>Simulation runs in Spain</td>
+<td>Yes; ≤3 min; but no historical date, max 2 concurrent</td>
+</tr>
+<tr>
+<td>A5</td>
+<td>Active clusters</td>
+<td>94; 25 unconfirmed by FIRMS in 24 h</td>
+</tr>
+<tr>
+<td>A6</td>
+<td>MTG layer</td>
+<td>Sparse over Iberia, decisive at 10 min; African belt is burning, not wildfire</td>
+</tr>
+<tr>
+<td>A7</td>
+<td>FIRMS × Deepfire</td>
+<td>Agree; both rest on the same polar detections — MTG adds the 10-minute layer</td>
+</tr>
+<tr>
+<td>A8</td>
+<td>Terrain / fuel</td>
+<td>Shrub–grass with cropland breaks; FBFM40 mismatch for ELMFIRE</td>
+</tr>
+<tr>
+<td>A9</td>
+<td>Wind (ERA5)</td>
+<td>Southerly, gusting 54 km/h — the physical driver</td>
+</tr>
+<tr>
+<td>A10</td>
+<td>Road-cut test</td>
+<td>Inconclusive as a warning — first in-buffer detection 19:38 CEST, no availability timestamp</td>
+</tr>
+<tr>
+<td>A11</td>
+<td>Egress cut-time field</td>
+<td>Per-segment ToA over the 14,819-node graph</td>
+</tr>
+<tr>
+<td>A12</td>
+<td>Ground truth</td>
+<td>EFFIS 5,767 ha (seasonal WMS, not event-dated); Deepfire 9,172 ha</td>
+</tr>
+<tr>
+<td>A13</td>
+<td>Values at risk</td>
+<td>Catastro unanswered; the gap is the whole evacuation dataset, not just buildings</td>
+</tr>
+<tr>
+<td>A14</td>
+<td>Simulation ceiling</td>
+<td>ELMFIRE median Jaccard 0.133 (n=561); FARSITE 0.137</td>
+</tr>
+<tr>
+<td>A15</td>
+<td>Own model</td>
+<td>MAE 10 h at R0=0.03 (area 3× over); area within 7 % at R0=0.01 (MAE 23 h)</td>
+</tr>
+</tbody>
+</table>
+<h3>A17. The SEVIRI pixel footprint — measured, not read off the label</h3>
+<p>The FRP-PIXEL product (LSA-502) reports a per-pixel <code>PIXEL_SIZE</code> field with the HDF5
+attribute <code>UNITS = 'Km'</code>. Read as a <strong>length</strong>, the median over Iberia is <strong>12.58 km</strong>,
+which would disqualify SEVIRI as a mask source for anything but a very large fire.</p>
+<p>That reading is wrong. <code>PIXEL_SIZE</code> is an <strong>area in km²</strong>, and the attribute is mislabelled.</p>
+<p>The test is the nadir limit. SEVIRI samples 3 × 3 km at the sub-satellite point, so its nadir
+footprint is <strong>9 km²</strong>. Measured over the pulled archive (5,922,602 detections):</p>
+<table>
+<thead>
+<tr>
+<th>view zenith angle</th>
+<th><code>PIXEL_SIZE</code> (median)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&lt; 10° (near nadir, n = 9,499)</td>
+<td><strong>9.08</strong>, minimum <strong>9.00</strong></td>
+</tr>
+<tr>
+<td>Iberia, median VZA 44.3° (n = 63,549)</td>
+<td><strong>12.58</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Near nadir the value converges on <strong>9</strong>, not on 3. A length would converge on 3. So the field
+is an area, and <code>UNITS = 'Km'</code> means km².</p>
+<p>Over Iberia the area is 12.58 km², which decomposes as <strong>3.0 km × 4.2 km</strong> — the along-scan
+dimension stretches by 1/cos(VZA) while the other stays near 3 km. The fit <code>A = 9 / cos(VZA)</code>
+matches the measured values with correlation <strong>1.0000</strong>.</p>
+<p>So the pixel over Iberia is roughly <strong>3.1–4.2 km across</strong>: coarse, but not disqualified.</p>
+<p>Two consequences:</p>
+<ul>
+<li>Any buffer or mask built from SEVIRI detections must use the <strong>real footprint at that
+  latitude</strong>, not the 3 km nadir figure and not the 12.58 figure read as a length. Buffer by
+  <code>sqrt(PIXEL_SIZE)</code> per pixel, which the product already provides.</li>
+<li>The 12 km error propagated into at least one review as "SEVIRI cannot carry the mask". The
+  corrected reading is what put SEVIRI into the three-source cut mask.</li>
+</ul></body></html>

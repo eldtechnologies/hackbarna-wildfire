@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "description": "Real-time wildfire intelligence console for Spain - HackBarna 2026",
   "type": "module",
+  "engines": {
+    "node": ">=22.9"
+  },
   "scripts": {
     "dev": "concurrently -k \"npm run server\" \"npm run client\"",
     "client": "vite",
@@ -12,9 +15,17 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.server.json",
     "record:snapshot": "node scripts/record-snapshot.mjs",
-    "mock:deepfire": "node scripts/mock-deepfire.mjs"
+    "mock:deepfire": "node scripts/mock-deepfire.mjs",
+    "test": "node --test --import tsx server/providers/normalize.test.ts server/providers/live.test.ts"
   },
   "dependencies": {
+    "@turf/along": "^7.4.0",
+    "@turf/boolean-point-in-polygon": "^7.4.0",
+    "@turf/buffer": "^7.4.0",
+    "@turf/distance": "^7.4.0",
+    "@turf/length": "^7.4.0",
+    "@turf/point-to-line-distance": "^7.4.0",
+    "@turf/union": "^7.4.0",
     "cesium": "1.145.0",
     "express": "4.22.2"
   },

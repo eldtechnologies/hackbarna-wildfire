@@ -1,7 +1,7 @@
 // Replay provider: serves a cached snapshot from data/snapshots/. Two
 // formats are supported:
 //   - flat snapshot (raw Deepfire shape + scenario), like
-//     castelltallat-2025.json, serving one static moment.
+//     los-gallardos-2026-07-09.json, serving one static moment.
 //   - recording: { scenario, recordedAt, frames: [{ t, hotspots, clusters,
 //     spread }] } captured by scripts/record-snapshot.mjs. Frame selection
 //     via getFires(atSeconds) enables accelerated timeline playback.
@@ -18,7 +18,10 @@ import type {
 } from '../../shared/fires';
 
 const SNAPSHOTS_DIR = path.resolve(process.cwd(), 'data/snapshots');
-const SNAPSHOT_FILE = process.env.REPLAY_SNAPSHOT ?? '';
+// Default scenario: the real Los Gallardos fire, 9-11 Jul 2026, captured from
+// the Deepfire API. Falling back to the newest file by mtime would be
+// nondeterministic on a fresh checkout, where all mtimes are equal.
+const SNAPSHOT_FILE = process.env.REPLAY_SNAPSHOT ?? 'los-gallardos-2026-07-09.json';
 
 interface SnapshotFile extends RawFiresPayload {
   scenario?: string;
