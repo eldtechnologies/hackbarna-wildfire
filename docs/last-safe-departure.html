@@ -176,7 +176,7 @@ hr{border:none;border-top:1px solid #eee}img{max-width:100%;height:auto;display:
 <li><strong>Perimeters start Jun 2026, hotspots start Jan 2025.</strong> The Jul 2026 Almería fire <strong>does</strong> have archived perimeters (12 snapshots, verified) — do not reconstruct it. Earlier events (the whole Aug 2025 season) you reconstruct yourself. Note the first Los Gallardos perimeter is <code>computed_at</code> 2026-07-10T00:24Z, ~10 h after ignition: no perimeter existed during the evacuation window.</li>
 </ul>
 <h3>Satellites over Iberia</h3>
-<p>Of the 15 sources Deepfire ingests, GOES-18/19 and Himawari-9 are irrelevant here. What matters over Spain: VIIRS ×3 (375 m, polar), Landsat 8/9 (30 m), Sentinel-3A/B SLSTR (1 km), MetOp-B/C (1.1 km), MODIS (1 km), and for temporal density MTG-I1 FCI (nominal 1 km) and Meteosat-9/10 SEVIRI (3 km).</p>
+<p>Of the 15 sources Deepfire ingests, GOES-18/19 and Himawari-9 are irrelevant here. What matters over Spain: VIIRS ×3 (375 m, polar), Landsat 8/9 (30 m), Sentinel-3A/B SLSTR (1 km), MetOp-B/C (1.1 km), MODIS (1 km), and for temporal density MTG-I1 FCI (nominal 1 km) and Meteosat-9/10 SEVIRI (<strong>3.0 × 4.2 km</strong> over Iberia, not 3 km — see A17).</p>
 <h2>The thesis</h2>
 <p>Burned area is not where people die. The road out closes before the fire reaches the house.</p>
 <p>2025 was genuinely the record: <a href="https://joint-research-centre.ec.europa.eu/jrc-news-and-updates/2025-was-eus-most-destructive-wildfire-season-record-2026-03-31_en">7,783 fires across 25 of 27 EU member states burned 1,079,538 hectares</a>, nearly double the 2006–2024 average, with Germany, Spain, Cyprus and Slovakia at all-time records. A heatwave in the first three weeks of August triggered 22 very large fires in Portugal and Spain almost simultaneously, burning 460,585 hectares — 43% of the EU total.</p>
@@ -867,7 +867,7 @@ curl -sG -H &quot;Authorization: Bearer $TOKEN&quot; \
 <h2>Appendix A — Experiment log and figures</h2>
 <p>This appendix records every experiment the spike ran: what we did, the method, the result, and the figure. It is <strong>not a scientific study</strong> — no formal design, no replication, no peer review. It is what we saw when we ran the data, and some entries below are flagged as wrong, corrected, or withdrawn. All times are CEST (UTC+2) unless marked UTC.</p>
 <h3>A0. Method and data inventory</h3>
-<p>We pulled the data below, then ran the experiments that follow. The scripts live in <code>/tmp/df/scripts/</code>; the figures in <code>img/</code>.</p>
+<p>We pulled the data below, then ran the experiments that follow. The figures are in <code>img/</code>.</p>
 <table>
 <thead>
 <tr>
@@ -1018,12 +1018,11 @@ curl -sG -H &quot;Authorization: Bearer $TOKEN&quot; \
 </table>
 <p>The first detection inside a 200 m buffer of AL-6109 is at <strong>19:38 CEST</strong>; the first deaths are reported ~21:00. This is <strong>not</strong> a demonstrated warning: the trigger is a single detection at 19:38:21, the data carries no availability timestamp, and a detection gap does not mean the fire stopped. It is also fragile — at a 100 m buffer the first in-buffer detection is 21:18, and with polar-only data 00:03. <strong>This is a retrospective sensitivity result, not verified lead time.</strong></p>
 <p><img alt="17 — Road-cut test: per-segment time-of-arrival against the observed timeline and the AL-6109 cut times. The buffer/source sensitivity is in the table above, not in the figure." src="img/17_falsification_test.png" /></p>
-<p>Full per-way table and sensitivity grid: <code>/tmp/df/enrich/falsif.txt</code>.</p>
 <h3>A11. The egress cut-time field</h3>
 <p><strong>What we did.</strong> Turned the per-way cut times into a continuous time-of-arrival field over the road network, so every segment carries a colour = when the fire reaches it.</p>
 <p><strong>Result.</strong> The gif we can hand a coordinator: the fire's approach to the road network as a clock, not a perimeter.</p>
 <p><img alt="18 — Egress cut-time field over the road network." src="img/18_egress_cuttime_field.png" /></p>
-<p>The egress solver itself (<code>/tmp/df/scripts/egress_spike.py</code>) builds the 14,819-node graph, takes the Bédar pocket and two candidate exits (south toward Los Gallardos, north toward Lubrín), and writes the last feasible departure per exit.</p>
+<p>The egress solver builds the 14,819-node graph, takes the Bédar pocket and two candidate exits (south toward Los Gallardos, north toward Lubrín), and writes the last feasible departure per exit.</p>
 <h3>A12. Ground-truth comparison</h3>
 <p><strong>What we did.</strong> Vectorised the EFFIS burnt area from its WMS layer and compared it with Deepfire's final perimeter and with the hotspot convex hull.</p>
 <p><strong>Result.</strong></p>
@@ -1204,21 +1203,42 @@ curl -sG -H &quot;Authorization: Bearer $TOKEN&quot; \
 </tr>
 </tbody>
 </table>
-<h3>A17. Reproduce</h3>
-<p>The spike is reproducible from <code>/tmp/df/scripts/</code>:</p>
-<pre><code class="language-text">common.py            shared loaders, event times, map styling
-img01..img09.py      timeline, cadence, perimeter and cluster figures
-nc_clusters.py       MTG fire product, Africa belt
-nc_render.py         MTG whole-disk and Iberia renders
-nc_osm.py            MTG over OSM basemaps
-firms_xcheck.py      FIRMS x Deepfire x MTG cross-check
-terrain.py           slope + fuel from DEM and WorldCover
-falsif_analyze.py    per-way cut times and sensitivity   -&gt; enrich/falsif.txt
-falsif_fig.py        figure 17
-egress_spike.py      egress solver                        -&gt; enrich/egress.json
-egress_fig.py        figure 18
-groundtruth.py       EFFIS vs Deepfire vs hull           -&gt; figure 19
-pockets.py           buildings vs burn                    -&gt; figure 20
-own_sim.py, own_sim2.py, own_sim_fig.py   own model       -&gt; figure 21
-md2pdf.py            render this document to HTML
-</code></pre></body></html>
+<h3>A17. The SEVIRI pixel footprint — measured, not read off the label</h3>
+<p>The FRP-PIXEL product (LSA-502) reports a per-pixel <code>PIXEL_SIZE</code> field with the HDF5
+attribute <code>UNITS = 'Km'</code>. Read as a <strong>length</strong>, the median over Iberia is <strong>12.58 km</strong>,
+which would disqualify SEVIRI as a mask source for anything but a very large fire.</p>
+<p>That reading is wrong. <code>PIXEL_SIZE</code> is an <strong>area in km²</strong>, and the attribute is mislabelled.</p>
+<p>The test is the nadir limit. SEVIRI samples 3 × 3 km at the sub-satellite point, so its nadir
+footprint is <strong>9 km²</strong>. Measured over the pulled archive (5,922,602 detections):</p>
+<table>
+<thead>
+<tr>
+<th>view zenith angle</th>
+<th><code>PIXEL_SIZE</code> (median)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&lt; 10° (near nadir, n = 9,499)</td>
+<td><strong>9.08</strong>, minimum <strong>9.00</strong></td>
+</tr>
+<tr>
+<td>Iberia, median VZA 44.3° (n = 63,549)</td>
+<td><strong>12.58</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Near nadir the value converges on <strong>9</strong>, not on 3. A length would converge on 3. So the field
+is an area, and <code>UNITS = 'Km'</code> means km².</p>
+<p>Over Iberia the area is 12.58 km², which decomposes as <strong>3.0 km × 4.2 km</strong> — the along-scan
+dimension stretches by 1/cos(VZA) while the other stays near 3 km. The fit <code>A = 9 / cos(VZA)</code>
+matches the measured values with correlation <strong>1.0000</strong>.</p>
+<p>So the pixel over Iberia is roughly <strong>3.1–4.2 km across</strong>: coarse, but not disqualified.</p>
+<p>Two consequences:</p>
+<ul>
+<li>Any buffer or mask built from SEVIRI detections must use the <strong>real footprint at that
+  latitude</strong>, not the 3 km nadir figure and not the 12.58 figure read as a length. Buffer by
+  <code>sqrt(PIXEL_SIZE)</code> per pixel, which the product already provides.</li>
+<li>The 12 km error propagated into at least one review as "SEVIRI cannot carry the mask". The
+  corrected reading is what put SEVIRI into the three-source cut mask.</li>
+</ul></body></html>

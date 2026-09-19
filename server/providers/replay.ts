@@ -8,7 +8,9 @@ import { normalize, type RawFiresPayload } from './normalize';
 import type { FireDataProvider, FiresResponse } from '../../shared/fires';
 
 const SNAPSHOTS_DIR = path.resolve(process.cwd(), 'data/snapshots');
-const SNAPSHOT_FILE = process.env.REPLAY_SNAPSHOT ?? 'castelltallat-2025.json';
+// Default scenario: the real Los Gallardos fire, 9-11 Jul 2026, captured from the
+// Deepfire API. The previous default (castelltallat-2025.json) was synthetic.
+const SNAPSHOT_FILE = process.env.REPLAY_SNAPSHOT ?? 'los-gallardos-2026-07-09.json';
 
 interface SnapshotFile extends RawFiresPayload {
   scenario: string;
