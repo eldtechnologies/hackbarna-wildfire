@@ -143,6 +143,7 @@ export function sweepField(
   let nominalCut = new Array<number>(segments.length).fill(Number.POSITIVE_INFINITY);
   let nominalEvidence: string[][] = Array.from({ length: segments.length }, () => []);
   let nominalUsedDetectionIds: string[] = [];
+  let nominalFound = false;
 
   for (const config of configs) {
     const useRaw = config.includeStaticHeatSources && altPairs !== null;
@@ -166,6 +167,7 @@ export function sweepField(
     latencyByConfig.set(config.id, latency);
 
     if (config.id === NOMINAL_ID) {
+      nominalFound = true;
       nominalCut = cut;
       nominalEvidence = all.evidenceDetectionIds.slice(0, segments.length);
       nominalUsedDetectionIds = all.usedDetectionIds;
@@ -184,6 +186,17 @@ export function sweepField(
         latestConfig[i] = config.id;
       }
     }
+  }
+
+  // Refused rather than left empty. Every `nominal*` value above initialises to "nothing", so a
+  // configuration set without `NOMINAL_ID` would publish an all-Infinity cut field, no evidence and
+  // a family breakdown reading zero used detections — three statements about the world, all false,
+  // with nothing to distinguish them from a true one. The only current caller passes `SWEEP_CONFIGS`,
+  // which contains it; this is for the caller that one day does not.
+  if (!nominalFound) {
+    throw new RangeError(
+      `the sweep configurations do not include ${NOMINAL_ID}, so there is no nominal field to publish`,
+    );
   }
 
   return {

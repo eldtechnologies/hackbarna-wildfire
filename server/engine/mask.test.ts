@@ -3,10 +3,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
-  SENSOR_FAMILY, SENSOR_FOOTPRINT_M, buildPairIndex, cutField, familyOf, knownFamilies, radiusFor,
+  DEFAULT_FOOTPRINT_M, SENSOR_FAMILY, SENSOR_FOOTPRINT_M, SENSOR_RADIUS, buildPairIndex, cutField, familyOf, knownFamilies, radiusFor,
   sensorFamilyRows, type Detection, type SweepConfig,
 } from './mask';
-import { loadContext } from './egress';
 import { detectionsFromCapture, groupClustersIntoEvents, loadCapture, pickEventForWindow } from './capture';
 import { formatCapTimestamp, toEpochMs } from './time';
 import type { LatLon } from '../../shared/fires';
@@ -239,9 +238,17 @@ test('SEVIRI is absent from the table and from the capture, so nothing claims to
   const named = [...Object.keys(SENSOR_FOOTPRINT_M), ...Object.values(SENSOR_FAMILY)].filter((s) => /seviri/i.test(s));
   assert.deepEqual(named, [], 'the footprint table has no SEVIRI entry');
 
-  const sources = new Set(loadContext().detections.map((d) => d.source));
-  assert.ok(sources.size > 0, 'the capture has detections to check');
-  assert.deepEqual([...sources].filter((s) => /seviri/i.test(s)), [], 'and carries no SEVIRI series');
+  // The WHOLE capture, not the fire event's detections. `loadContext().detections` holds only the
+  // two clusters the fire was grouped from, and the decoys are exactly where an unrelated
+  // instrument would first appear — verified by putting a SEVIRI source on a decoy hotspot: this
+  // check fails and the narrower one passes. The claim it has to support is about the capture.
+  const sources = new Set(
+    capture.hotspots
+      .map((h) => (h as { properties?: { source?: string } }).properties?.source)
+      .filter((s): s is string => typeof s === 'string'),
+  );
+  assert.equal(sources.size, 7, 'the capture carries seven sources');
+  assert.deepEqual([...sources].filter((s) => /seviri/i.test(s)), [], 'and none of them is SEVIRI');
 });
 
 test('the plan records the amendment, and the open question about the SEVIRI band is closed', () => {
@@ -254,11 +261,14 @@ test('the plan records the amendment, and the open question about the SEVIRI ban
   assert.match(decision, /#27/, 'and names the issue that amended it');
 
   const open = plan.slice(plan.indexOf('## Open'));
-  const bullet = open
-    .split(/\n(?=- )/)
-    .find((block) => /SEVIRI/i.test(block));
-  assert.ok(bullet, 'the open section still says what happened to the SEVIRI question');
-  assert.match(bullet, /closed/i, `and says it is closed, not left standing: ${bullet.slice(0, 80)}`);
+  // EVERY bullet that mentions it, not the first one found. Stopping at the first match means
+  // re-adding the stale open item as a second bullet after the closed one still passes — verified
+  // by mutation. The claim is that the question is not left standing anywhere in the section.
+  const bullets = open.split(/\n(?=- )/).filter((block) => /SEVIRI/i.test(block));
+  assert.ok(bullets.length > 0, 'the open section still says what happened to the SEVIRI question');
+  for (const bullet of bullets) {
+    assert.match(bullet, /closed/i, `every SEVIRI item here says it is closed: ${bullet.slice(0, 90)}`);
+  }
 });
 
 test('the family breakdown counts feeds as instruments, and a shared cut once', () => {
@@ -280,7 +290,7 @@ test('the family breakdown counts feeds as instruments, and a shared cut once', 
   // Segment 0 is attained by TWO VIIRS feeds, segment 1 by MTG.
   const evidence = [['v1', 'v2'], ['m1']];
 
-  const by = new Map(sensorFamilyRows(detections, used, evidence).map((r) => [r.family, r]));
+  const by = new Map(sensorFamilyRows(detections, used, evidence).rows.map((r) => [r.family, r]));
 
   // family grouping — the wrong version lists three VIIRS rows and reads as three instruments
   assert.equal(by.get('VIIRS')?.sources.length, 3, 'the three VIIRS feeds are one family');
@@ -301,11 +311,73 @@ test('the family breakdown counts feeds as instruments, and a shared cut once', 
 test('an empty capture still reports every family the table knows', () => {
   // An empty list would read as "no sensor saw this fire", the same inversion as an empty mask
   // reading as all-clear. The families come from the table, not from what happened to be seen.
-  const rows = sensorFamilyRows([], [], []);
+  const { rows, unattributedCutSegments } = sensorFamilyRows([], [], []);
   assert.ok(rows.length > 0, 'the list is not empty');
   assert.deepEqual(rows.map((r) => r.family), knownFamilies(), 'a zero row per known family');
   assert.ok(
     rows.every((r) => r.detections === 0 && r.usedDetections === 0 && r.cutSegments === 0),
     'every count zero rather than absent',
   );
+  assert.equal(unattributedCutSegments, 0, 'and nothing is unattributed when nothing was cut');
+});
+
+test('a source named after an Object member does not resolve through the prototype chain', () => {
+  // `SENSOR_FAMILY[source] ?? source` answers for `'constructor'` with the Object function and for
+  // `'__proto__'` with Object.prototype — both truthy, so the fallback never fires. The family
+  // reaches the wire as a non-string: `{"family":{}}` for one, and for the other `JSON.stringify`
+  // drops the key entirely. At the sibling radius lookup the same lookup yields `Object * scale`,
+  // which is NaN, and every `distanceM > NaN` is false — so a detection from such a source is
+  // treated as reaching every road segment in the graph. Source strings come from the capture.
+  for (const source of ['__proto__', 'constructor', 'toString', 'hasOwnProperty', 'valueOf']) {
+    assert.equal(familyOf(source), source, `${source} is its own family`);
+    assert.equal(typeof familyOf(source), 'string', 'and the family is a string');
+  }
+
+  // The radius half, which is the one that would silently cut every road.
+  const radius = SENSOR_RADIUS('constructor', 1);
+  assert.ok(Number.isFinite(radius), `a prototype-member source gets a finite radius, not NaN: ${radius}`);
+  assert.equal(radius, DEFAULT_FOOTPRINT_M, 'it falls back to the default footprint');
+
+  // And through the public path, so the family that reaches a row is a string.
+  const det = (id: string, source: string): Detection => ({
+    id, source, lat: 37.17, lon: -2.01, atSeconds: 0, confidence: 1, clusterId: null,
+  });
+  const weird = sensorFamilyRows([det('p1', 'constructor'), det('p2', '__proto__')], ['p1', 'p2'], [['p1']]);
+  for (const row of weird.rows) {
+    assert.equal(typeof row.family, 'string', `every family is a string: ${JSON.stringify(row.family)}`);
+    assert.ok(row.family.length > 0);
+  }
+  assert.equal(weird.unattributedCutSegments, 0);
+});
+
+test('a repeated used id does not inflate a family past the capture it came from', () => {
+  // The pipeline builds this list from a Set, so it is unique today — but that is a property of the
+  // caller's input, and this function is exported. Without de-duplication a repeated id reports a
+  // family as having used more detections than the capture holds.
+  const det = (id: string, source: string): Detection => ({
+    id, source, lat: 37.17, lon: -2.01, atSeconds: 0, confidence: 1, clusterId: null,
+  });
+  const { rows } = sensorFamilyRows([det('v1', 'VIIRS_SNPP_NRT')], ['v1', 'v1', 'v1'], []);
+  const viirs = rows.find((r) => r.family === 'VIIRS');
+  assert.equal(viirs?.detections, 1);
+  assert.equal(viirs?.usedDetections, 1, 'a repeated id counts once, and never exceeds the capture');
+});
+
+test('a cut whose evidence names no known detection is counted rather than dropped', () => {
+  // The specification's residual, which was described and never implemented. Without it a capture
+  // whose evidence ids stopped matching its detections would show up only as families reading
+  // quietly low — the same shape as the defect this issue is about.
+  const det = (id: string, source: string): Detection => ({
+    id, source, lat: 37.17, lon: -2.01, atSeconds: 0, confidence: 1, clusterId: null,
+  });
+  const detections = [det('v1', 'VIIRS_SNPP_NRT')];
+  // Segment 0 is real. Segment 1 cites only a ghost id, so it belongs to no family. Segment 2 has
+  // no evidence at all, which is a segment the fire never cut and is NOT an omission.
+  const { rows, unattributedCutSegments } = sensorFamilyRows(detections, ['v1'], [['v1'], ['ghost'], []]);
+
+  assert.equal(unattributedCutSegments, 1, 'the ghost-only cut is counted');
+  assert.equal(rows.find((r) => r.family === 'VIIRS')?.cutSegments, 1, 'and the real cut still belongs to its family');
+  // Segments that were never cut carry no evidence and must not be counted as unattributable.
+  const { unattributedCutSegments: none } = sensorFamilyRows(detections, ['v1'], [[], [], []]);
+  assert.equal(none, 0, 'an uncut segment is not an unattributed cut');
 });

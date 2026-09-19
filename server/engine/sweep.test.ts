@@ -82,3 +82,26 @@ test('every configuration is identified, labelled and distinct', () => {
   }
   assert.ok(ids.includes(NOMINAL_ID), 'the nominal configuration must be in the sweep');
 });
+
+test('a sweep without the nominal configuration refuses rather than publishing empty values', () => {
+  // Every `nominal*` value initialises to "nothing", so a configuration set without the nominal one
+  // would publish an all-Infinity cut field, no evidence, and a family breakdown reading zero used
+  // detections — three statements about the world, all false, and nothing to tell them apart from
+  // true ones. The sibling values already failed this way silently; this one refuses instead.
+  const segments: LatLon[][] = [[{ lat: 37.17, lon: -2.01 }, { lat: 37.171, lon: -2.011 }]];
+  const det: Detection = {
+    id: 'd', lat: 37.17, lon: -2.01, atSeconds: 100, source: 'MTG_I1', confidence: null, clusterId: null,
+  };
+  const withoutNominal = SWEEP_CONFIGS.filter((c) => c.id !== NOMINAL_ID);
+  assert.ok(withoutNominal.length > 0, 'the filter leaves configurations to sweep');
+
+  assert.throws(
+    () => sweepField(segments, [], [det], withoutNominal),
+    (err: unknown) => err instanceof RangeError && err.message.includes(NOMINAL_ID),
+    'the refusal names the configuration that is missing',
+  );
+
+  // The default set still sweeps, so the refusal is about the missing configuration rather than
+  // about these inputs.
+  assert.doesNotThrow(() => sweepField(segments, [], [det]));
+});

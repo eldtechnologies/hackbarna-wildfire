@@ -63,9 +63,24 @@ export const SENSOR_FAMILY: Record<string, string> = {
   SENTINEL_3B: 'Sentinel-3',
 };
 
+/**
+ * A table lookup that cannot reach the prototype chain.
+ *
+ * `TABLE[source]` on an object literal answers for `source = 'constructor'` with the `Object`
+ * function, and for `'__proto__'` with `Object.prototype`. Both are truthy, so a `?? fallback`
+ * never fires and the value flows on — as a family name that is not a string, or, at
+ * `SENSOR_RADIUS`, as `Object * scale = NaN`. Every `distanceM > NaN` is false, so a detection from
+ * such a source would be treated as reaching every road segment in the graph. The source strings
+ * come from the capture, which makes these lookups run over data rather than over a closed set of
+ * literals — a difference `??` does not see.
+ */
+function ownLookup<T>(table: Record<string, T>, key: string): T | undefined {
+  return Object.hasOwn(table, key) ? table[key] : undefined;
+}
+
 /** The family a source belongs to, or the source itself when it is not a known one. */
 export function familyOf(source: string): string {
-  return SENSOR_FAMILY[source] ?? source;
+  return ownLookup(SENSOR_FAMILY, source) ?? source;
 }
 
 /** Every family the footprint table knows, in a stable order. */
@@ -85,7 +100,7 @@ export function sensorFamilyRows(
   detections: Detection[],
   usedDetectionIds: string[],
   evidencePerSegment: string[][],
-): SensorFamilyRow[] {
+): { rows: SensorFamilyRow[]; unattributedCutSegments: number } {
   const sourceOf = new Map<string, string>();
   const sourcesByFamily = new Map<string, Set<string>>();
   const detectionsByFamily = new Map<string, number>();
@@ -97,8 +112,11 @@ export function sensorFamilyRows(
     detectionsByFamily.set(family, (detectionsByFamily.get(family) ?? 0) + 1);
   }
 
+  // De-duplicated by id. The pipeline builds this list from a `Set` so it is unique today, but the
+  // uniqueness is a property of the caller's input and this function is exported — a repeated id
+  // would otherwise report a family as having used more detections than the capture holds.
   const usedByFamily = new Map<string, number>();
-  for (const id of usedDetectionIds) {
+  for (const id of new Set(usedDetectionIds)) {
     const source = sourceOf.get(id);
     if (source === undefined) continue;
     const family = familyOf(source);
@@ -109,11 +127,25 @@ export function sensorFamilyRows(
   // for that family: summing per source would count the same road twice and inflate exactly the
   // family with the most feeds, which is VIIRS.
   const cutsByFamily = new Map<string, Set<number>>();
+  let unattributedCutSegments = 0;
   for (let segment = 0; segment < evidencePerSegment.length; segment++) {
+    const ids = evidencePerSegment[segment] ?? [];
+    // No evidence at all is a segment the fire never cut, which is not an omission — the array
+    // covers every segment, and only the cut ones cite anything.
+    if (ids.length === 0) continue;
+
     const families = new Set<string>();
-    for (const id of evidencePerSegment[segment] ?? []) {
+    for (const id of ids) {
       const source = sourceOf.get(id);
       if (source !== undefined) families.add(familyOf(source));
+    }
+    if (families.size === 0) {
+      // A segment carrying evidence that names no detection the capture holds: the cut exists and
+      // belongs to no family. Counted rather than dropped, so a reader can tell "no unattributable
+      // cuts" from "the response does not say" — and so a capture whose ids stopped matching its
+      // detections shows up as this number moving rather than as families quietly reading low.
+      unattributedCutSegments += 1;
+      continue;
     }
     for (const family of families) {
       if (!cutsByFamily.has(family)) cutsByFamily.set(family, new Set());
@@ -126,7 +158,7 @@ export function sensorFamilyRows(
   const families = [...new Set([...knownFamilies(), ...sourcesByFamily.keys()])].sort();
   // Frozen, because the context that holds these is cached and every response hands them out —
   // the same reason `buildSegments` freezes its own.
-  return Object.freeze(
+  const rows = Object.freeze(
     families.map((family) =>
       Object.freeze({
         family,
@@ -137,6 +169,7 @@ export function sensorFamilyRows(
       }),
     ),
   ) as SensorFamilyRow[];
+  return { rows, unattributedCutSegments };
 }
 
 /** Geostationary versus polar — the axis that actually moves the answer. */
@@ -181,7 +214,7 @@ export interface SweepConfig {
 }
 
 export const SENSOR_RADIUS = (source: string, scale: number): number =>
-  (SENSOR_FOOTPRINT_M[source] ?? DEFAULT_FOOTPRINT_M) * scale;
+  (ownLookup(SENSOR_FOOTPRINT_M, source) ?? DEFAULT_FOOTPRINT_M) * scale;
 
 /** The radius this configuration applies to a detection from `source`. */
 export function radiusFor(config: SweepConfig, source: string): number {

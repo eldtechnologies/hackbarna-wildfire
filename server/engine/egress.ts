@@ -184,6 +184,8 @@ interface Context {
    * than derived per scrub frame.
    */
   sensorFamilies: SensorFamilyRow[];
+  /** Cut segments no family could claim. See `EgressResponse.unattributedCutSegments`. */
+  unattributedCutSegments: number;
   detections: Detection[];
   originMs: number;
   /**
@@ -375,9 +377,18 @@ export function loadContext(graphPath: string = DEFAULT_GRAPH_PATH): Context {
     );
   }
 
+  // Cursor-independent, like `segments`: which detections reached which road is a whole-window
+  // property, so it is built once here rather than derived per scrub frame.
+  const familyBreakdown = sensorFamilyRows(
+    detections,
+    sweep.field.nominalUsedDetectionIds,
+    sweep.field.nominalEvidence,
+  );
+
   cached = {
     loaded, graph: loaded.graph, graphsByProfile, segments: buildSegments(loaded.graph, sweep, originMs),
-    sensorFamilies: sensorFamilyRows(detections, sweep.field.nominalUsedDetectionIds, sweep.field.nominalEvidence),
+    sensorFamilies: familyBreakdown.rows,
+    unattributedCutSegments: familyBreakdown.unattributedCutSegments,
     detections, originMs, graphHash, captureHash, heatFixtureHash,
     scenario: capture.scenario, settlements, sweep,
     staticHeatRemoved: removed.length, staticHeatPolygons: heatRings.length, heatFixtureLoaded,
@@ -979,6 +990,7 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
       // response hands out these rows, so a consumer editing one would edit it for every later
       // request. The rows themselves are frozen with the context.
       sensorFamilies: ctx.sensorFamilies.map((row) => ({ ...row, sources: [...row.sources] })),
+      unattributedCutSegments: ctx.unattributedCutSegments,
       // Copied, not shared. `ctx.loaded.speedByHighway` is the very table the solver scales
       // travel times with, and the response is memoised and re-served, so a consumer that
       // touched it in place would not merely misprint an assumption — it would change the

@@ -678,11 +678,23 @@ test('the response reports what each sensor family contributed to the cut field'
     (by.get('VIIRS')?.cutSegments ?? 0) < (by.get('VIIRS')?.usedDetections ?? 0),
     'but reach them less often than they set a time',
   );
+  // And reaching a road is not the same as being in the capture. This strict inequality is the
+  // only assertion here that distinguishes the two: a mutation setting `usedDetectionIds` to every
+  // detection id satisfies `used <= detections`, `used > 0` and `cutSegments < used` unchanged,
+  // and survived the whole suite until this line existed.
+  assert.ok(
+    (by.get('VIIRS')?.usedDetections ?? 0) < (by.get('VIIRS')?.detections ?? 0),
+    'and not every VIIRS detection reaches a road',
+  );
 
   // The omission this issue is about would be visible here: a family the decision named and the
   // capture never carried appears with zeroes, not by its absence from the list.
   assert.equal(rows.some((r) => /seviri/i.test(r.family)), false, 'no family claims an instrument the capture lacks');
-  assert.ok(rows.every((r) => r.detections > 0), 'and every family listed is one the capture carries');
+  // Deliberately NOT `every(r => r.detections > 0)`: that is true of this capture and is not a
+  // contract. A known family this capture lacked would appear with a zero row — the response has to
+  // say "this instrument contributed nothing" rather than omit it — so asserting non-zero here
+  // would encode a fact about one fixture as a rule, and break the day a family legitimately reads
+  // zero. The zero-row behaviour is pinned at the function level in `mask.test.ts`.
 
   // Cut counts are per segment, so no family can have attained more cuts than the field holds.
   const cutSegments = built.response.segments.filter((s) => s.cutAt !== null).length;

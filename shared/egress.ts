@@ -63,7 +63,14 @@ export interface SensorFamilyRow {
   sources: string[];
   /** Detections the capture holds for this family. */
   detections: number;
-  /** How many of those reached a road and attained a cut. */
+  /**
+   * How many of those had a disc reach a road — whether or not they set a cut time.
+   *
+   * Not "attained a cut": most do not. Measured on the committed capture, 2,451 detections reach a
+   * road and only 130 are cited as the detection that set one, so the two readings differ by 95%
+   * and the wrong one would report every family as a far larger contributor than it is. The cut
+   * count is `cutSegments`, below.
+   */
   usedDetections: number;
   /** Distinct cut segments this family attained at least one of. */
   cutSegments: number;
@@ -250,6 +257,15 @@ export interface EgressResponse {
    * was silently missing a family. See `SensorFamilyRow`.
    */
   sensorFamilies: SensorFamilyRow[];
+  /**
+   * Cut segments whose cited detections are not in the capture, so no family could claim them.
+   *
+   * Published so that zero is a statement rather than a silence: without it a reader cannot tell
+   * "every cut was attributed" from "the response does not say". Expected to be 0 — a non-zero
+   * value means the evidence ids and the detections have stopped corresponding, which would
+   * otherwise show up only as families reading quietly low.
+   */
+  unattributedCutSegments: number;
   /**
    * The assumption sets this response was actually solved under, in the order the band's
    * basis names them. Every band and clearance range in the response is the envelope of
