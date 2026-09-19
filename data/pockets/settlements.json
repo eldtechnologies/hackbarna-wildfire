@@ -1,0 +1,13 @@
+{
+  "source": "INE Padrón Municipal 2025, operation 22, table DATOS_TABLA/2857, fetched 2026-09-19. Coordinates from OpenStreetMap via Nominatim (ODbL).",
+  "note": "Bédar's 953 residents (481 M / 472 F) matches the figure the spike published independently, which is the check that these are the right table. Los Gallardos is published by INE under the inverted Spanish form 'Gallardos, Los'. Building counts are filled in by scripts/fetch-pockets.mjs from Catastro; the contract carries population as nullable rather than zero-by-default.",
+  "languagesNote": "These are Almería municipalities: Spanish plus English, because the padrón and the spike both record a large foreign-resident population, heavily British, in the dispersed sierra dwellings. Catalan is deliberately absent — it is a valid code in the contract for the Castelltallat scenario and would be wrong here. The nationality breakdown by municipality is NOT in INE table 2857, which carries population by sex, so this list is a documented inference rather than a data lookup, and scope tier 10 has no table behind it yet.",
+  "fetched": "2026-09-19",
+  "settlements": [
+    { "id": "bedar",          "name": "Bédar",          "municipality": "Bédar",           "lat": 37.1909, "lon": -1.9806, "population": 953,  "buildings": 0, "languages": ["es", "en"] },
+    { "id": "los-gallardos",  "name": "Los Gallardos",  "municipality": "Gallardos, Los",  "lat": 37.1725, "lon": -1.9386, "population": 3110, "buildings": 0, "languages": ["es", "en"] },
+    { "id": "lubrin",         "name": "Lubrín",         "municipality": "Lubrín",          "lat": 37.2439, "lon": -2.0421, "population": 1434, "buildings": 0, "languages": ["es", "en"] },
+    { "id": "turre",          "name": "Turre",          "municipality": "Turre",           "lat": 37.1522, "lon": -1.8923, "population": 4361, "buildings": 0, "languages": ["es", "en"] },
+    { "id": "mojacar",        "name": "Mojácar",        "municipality": "Mojácar",         "lat": 37.1398, "lon": -1.851,  "population": 7680, "buildings": 0, "languages": ["es", "en"] }
+  ]
+}

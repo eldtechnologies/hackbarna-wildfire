@@ -185,6 +185,30 @@ test('a missing observed_at is null, and the key is still present', () => {
   assert.equal(out.hotspots[0].detectedAt, null);
 });
 
+test('the source satellite passes through, and a blank one is null', () => {
+  const out = run({
+    hotspots: [hotspot(), hotspot({ id: 'h2', source: '  ' })],
+  });
+  assert.equal(out.hotspots[0].satellite, 'VIIRS');
+  assert.equal(out.hotspots[1].satellite, null);
+});
+
+test('a horizon-0 spread record is the perimeter, positive horizons are steps', () => {
+  const out = run({
+    spread: [
+      { cluster_id: 'c1', valid_time: '2026-07-09T12:00:00Z', horizon_hours: 0, area_km2: 7.4, geometry: { type: 'Polygon', coordinates: [RING] } },
+      { cluster_id: 'c1', valid_time: '2026-07-09T14:00:00Z', horizon_hours: 2, geometry: { type: 'Polygon', coordinates: [RING] } },
+      { cluster_id: 'c1', valid_time: '2026-07-09T16:00:00Z', geometry: { type: 'Polygon', coordinates: [RING] } },
+    ],
+  });
+  assert.equal(out.perimeters.length, 1);
+  assert.equal(out.perimeters[0].areaKm2, 7.4);
+  assert.equal(out.perimeters[0].observedAt, '2026-07-09T12:00:00Z');
+  assert.equal(out.spread.length, 1);
+  assert.equal(out.spread[0].horizonHours, 2);
+  assert.equal(out.spread[0].at, '2026-07-09T14:00:00Z');
+});
+
 test('a blank observed_watermark falls back instead of surviving as ""', () => {
   // Regression: `??` does not treat '' as nullish, so the empty string won.
   const out = run({ perimeters: [perimeter({ observed_watermark: '' })] });

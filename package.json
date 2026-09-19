@@ -14,9 +14,18 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.server.json",
-    "test": "node --test --import tsx server/providers/normalize.test.ts server/providers/live.test.ts"
+    "record:snapshot": "node scripts/record-snapshot.mjs",
+    "mock:deepfire": "node scripts/mock-deepfire.mjs",
+    "test": "node --test --import tsx \"server/**/*.test.ts\""
   },
   "dependencies": {
+    "@turf/along": "^7.4.0",
+    "@turf/boolean-point-in-polygon": "^7.4.0",
+    "@turf/buffer": "^7.4.0",
+    "@turf/distance": "^7.4.0",
+    "@turf/length": "^7.4.0",
+    "@turf/point-to-line-distance": "^7.4.0",
+    "@turf/union": "^7.4.0",
     "cesium": "1.145.0",
     "express": "4.22.2"
   },
@@ -32,8 +41,5 @@
   "allowScripts": {
     "esbuild@0.28.2": true,
     "esbuild@0.25.12": true
-  },
-  "engines": {
-    "node": ">=22.9.0"
   }
 }

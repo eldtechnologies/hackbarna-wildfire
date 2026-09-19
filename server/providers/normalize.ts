@@ -25,6 +25,7 @@
 import type {
   FireCluster,
   FirePerimeter,
+  SpreadStep,
   FiresResponse,
   Hotspot,
   LatLon,
@@ -90,10 +91,22 @@ export type RawPerimeter = OgcFeature<
   PolygonGeometry | MultiPolygonGeometry
 >;
 
+// Mock/recorded spread records (scripts/mock-deepfire.mjs, recordings under
+// data/snapshots/). The live API has no forecast collection, so these only
+// ever arrive from the replay path. A horizon of 0 IS the observed perimeter.
+export interface RawSpreadStep {
+  cluster_id?: string | number | null;
+  valid_time?: string;
+  horizon_hours?: number;
+  area_km2?: number;
+  geometry?: PolygonGeometry | null;
+}
+
 export interface RawFiresPayload {
   hotspots: RawHotspot[];
   clusters: RawCluster[];
   perimeters: RawPerimeter[];
+  spread?: RawSpreadStep[];
 }
 
 const CONFIDENCE_MAP: Record<string, number> = {
@@ -213,6 +226,7 @@ export function normalize(
       frpMw: numberOrNull(p.fire_radiative_power),
       confidence: confidenceOf(p.confidence),
       detectedAt: firstNonBlank(p.observed_at),
+      satellite: firstNonBlank(p.source),
       clusterId: firstNonBlank(p.cluster_id == null ? null : String(p.cluster_id)),
     });
   }
@@ -288,6 +302,38 @@ export function normalize(
   warnSkipped('perimeters', skippedPerimeters, rawPerimeters.length);
   warnSkipped('perimeter parts', droppedParts, droppedParts);
 
+  // Mock/recorded spread (replay path only). Horizon 0 records are the
+  // observed perimeter at that frame; positive horizons are projections.
+  const spread: SpreadStep[] = [];
+  let skippedSpread = 0;
+  const rawSpread = raw.spread ?? [];
+  for (const s of rawSpread) {
+    const ring = ringOf(s?.geometry?.coordinates?.[0]);
+    const clusterId = firstNonBlank(s?.cluster_id == null ? null : String(s.cluster_id));
+    const validTime = firstNonBlank(s?.valid_time);
+    const horizon = numberOrNull(s?.horizon_hours);
+    if (!ring || !clusterId || !validTime || horizon === null) {
+      skippedSpread += 1;
+      continue;
+    }
+    if (horizon === 0) {
+      perimeters.push({
+        clusterId,
+        polygon: ring,
+        areaKm2: numberOrNull(s.area_km2),
+        observedAt: validTime,
+        partIndex: 0,
+        partCount: 1,
+      });
+    } else if (horizon > 0) {
+      spread.push({ clusterId, at: validTime, horizonHours: horizon, polygon: ring });
+    } else {
+      // A negative horizon is neither the observed perimeter nor a projection.
+      skippedSpread += 1;
+    }
+  }
+  warnSkipped('spread steps', skippedSpread, rawSpread.length);
+
   return {
     provenance,
     fetchedAt: new Date().toISOString(),
@@ -295,7 +341,8 @@ export function normalize(
     hotspots,
     clusters,
     perimeters,
-    // Deepfire exposes observed perimeters only. It has no forecast collection.
-    spread: [],
+    // Deepfire exposes observed perimeters only. It has no forecast
+    // collection, so the live path always has an empty spread list.
+    spread,
   };
 }

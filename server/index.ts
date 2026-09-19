@@ -1,8 +1,13 @@
 import express from 'express';
 import { SERVER_HOST, SERVER_PORT } from './config';
 import { getFires } from './providers';
+import { getInfrastructure } from './infrastructure';
+import { getThreats } from './threats';
+import { engineRouter } from './engine/routes';
 
 const app = express();
+
+app.use(engineRouter());
 
 app.get('/api/health', (_req, res) => {
   res.json({
@@ -13,12 +18,45 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-app.get('/api/fires', async (_req, res) => {
+app.get('/api/fires', async (req, res) => {
   try {
-    res.json(await getFires());
+    // ?at=<seconds> scrubs a recorded event timeline. Absent or invalid
+    // values serve the latest state (live edge).
+    const atRaw = req.query.at;
+    const atParsed = atRaw === '' ? NaN : Number(atRaw);
+    const atSeconds = Number.isFinite(atParsed) ? Math.max(0, atParsed) : undefined;
+    res.json(await getFires(atSeconds));
   } catch (err) {
     console.error('[api] /api/fires failed:', err);
     res.status(502).json({ error: 'fire data unavailable' });
+  }
+});
+
+app.get('/api/infrastructure', async (_req, res) => {
+  try {
+    res.json(await getInfrastructure());
+  } catch (err) {
+    console.error('[api] /api/infrastructure failed:', err);
+    res.status(502).json({ error: 'infrastructure data unavailable' });
+  }
+});
+
+app.get('/api/threats', async (req, res) => {
+  const fireId = typeof req.query.fireId === 'string' ? req.query.fireId : '';
+  if (!fireId) {
+    res.status(400).json({ error: 'fireId query parameter required' });
+    return;
+  }
+  try {
+    const threats = await getThreats(fireId);
+    if (!threats) {
+      res.status(404).json({ error: `unknown fireId ${fireId}` });
+      return;
+    }
+    res.json(threats);
+  } catch (err) {
+    console.error('[api] /api/threats failed:', err);
+    res.status(502).json({ error: 'threat analysis unavailable' });
   }
 });
 
