@@ -1,8 +1,9 @@
 # Growth baselines on the metric the field uses
 
-The earlier result (`stream3-baselines.md`) scored R² on **scalar burned area** and
-concluded persistence wins. That conclusion is a property of the metric, not of the
-model. This document re-scores the same task as a **next-state fire mask** with
+The earlier result in [`model-proposal.md`](model-proposal.md) scored R² on
+**scalar burned area** and concluded persistence wins. That conclusion is a property
+of the metric, not of the model. This document re-scores the same task as a
+**next-state fire mask** with
 **average precision (AUC-PR)** — the metric the published benchmarks use — and adds
 the features the corpora never carried.
 
@@ -71,11 +72,13 @@ not help on this target, which is itself a finding.
 ## Reproduce
 
 ```bash
-# 1. build the dataset shards (needs the MTG archive)
-cd tools/pipeline && uv run --with pandas --with numpy python build.py
+# 1. build the dataset shards (needs the MTG archive; see build.py for its source)
+cd tools/pipeline && uv run --with pandas --with numpy python build.py --archive /path/to/LSA_SAF_MTFRPPixel_2026
 
-# 2. fetch DEM + WorldCover tiles for the sample grids (keyless S3)
-#    -> tiles/dem/*.tif, tiles/wc/*.tif   (script records the exact tile list)
+# 2. put the DEM and WorldCover tiles for the sample grids under tiles/:
+#      tiles/dem/*.tif   Copernicus DEM GLO-30   (AWS Open Data, no key)
+#      tiles/wc/*.tif    ESA WorldCover v200     (AWS Open Data, no key)
+#    features_static.py reads the union of the sample grids from these tiles.
 
 # 3. build the coarse static mosaics and score
 uv run --with rasterio --with numpy --with scikit-learn python features_static.py

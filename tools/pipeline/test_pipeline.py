@@ -170,5 +170,28 @@ class TestSamples(unittest.TestCase):
         self.assertEqual(s["cell_area_km2"].shape, (128, 1))
 
 
+class TestDriftBaseline(unittest.TestCase):
+    def test_drift_carries_the_centroid_velocity_forward(self):
+        """The drift baseline is the current mask shifted by the history->current
+        centroid displacement, scaled by forward/history (9h/3h = 3)."""
+        from ap_harness import drift_mask
+
+        cur = np.zeros((1, 12, 12), np.float32)
+        cur[0, 4, 4] = 1.0          # current centroid at row 4
+        hist = np.zeros((1, 12, 12), np.float32)
+        hist[0, 3, 4] = 1.0         # history centroid at row 3 -> velocity +1 row
+        out = drift_mask(cur, hist)
+        # +1 row/window carried over 3 windows = +3 rows: 4 -> 7
+        found = np.argwhere(out[0] > 0)
+        self.assertEqual(float(out[0].sum()), 1.0, "the mask must not gain or lose cells")
+        self.assertEqual(tuple(int(i) for i in found[0]), (7, 4))
+
+    def test_drift_of_an_empty_fire_is_empty(self):
+        from ap_harness import drift_mask
+
+        z = np.zeros((1, 8, 8), np.float32)
+        self.assertEqual(float(drift_mask(z, z).sum()), 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

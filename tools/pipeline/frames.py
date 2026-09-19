@@ -85,25 +85,23 @@ def _accumulate(obs, grid: Grid, t_from, t_to) -> dict[str, np.ndarray]:
     """
     frp = np.zeros((grid.height, grid.width), dtype=np.float32)
     count = np.zeros((grid.height, grid.width), dtype=np.float32)
-    confidence = np.zeros((grid.height, grid.width), dtype=np.float32)
 
     window = obs[(obs["t"] >= t_from) & (obs["t"] < t_to)]
     if len(window) == 0:
-        return {"frp": frp, "detections": count, "confidence": confidence}
+        return {"frp": frp, "detections": count}
 
     row, col = grid.cell_of(window["lon"].values, window["lat"].values)
     inside = grid.contains(row, col)
     row, col = row[inside], col[inside]
     if len(row) == 0:
-        return {"frp": frp, "detections": count, "confidence": confidence}
+        return {"frp": frp, "detections": count}
 
     frp_values = window["FRP"].values[inside]
     measured = np.isfinite(frp_values) & (frp_values > 0)
 
     np.add.at(frp, (row[measured], col[measured]), frp_values[measured])
     np.add.at(count, (row, col), 1.0)
-    np.add.at(confidence, (row, col), window["FIRE_CONFIDENCE"].values[inside])
-    return {"frp": frp, "detections": count, "confidence": confidence}
+    return {"frp": frp, "detections": count}
 
 
 def build_samples(

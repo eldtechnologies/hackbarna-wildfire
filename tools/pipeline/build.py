@@ -2,7 +2,7 @@
 """Assemble the fire-spread training dataset from the MTG FRP archive.
 
     cd tools/pipeline
-    uv run --with pandas --with numpy --with scikit-learn python build.py
+    uv run --with pandas --with numpy --with scikit-learn python build.py --archive /path/to/LSA_SAF_MTFRPPixel_2026
 
 Streams samples to `.npz` shards. Nothing holds the whole dataset in memory: 783
 events at 128x128 float32 is tens of gigabytes, and a run that dies at event 700
@@ -11,12 +11,33 @@ because of RAM is a run that produced nothing.
 Writes to `out/`: `events.csv`, `shard-XXXX.npz`, `report.json`. The report carries
 the numbers the shards imply, so a reader can check one against the other rather
 than trusting either.
+
+Getting the archive
+-------------------
+The 77 GB archive is not in this repo. It is the **LSA SAF MTG FRP-Pixel**
+product (`MTFRPPIXEL`), free and key-less, from the LSA SAF portal:
+
+    https://lsa-saf.eumetsat.int/     (Fire Products -> FRP)
+
+`build.py` reads one file from it:
+
+    <archive>/analysis/iberia_bbox_hotspots.csv.gz
+
+That extract is the product's pixel table filtered to the Iberia bbox and gzipped.
+It must carry these columns, which `events.load_hotspots` reads:
+
+    observed_at_utc, LONGITUDE_PARALLAX, LATITUDE_PARALLAX, FRP,
+    FIRE_CONFIDENCE, PIXEL_SIZE
+
+Point `--archive` at the extracted directory, or set `WF_ARCHIVE`. See
+`docs/DATA_SOURCES.md` for what the archive holds and why each column is used.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from pathlib import Path
 
@@ -25,10 +46,9 @@ import numpy as np
 from events import EpisodeParams, assign_episodes, episode_ids, load_hotspots
 from frames import DEFAULT_CELL_DEG, FrameParams, build_samples
 
-DEFAULT_ARCHIVE = (
-    Path.home()
-    / "Documents/Codex/2026-09-19/file-users-ola-downloads-hackbarna-20/outputs/LSA_SAF_MTFRPPixel_2026"
-)
+# No personal path here. The archive is external and named on the command line
+# (or in WF_ARCHIVE); see "Getting the archive" above.
+DEFAULT_ARCHIVE = Path(os.environ.get("WF_ARCHIVE", "archive/LSA_SAF_MTFRPPixel_2026"))
 
 SHARD_SAMPLES = 512
 
@@ -121,7 +141,11 @@ def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     csv = args.archive / "analysis" / "iberia_bbox_hotspots.csv.gz"
     if not csv.exists():
-        raise SystemExit(f"no hotspot table at {csv}")
+        raise SystemExit(
+            f"no hotspot table at {csv}\n"
+            "Point --archive at an extracted LSA SAF MTG FRP-Pixel directory "
+            "(or set WF_ARCHIVE); see the module docstring for how to get it."
+        )
 
     started = time.time()
     obs = load_hotspots(str(csv))
