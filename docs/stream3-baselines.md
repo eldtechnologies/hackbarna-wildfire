@@ -38,16 +38,28 @@ second.
 
 ## Results
 
-Measured on held-out fires, gap-filtered to steps of 7 days or less.
+Measured on held-out fires, gap-filtered to steps of 7 days or less. **Two
+aggregates, because they disagree and either alone misleads:**
+
+- **Pooled R²** — one R² across every held-out pair. Variance-weighted, so a fire
+  that grows through three orders of magnitude owns most of it.
+- **Per-fire median R²** — the typical fire. This is the number to quote when
+  asking "does it work on a normal fire".
 
 ### Burned area at the next state
 
-| Corpus | Predictor | R² | Median MAPE |
-| --- | --- | ---: | ---: |
-| PT-FireSprd | persistence | 0.9897 | 6.5 % |
-| PT-FireSprd | constant ROS | 0.9856 | 9.5 % |
-| FireSpread_MedEU | persistence | 0.7681 | 37.5 % |
-| FireSpread_MedEU | constant ROS | 0.8026 | 48.5 % |
+| Corpus | Predictor | Pooled R² | Per-fire median R² | Median MAPE |
+| --- | --- | ---: | ---: | ---: |
+| PT-FireSprd | persistence | 0.9897 | **0.5720** | 6.5 % |
+| PT-FireSprd | constant ROS | 0.9856 | **−0.0800** | 9.5 % |
+| FireSpread_MedEU | persistence | 0.7681 | **−3.4177** | 37.5 % |
+| FireSpread_MedEU | constant ROS | 0.8026 | **−10.9490** | 48.5 % |
+
+The gap between the columns is the whole story. Pooled R² 0.99 says "a few enormous
+fires are predicted well". Per-fire median 0.57 says "the typical fire is not".
+On MedEU the per-fire median is **negative**: persistence is worse than the fire's
+own mean, because a growth series is non-stationary and carrying the last value
+forward systematically under-predicts it.
 
 ### Bearing and rate
 
@@ -64,23 +76,57 @@ is the honest ceiling of a tabular model here — **no wind, terrain, fuel or
 moisture exists in either corpus**, which is exactly the input a spread model
 actually needs.
 
-## Three findings the numbers force
+## The metric is the weak part, not the model
 
-**1. The area result is a horizon effect, not a property of fire.** The plan's
-headline R²=0.99 reproduces on PT-FireSprd — at a **1-hour median step**. At
-MedEU's 24-hour cadence persistence falls to **0.77** and its median error goes
-from 6.5 % to 37.5 %. Persistence looks strong because the next hour's perimeter is
-nearly the current one. Quote 0.99 without naming the horizon and the number is
-misleading.
+**R² on scalar burned area cannot separate a useful model from a no-change model.**
+That is not a guess about this harness; it is what the published benchmarks show.
+Persistence is an explicit baseline in both of them, and it is the *worst* model on
+the metrics the field actually uses:
 
-**2. The direction target is where the baseline fails.** Persistence carries a
-42.6° median bearing error on PT-FireSprd and 97.5° on MedEU. A direction that is
-wrong by 40° is not a direction. This is the quantity the product claim depends on
-— the arrow on the screen — and the baseline has little skill at it.
+| Benchmark | Metric | Persistence | Best learned model |
+| --- | --- | ---: | ---: |
+| Next Day Wildfire Spread (Huot 2022) | AUC(PR) | 11.5 | 28.4 |
+| WildfireSpreadTS (Gerard 2023) | test AP | 0.193 | 0.404 |
 
-**3. The model loses on direction on both corpora.** It does not rescue finding 2.
-It is marginally better on rate at MedEU (R² −0.05 against −1.26) and worse on
-PT-FireSprd, but on the bearing target it is worse on both. **The baseline ships.**
+Persistence has the **highest precision** in NDWS (35.7 %) and the lowest AUC. On
+area it looks excellent. On a mask it is the baseline everything beats by roughly
+**2–2.5×**.
+
+So the correct reading of the tables above is *not* "a model is unnecessary". It is
+**"this metric cannot answer the question, and a model without weather, terrain and
+fuel has nothing to learn from"**. The field evaluates spread with AUC(PR), AP, F1
+or IoU on a mask. This harness reports R² on a scalar, because that is what the
+plan's measurement used. That choice should change before any model is compared
+against these numbers.
+
+Two further protocol notes: this split is **leave-one-fire-out**, which is harder
+than the published random-week split; and the plan's original 0.9910 reproduces
+here as pooled R² 0.9897, so the number was measured correctly and read too
+generously.
+
+## Four findings
+
+**1. The area result is a horizon effect on top of an aggregation effect.** The
+plan's R²=0.99 reproduces on PT-FireSprd at a **1-hour median step**, and it is
+pooled. At MedEU's 24-hour cadence persistence falls to 0.77 pooled and **−3.42**
+per fire. Quote 0.99 without naming the horizon *and* the aggregation and the number
+is misleading twice over.
+
+**2. The direction target is where the baseline fails.** A random heading gives a
+median error of 90°. The Global Fire Atlas reports spread direction at 45°
+quantisation, so 45° is the resolution floor for daily satellite direction.
+Persistence lands at **42.6° on PT-FireSprd** — better than chance, at the floor, and
+only just. At 24 h it is **97.5°**, which is *at chance*: persistence has no
+direction skill at a daily horizon at all.
+
+**3. The model does not rescue finding 2, and cannot here.** It is marginally better
+on rate at MedEU and worse on PT-FireSprd, but on bearing it is worse on both
+(56.2° against 42.6°). The reason is in the feature list, not the architecture.
+
+**4. The baseline ships for now — for a stated reason.** `model` is null because
+nothing beat the baseline *on this metric with these features*. That is a statement
+about the harness, not a claim that a model is not worth building. On mask metrics
+the literature says the opposite by 2–2.5×.
 
 ## What ships
 

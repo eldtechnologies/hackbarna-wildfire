@@ -24,7 +24,10 @@ interface HarnessRow {
   /** False for the all-pairs row, which exists to document the outlier effect. */
   primary: boolean;
   mean_rate_kmh: number | null;
-  burned_area: Record<string, { r2: number; median_mape: number }>;
+  burned_area: Record<
+    string,
+    { r2: number; median_r2_per_fire: number | null; median_mape: number }
+  >;
   bearing_rate: {
     persistence: { rate_r2: number; rate_median_mape: number };
   };
@@ -59,6 +62,7 @@ export function loadScores(): GrowthScore[] {
           target: 'burned_area',
           corpus: row.corpus,
           r2: area.r2,
+          medianR2PerFire: area.median_r2_per_fire,
           medianMape: area.median_mape,
           events,
         });
@@ -71,6 +75,7 @@ export function loadScores(): GrowthScore[] {
         target: 'bearing_rate',
         corpus: row.corpus,
         r2: dir.rate_r2,
+        medianR2PerFire: null,
         medianMape: dir.rate_median_mape,
         events,
       });
@@ -82,6 +87,7 @@ export function loadScores(): GrowthScore[] {
         target: 'bearing_rate',
         corpus: row.corpus,
         r2: modelRate.r2,
+        medianR2PerFire: null,
         medianMape: modelRate.median_mape,
         events,
       });

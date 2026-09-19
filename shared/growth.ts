@@ -41,7 +41,15 @@ export interface GrowthScore {
    * the caveat-free number this contract exists to prevent.
    */
   corpus: string;
+  /** Pooled across every held-out pair. Variance-weighted, so the largest fires
+   *  dominate it and it flatters any predictor that carries the last value forward. */
   r2: number;
+  /**
+   * Median R2 over held-out fires - how the typical fire does. Much lower than `r2`
+   * and negative where a growth series makes carrying the last value worse than the
+   * fire's own mean. Null when the target has no per-fire reading.
+   */
+  medianR2PerFire: number | null;
   medianMape: number;
   /** Number of held-out events, not rows. */
   events: number;

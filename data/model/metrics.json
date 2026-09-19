@@ -16,10 +16,12 @@
     "burned_area": {
       "persistence": {
         "r2": 0.9897,
+        "median_r2_per_fire": 0.572,
         "median_mape": 6.47
       },
       "constant_ros": {
         "r2": 0.9856,
+        "median_r2_per_fire": -0.08,
         "median_mape": 9.46
       }
     },
@@ -49,10 +51,12 @@
     "burned_area": {
       "persistence": {
         "r2": 0.9897,
+        "median_r2_per_fire": 0.572,
         "median_mape": 6.47
       },
       "constant_ros": {
         "r2": 0.9856,
+        "median_r2_per_fire": -0.08,
         "median_mape": 9.46
       }
     },
@@ -102,10 +106,12 @@
     "burned_area": {
       "persistence": {
         "r2": 0.7686,
+        "median_r2_per_fire": -3.374,
         "median_mape": 37.65
       },
       "constant_ros": {
         "r2": -28.4813,
+        "median_r2_per_fire": -11.3236,
         "median_mape": 48.74
       }
     },
@@ -135,10 +141,12 @@
     "burned_area": {
       "persistence": {
         "r2": 0.7681,
+        "median_r2_per_fire": -3.4177,
         "median_mape": 37.48
       },
       "constant_ros": {
         "r2": 0.8026,
+        "median_r2_per_fire": -10.949,
         "median_mape": 48.49
       }
     },

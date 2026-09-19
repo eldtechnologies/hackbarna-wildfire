@@ -144,9 +144,9 @@ test('the baselines carry their own name and keep an unknown rate unknown', () =
 test('shippedPredictor names a baseline when no model score beats it', () => {
   assert.equal(
     shippedPredictor([
-      { name: 'persistence', target: 'burned_area', corpus: 'x', r2: 0.99, medianMape: 6, events: 10 },
-      { name: 'constant_ros', target: 'burned_area', corpus: 'x', r2: 0.98, medianMape: 9, events: 10 },
-      { name: 'model', target: 'bearing_rate', corpus: 'x', r2: 0.1, medianMape: 50, events: 10 },
+      { name: 'persistence', target: 'burned_area', corpus: 'x', r2: 0.99, medianR2PerFire: 0.57, medianMape: 6, events: 10 },
+      { name: 'constant_ros', target: 'burned_area', corpus: 'x', r2: 0.98, medianR2PerFire: -0.08, medianMape: 9, events: 10 },
+      { name: 'model', target: 'bearing_rate', corpus: 'x', r2: 0.1, medianR2PerFire: null, medianMape: 50, events: 10 },
     ]),
     'persistence',
   );
@@ -158,6 +158,20 @@ test('loadScores returns the committed harness output', () => {
   for (const s of scores) {
     assert.ok(s.corpus.length > 0, 'every score must name its corpus');
     assert.equal(typeof s.r2, 'number');
+  }
+});
+
+test('a pooled score travels with its per-fire reading, because they disagree', () => {
+  // The pooled R2 is dominated by the largest fires. Serving it alone would put a
+  // number on screen that is true of a few fires and false of the typical one.
+  const area = loadScores().filter((s) => s.target === 'burned_area');
+  assert.ok(area.length > 0);
+  for (const s of area) {
+    assert.notEqual(s.medianR2PerFire, undefined, 'the per-fire reading must be carried');
+    assert.ok(
+      s.medianR2PerFire === null || s.medianR2PerFire <= s.r2,
+      `${s.corpus}/${s.name}: per-fire ${s.medianR2PerFire} should not flatter the pooled ${s.r2}`,
+    );
   }
 });
 

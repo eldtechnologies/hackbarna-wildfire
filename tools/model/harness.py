@@ -212,6 +212,35 @@ def score_corpus(
     r2_p, mape_p = r2_mape(obs, pers)
     r2_c, mape_c = r2_mape(obs, cros)
 
+    # Pooled R2 across all held-out pairs is dominated by the few largest fires: a
+    # fire that grows through three orders of magnitude owns most of the variance.
+    # The per-fire median answers a different question - how the typical fire does -
+    # and it is much lower. Both are reported because either alone misleads.
+    def per_fire_median_r2(predict) -> float | None:
+        scores = []
+        by_fire: dict[str, list[tuple[float, float]]] = {}
+        for a, b in pairs:
+            by_fire.setdefault(a.fire, []).append((b.area_ha, predict(a, b)))
+        for vals in by_fire.values():
+            if len(vals) > 1:
+                o = [v[0] for v in vals]
+                pr = [v[1] for v in vals]
+                scores.append(r2_mape(o, pr)[0])
+        finite = [x for x in scores if x == x]
+        return round(statistics.median(finite), 4) if finite else None
+
+    rate_by_fire = rates
+
+    def persistence_pred(a, b):
+        return a.area_ha
+
+    def constant_ros_pred(a, b):
+        others = [r for f, r in rate_by_fire.items() if f != a.fire]
+        return max(0.0, a.area_ha + (statistics.fmean(others) if others else 0.0) * (b.t - a.t))
+
+    median_p = per_fire_median_r2(persistence_pred)
+    median_c = per_fire_median_r2(constant_ros_pred)
+
     berr, r_obs, r_pred = [], [], []
     for a, b in pairs:
         if a.bearing_deg is not None and b.bearing_deg is not None:
@@ -243,8 +272,18 @@ def score_corpus(
             "max": round(max(dts), 2) if dts else None,
         },
         "burned_area": {
-            "persistence": {"r2": round(r2_p, 4), "median_mape": round(mape_p, 2)},
-            "constant_ros": {"r2": round(r2_c, 4), "median_mape": round(mape_c, 2)},
+            # "r2" is pooled across all held-out pairs. "median_r2_per_fire" is the
+            # typical fire. They differ by a lot and both travel with the number.
+            "persistence": {
+                "r2": round(r2_p, 4),
+                "median_r2_per_fire": median_p,
+                "median_mape": round(mape_p, 2),
+            },
+            "constant_ros": {
+                "r2": round(r2_c, 4),
+                "median_r2_per_fire": median_c,
+                "median_mape": round(mape_c, 2),
+            },
         },
         "bearing_rate": {
             "pairs_with_direction": len(berr),
