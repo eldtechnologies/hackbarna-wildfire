@@ -276,7 +276,10 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
         `departure band ${chosen?.lastSafeDeparture ? `${chosen.lastSafeDeparture.earliest} .. ${chosen.lastSafeDeparture.latest ?? 'never closes inside the window'}` : 'none'}`,
         chosen?.lastSafeDeparture ? `basis: ${chosen.lastSafeDeparture.basis}` : 'basis: n/a',
         chosen?.clearanceMinutes != null
-          ? `clearance at the tightest point: ${chosen.clearanceMinutes} min (${settlement.population ?? 'unknown'} residents at ${ASSUMPTIONS.mobileFraction} mobile ÷ ${ASSUMPTIONS.vehicleOccupancy} per vehicle)`
+          ? 'clearance at the tightest point: ' +
+            `${chosen.clearanceMinutes} min ` +
+            `(${settlement.population ?? 'unknown'} residents at ` +
+            `${ASSUMPTIONS.mobileFraction} mobile ÷ ${ASSUMPTIONS.vehicleOccupancy} per vehicle)`
           : 'clearance: not computed',
         `detections ${built.diagnostics.detections}; persistent-heat polygons ${built.diagnostics.staticHeat.polygons}, detections removed ${built.diagnostics.staticHeat.removed}`,
       ],

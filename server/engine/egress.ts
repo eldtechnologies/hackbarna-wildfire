@@ -392,7 +392,9 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
         earliest: fromEpochMs(origin + Math.min(minValue, windowEndSeconds) * 1000),
         latest: Number.isFinite(maxValue) ? fromEpochMs(origin + maxValue * 1000) : null,
         basis: neverClosed
-          ? `no configuration closes this route inside the modelled window (all ${acc.departures.length} of ${SWEEP_CONFIGS.length} unbounded); earliest is the end of the window, not a departure deadline`
+          ? `no configuration closes this route inside the modelled window ` +
+            `(all ${acc.departures.length} of ${SWEEP_CONFIGS.length} unbounded); ` +
+            'earliest is the end of the window, not a departure deadline'
           : basisFor(acc.configIds[minIndex], acc.configIds[maxIndex], acc.departures.length),
       };
       const settlement = ctx.settlements.find((s) => s.id === settlementId);
