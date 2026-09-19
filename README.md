@@ -12,7 +12,7 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the full design document.
 
 ```bash
 npm install
-npm run dev
+bun run dev
 ```
 
 Starts the Vite client on http://localhost:5173 and the Express proxy on http://localhost:3001 (the client proxies `/api/*` to it).

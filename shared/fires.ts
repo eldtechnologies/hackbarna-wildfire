@@ -34,7 +34,7 @@ export interface FireCluster {
 }
 
 export interface FirePerimeter {
-  clusterId: string;
+  clusterId: string | null; // null when the source omitted cluster_id
   polygon: LatLon[]; // closed ring: >=4 positions, first point repeated at the end
   areaKm2: number | null; // null when the source reported no area
   observedAt: string | null;

@@ -213,7 +213,7 @@ export function normalize(
       frpMw: numberOrNull(p.fire_radiative_power),
       confidence: confidenceOf(p.confidence),
       detectedAt: firstNonBlank(p.observed_at),
-      clusterId: p.cluster_id != null ? String(p.cluster_id) : null,
+      clusterId: firstNonBlank(p.cluster_id == null ? null : String(p.cluster_id)),
     });
   }
   warnSkipped('hotspots', skippedHotspots, rawHotspots.length);
@@ -259,19 +259,24 @@ export function normalize(
   const rawPerimeters = raw.perimeters ?? [];
   const perimeters: FirePerimeter[] = [];
   let skippedPerimeters = 0;
+  let droppedParts = 0;
   for (const f of rawPerimeters) {
     const parts = perimeterParts(f?.geometry);
     const rings = parts.map(ringOf).filter((r): r is LatLon[] => r !== null);
+    // Count parts, not only whole features: a MultiPolygon with one good part and
+    // one malformed part would otherwise lose the bad part silently.
+    droppedParts += parts.length - rings.length;
     if (rings.length === 0) {
       skippedPerimeters += 1;
       continue;
     }
     const p = f.properties ?? ({} as RawPerimeterProps);
+    const clusterId = firstNonBlank(p.cluster_id == null ? null : String(p.cluster_id));
     const m2 = numberOrNull(p.area_m2);
     const observedAt = firstNonBlank(p.observed_watermark, p.computed_at);
     for (let i = 0; i < rings.length; i += 1) {
       perimeters.push({
-        clusterId: String(p.cluster_id),
+        clusterId,
         polygon: rings[i],
         areaKm2: m2 === null ? null : m2 / 1e6,
         observedAt,
@@ -281,6 +286,7 @@ export function normalize(
     }
   }
   warnSkipped('perimeters', skippedPerimeters, rawPerimeters.length);
+  warnSkipped('perimeter parts', droppedParts, droppedParts);
 
   return {
     provenance,

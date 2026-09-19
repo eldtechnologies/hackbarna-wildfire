@@ -78,7 +78,12 @@ export function parseBaseUrl(raw: string | undefined): string {
   return `${url.origin}${url.pathname.replace(/\/$/, '')}`;
 }
 
-const COLLECTIONS = `${parseBaseUrl(process.env.DEEPFIRE_BASE_URL)}/ogc/features/v1/collections`;
+// Resolved per call, never at module load: providers/index.ts builds the provider
+// on import, so a throw here would kill the server in every mode — including
+// replay — instead of reaching the replay fallback.
+function collectionsBase(): string {
+  return `${parseBaseUrl(process.env.DEEPFIRE_BASE_URL)}/ogc/features/v1/collections`;
+}
 
 interface OgcFeaturePage<T> {
   features?: T[];
@@ -129,11 +134,11 @@ export function requestInit(signal: AbortSignal): RequestInit {
   };
 }
 
-async function fetchPage<T>(path: string): Promise<T[]> {
+async function fetchPage<T>(base: string, path: string): Promise<T[]> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(`${COLLECTIONS}${path}`, requestInit(controller.signal));
+    const res = await fetch(`${base}${path}`, requestInit(controller.signal));
     if (!res.ok) throw new UpstreamError(res.status, `Deepfire ${path} returned ${res.status}`);
     return requireFeatures<T>(await res.json(), path);
   } finally {
@@ -159,20 +164,20 @@ export async function pageAll<T>(
   }
 }
 
-async function fetchPaged<T>(basePath: string): Promise<T[]> {
+async function fetchPaged<T>(base: string, basePath: string): Promise<T[]> {
+  // Every path in the loop either returns or throws, so there is no trailing
+  // fallback to reach.
   return pageAll<T>(async (start) => {
-    let lastErr: unknown = null;
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
       try {
-        return await fetchPage<T>(`${basePath}&limit=${PAGE_LIMIT}&startIndex=${start}`);
+        return await fetchPage<T>(base, `${basePath}&limit=${PAGE_LIMIT}&startIndex=${start}`);
       } catch (err) {
-        lastErr = err;
         // Retry only what can improve. A 4xx is a bad request and will not.
         if (!isRetryable(err) || attempt === MAX_ATTEMPTS - 1) throw err;
         await sleep(500 * 2 ** attempt);
       }
     }
-    throw lastErr ?? new Error('Deepfire page failed');
+    throw new Error('unreachable');
   });
 }
 
@@ -209,13 +214,13 @@ export function windowPath(collection: string, from: Date, to: Date): string {
   return `/${collection}/items?${params.toString()}`;
 }
 
-async function fetchWindowed<T>(collection: string): Promise<T[]> {
+async function fetchWindowed<T>(base: string, collection: string): Promise<T[]> {
   const now = new Date();
   const from = new Date(now.getTime() - WINDOW_HOURS * 60 * 60 * 1000);
   const all: T[] = [];
   // One day per request. A wide range returns 500 on the second page.
   for (const w of dayWindows(from, now)) {
-    all.push(...(await fetchPaged<T>(windowPath(collection, w.from, w.to))));
+    all.push(...(await fetchPaged<T>(base, windowPath(collection, w.from, w.to))));
   }
   return all;
 }
@@ -227,10 +232,11 @@ export class LiveProvider implements FireDataProvider {
     if (!API_KEY) {
       throw new Error('DEEPFIRE_API_KEY is not set');
     }
+    const base = collectionsBase();
     const [hotspots, clusters, perimeters] = await Promise.all([
-      fetchWindowed<RawHotspot>('deepfire:hotspots'),
-      fetchWindowed<RawCluster>('deepfire:clusters'),
-      fetchWindowed<RawPerimeter>('deepfire:satellite-perimeters'),
+      fetchWindowed<RawHotspot>(base, 'deepfire:hotspots'),
+      fetchWindowed<RawCluster>(base, 'deepfire:clusters'),
+      fetchWindowed<RawPerimeter>(base, 'deepfire:satellite-perimeters'),
     ]);
     const payload: RawFiresPayload = { hotspots, clusters, perimeters };
     return normalize(payload, 'live', null);

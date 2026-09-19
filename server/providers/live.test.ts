@@ -6,6 +6,9 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   UpstreamError,
   dayWindows,
@@ -161,4 +164,20 @@ test('the request refuses redirects and carries the key in a header', () => {
   assert.equal(init.redirect, 'error');
   assert.match(String((init.headers as Record<string, string>).Authorization), /^Bearer /);
   assert.equal((init.headers as Record<string, string>).Accept, 'application/geo+json');
+});
+
+const REPO = join(dirname(fileURLToPath(import.meta.url)), '../..');
+
+test('a bad base URL does not stop the server, in any mode', () => {
+  // Regression: parseBaseUrl ran at module load, so a bad DEEPFIRE_BASE_URL threw
+  // on import and killed the process before app.listen — including in replay
+  // mode, defeating the fallback the provider documents.
+  for (const bad of ['http://evil.example.com', 'https://mirror.example.com']) {
+    const out = execFileSync(
+      process.execPath,
+      ['--import', 'tsx', '-e', "import('./server/providers/index.ts').then(()=>console.log('OK'))"],
+      { cwd: REPO, env: { ...process.env, DATA_MODE: 'replay', DEEPFIRE_BASE_URL: bad }, encoding: 'utf8' },
+    );
+    assert.match(out, /OK/, `${bad} must not break the import`);
+  }
 });

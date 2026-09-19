@@ -82,6 +82,19 @@ const payload = (over: Partial<Payload> = {}): Payload => ({
 
 const run = (over: Partial<Payload> = {}) => normalize(payload(over), 'live', null);
 
+// Captures the drop warnings so the "the loss is visible" contract is testable.
+const captureWarnings = (fn: () => void): string[] => {
+  const seen: string[] = [];
+  const real = console.warn;
+  console.warn = (...args: unknown[]) => seen.push(args.join(' '));
+  try {
+    fn();
+  } finally {
+    console.warn = real;
+  }
+  return seen;
+};
+
 // --- FRP: a missing value is null, a measured value is kept verbatim ---------
 
 test('a missing FRP stays null, never 0', () => {
@@ -320,4 +333,75 @@ test('the real snapshot normalizes to 2743 / 7 / 12 with no NaN', () => {
   assert.ok(out.hotspots.every((h) => Number.isFinite(h.position.lon)));
   assert.ok(out.hotspots.every((h) => h.frpMw === null || Number.isFinite(h.frpMw)));
   assert.ok(out.perimeters.every((p) => p.areaKm2 === null || Number.isFinite(p.areaKm2)));
+});
+
+test('a perimeter with no cluster_id has a null clusterId, not the string "undefined"', () => {
+  // Regression: String(undefined) produced the identity "undefined".
+  const bare = {
+    type: 'Feature',
+    geometry: { type: 'MultiPolygon', coordinates: [[RING]] },
+    properties: { id: 'p', computed_at: 'x', n_hotspots: 1, area_m2: 1, perimeter_m: 1, active: true },
+  } as unknown as RawPerimeter;
+  assert.equal(run({ perimeters: [bare] }).perimeters[0].clusterId, null);
+
+  const blank = perimeter({ cluster_id: '  ' as unknown as string });
+  assert.equal(run({ perimeters: [blank] }).perimeters[0].clusterId, null);
+});
+
+test('a blank hotspot cluster_id is null rather than an empty identity', () => {
+  const out = run({ hotspots: [hotspot({ cluster_id: '   ' as unknown as string })] });
+  assert.equal(out.hotspots[0].clusterId, null);
+});
+
+test('a MultiPolygon keeps its good part and counts the malformed one', () => {
+  // Regression: only whole features were counted, so a feature with one good part
+  // and one bad part lost the bad part silently.
+  const mixed = perimeter(
+    {},
+    {
+      type: 'MultiPolygon',
+      coordinates: [
+        [RING],
+        [
+          [
+            [-3, 38],
+            [-3.1, 38],
+          ],
+        ],
+      ],
+    },
+  );
+  const out = run({ perimeters: [mixed] });
+  assert.equal(out.perimeters.length, 1);
+  assert.deepEqual([out.perimeters[0].partIndex, out.perimeters[0].partCount], [0, 1]);
+});
+
+test('dropping a malformed perimeter part is warned, not silent', () => {
+  // Regression: only whole features were counted, so a feature that lost one part
+  // lost it silently.
+  const mixed = perimeter(
+    {},
+    {
+      type: 'MultiPolygon',
+      coordinates: [
+        [RING],
+        [
+          [
+            [-3, 38],
+            [-3.1, 38],
+          ],
+        ],
+      ],
+    },
+  );
+  const warnings = captureWarnings(() => run({ perimeters: [mixed] }));
+  assert.ok(
+    warnings.some((w) => w.includes('perimeter parts')),
+    `expected a dropped-part warning, got: ${JSON.stringify(warnings)}`,
+  );
+});
+
+test('a clean payload warns about nothing', () => {
+  const warnings = captureWarnings(() => run({ perimeters: [perimeter()] }));
+  assert.deepEqual(warnings, []);
 });
