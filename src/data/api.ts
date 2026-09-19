@@ -24,6 +24,7 @@ export async function fetchFires(): Promise<FiresResponse> {
     clusters: Array.isArray(data.clusters) ? data.clusters : [],
     perimeters: Array.isArray(data.perimeters) ? data.perimeters : [],
     spread: Array.isArray(data.spread) ? data.spread : [],
+    timeline: data.timeline,
   };
 }
 

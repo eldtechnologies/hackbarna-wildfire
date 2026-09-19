@@ -1,0 +1,3975 @@
+{
+ "scenario": "castelltallat-drill",
+ "recordedAt": "2026-09-19T13:55:15.930Z",
+ "intervalSeconds": 15,
+ "frames": [
+  {
+   "t": "2026-09-19T13:53:30.893Z",
+   "hotspots": [
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.618,
+       41.802
+      ]
+     },
+     "properties": {
+      "id": "hs-001",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T13:59:59.782Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 119.9,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.625,
+       41.798
+      ]
+     },
+     "properties": {
+      "id": "hs-002",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T13:59:59.782Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 97.4,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.612,
+       41.806
+      ]
+     },
+     "properties": {
+      "id": "hs-003",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T13:59:59.782Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 75.7,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.63,
+       41.794
+      ]
+     },
+     "properties": {
+      "id": "hs-004",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T13:59:59.782Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 62.3,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.633,
+       41.8
+      ]
+     },
+     "properties": {
+      "id": "hs-005",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T13:59:59.782Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 55.7,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.622,
+       41.809
+      ]
+     },
+     "properties": {
+      "id": "hs-006",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T13:59:59.782Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 43.2,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.614,
+       41.791
+      ]
+     },
+     "properties": {
+      "id": "hs-007",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T13:59:59.782Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 34.3,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.606,
+       41.795
+      ]
+     },
+     "properties": {
+      "id": "hs-008",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T13:59:59.782Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 22.7,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.63,
+       41.811
+      ]
+     },
+     "properties": {
+      "id": "hs-009",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T13:59:59.782Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 15.3,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.624,
+       41.788
+      ]
+     },
+     "properties": {
+      "id": "hs-010",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T13:59:59.782Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 8.7,
+      "country": "ES",
+      "active": true
+     }
+    }
+   ],
+   "clusters": [
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.62,
+       41.799
+      ]
+     },
+     "properties": {
+      "id": "cl-01",
+      "first_observed": "2026-09-19T13:53:27.622Z",
+      "last_observed": "2026-09-19T13:59:59.542Z",
+      "active": true
+     }
+    }
+   ],
+   "spread": [
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T13:59:59.782Z",
+     "horizon_hours": 0,
+     "area_km2": 7.4,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.8140770525865
+        ],
+        [
+         1.6330804924341074,
+         41.810052285683696
+        ],
+        [
+         1.63811145106261,
+         41.799990368426684
+        ],
+        [
+         1.6330804924341074,
+         41.78992845116968
+        ],
+        [
+         1.62,
+         41.785903684266884
+        ],
+        [
+         1.6069195075658926,
+         41.78992845116968
+        ],
+        [
+         1.60188854893739,
+         41.799990368426684
+        ],
+        [
+         1.6069195075658926,
+         41.810052285683696
+        ],
+        [
+         1.62,
+         41.8140770525865
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T15:59:59.782Z",
+     "horizon_hours": 2,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81557963223021
+        ],
+        [
+         1.6346501515262002,
+         41.81107189329907
+        ],
+        [
+         1.6402848251901234,
+         41.79980254597122
+        ],
+        [
+         1.6346501515262002,
+         41.78853319864338
+        ],
+        [
+         1.62,
+         41.78402545971224
+        ],
+        [
+         1.6053498484737998,
+         41.78853319864338
+        ],
+        [
+         1.5997151748098768,
+         41.79980254597122
+        ],
+        [
+         1.6053498484737998,
+         41.81107189329907
+        ],
+        [
+         1.62,
+         41.81557963223021
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T17:59:59.782Z",
+     "horizon_hours": 4,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81726252143117
+        ],
+        [
+         1.6364081697093442,
+         41.8122138538283
+        ],
+        [
+         1.642719004212938,
+         41.7995921848211
+        ],
+        [
+         1.6364081697093442,
+         41.78697051581391
+        ],
+        [
+         1.62,
+         41.78192184821104
+        ],
+        [
+         1.6035918302906558,
+         41.78697051581391
+        ],
+        [
+         1.597280995787062,
+         41.7995921848211
+        ],
+        [
+         1.6035918302906558,
+         41.8122138538283
+        ],
+        [
+         1.62,
+         41.81726252143117
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T19:59:59.782Z",
+     "horizon_hours": 6,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81914735733624
+        ],
+        [
+         1.6383771500744657,
+         41.81349284962103
+        ],
+        [
+         1.6454452847184908,
+         41.79935658033297
+        ],
+        [
+         1.6383771500744657,
+         41.78522031104492
+        ],
+        [
+         1.62,
+         41.7795658033297
+        ],
+        [
+         1.6016228499255345,
+         41.78522031104492
+        ],
+        [
+         1.5945547152815094,
+         41.79935658033297
+        ],
+        [
+         1.6016228499255345,
+         41.81349284962103
+        ],
+        [
+         1.62,
+         41.81914735733624
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T21:59:59.782Z",
+     "horizon_hours": 8,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.6200000000000003,
+         41.821258373549924
+        ],
+        [
+         1.6405824080834015,
+         41.814925324908884
+        ],
+        [
+         1.6484987188847096,
+         41.79909270330626
+        ],
+        [
+         1.6405824080834015,
+         41.783260081703645
+        ],
+        [
+         1.6200000000000003,
+         41.7769270330626
+        ],
+        [
+         1.5994175919165985,
+         41.783260081703645
+        ],
+        [
+         1.5915012811152904,
+         41.79909270330626
+        ],
+        [
+         1.5994175919165985,
+         41.814925324908884
+        ],
+        [
+         1.6200000000000003,
+         41.821258373549924
+        ]
+       ]
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "t": "2026-09-19T13:53:45.900Z",
+   "hotspots": [
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.618,
+       41.802
+      ]
+     },
+     "properties": {
+      "id": "hs-001",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T14:30:00.862Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 126.9,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.625,
+       41.798
+      ]
+     },
+     "properties": {
+      "id": "hs-002",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T14:30:00.862Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 103.1,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.612,
+       41.806
+      ]
+     },
+     "properties": {
+      "id": "hs-003",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T14:30:00.862Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 80.1,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.63,
+       41.794
+      ]
+     },
+     "properties": {
+      "id": "hs-004",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T14:30:00.862Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 65.9,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.633,
+       41.8
+      ]
+     },
+     "properties": {
+      "id": "hs-005",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T14:30:00.862Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 58.9,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.622,
+       41.809
+      ]
+     },
+     "properties": {
+      "id": "hs-006",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T14:30:00.862Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 45.8,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.614,
+       41.791
+      ]
+     },
+     "properties": {
+      "id": "hs-007",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T14:30:00.862Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 36.3,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.606,
+       41.795
+      ]
+     },
+     "properties": {
+      "id": "hs-008",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T14:30:00.862Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 24,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.63,
+       41.811
+      ]
+     },
+     "properties": {
+      "id": "hs-009",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T14:30:00.862Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 16.2,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.624,
+       41.788
+      ]
+     },
+     "properties": {
+      "id": "hs-010",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T14:30:00.862Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 9.2,
+      "country": "ES",
+      "active": true
+     }
+    }
+   ],
+   "clusters": [
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.62,
+       41.799
+      ]
+     },
+     "properties": {
+      "id": "cl-01",
+      "first_observed": "2026-09-19T13:53:27.622Z",
+      "last_observed": "2026-09-19T14:30:00.742Z",
+      "active": true
+     }
+    }
+   ],
+   "spread": [
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T14:30:00.862Z",
+     "horizon_hours": 0,
+     "area_km2": 7.8,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81443710613863
+        ],
+        [
+         1.6334566198055314,
+         41.81029660773693
+        ],
+        [
+         1.6386322428076585,
+         41.79994536173267
+        ],
+        [
+         1.6334566198055314,
+         41.78959411572841
+        ],
+        [
+         1.62,
+         41.785453617326716
+        ],
+        [
+         1.6065433801944689,
+         41.78959411572841
+        ],
+        [
+         1.6013677571923415,
+         41.79994536173267
+        ],
+        [
+         1.6065433801944689,
+         41.81029660773693
+        ],
+        [
+         1.62,
+         41.81443710613863
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T16:30:00.862Z",
+     "horizon_hours": 2,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.815982892208595
+        ],
+        [
+         1.635071414182195,
+         41.8113455339987
+        ],
+        [
+         1.6408681119445776,
+         41.79975213847392
+        ],
+        [
+         1.635071414182195,
+         41.78815874294916
+        ],
+        [
+         1.62,
+         41.78352138473926
+        ],
+        [
+         1.604928585817805,
+         41.78815874294916
+        ],
+        [
+         1.5991318880554224,
+         41.79975213847392
+        ],
+        [
+         1.604928585817805,
+         41.8113455339987
+        ],
+        [
+         1.62,
+         41.815982892208595
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T18:30:00.862Z",
+     "horizon_hours": 4,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81771417260696
+        ],
+        [
+         1.6368799838840584,
+         41.81252033141187
+        ],
+        [
+         1.643372285377927,
+         41.799535728424125
+        ],
+        [
+         1.6368799838840584,
+         41.78655112543639
+        ],
+        [
+         1.62,
+         41.7813572842413
+        ],
+        [
+         1.6031200161159416,
+         41.78655112543639
+        ],
+        [
+         1.596627714622073,
+         41.799535728424125
+        ],
+        [
+         1.6031200161159416,
+         41.81252033141187
+        ],
+        [
+         1.62,
+         41.81771417260696
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T20:30:00.862Z",
+     "horizon_hours": 6,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81965320665313
+        ],
+        [
+         1.6389055819501455,
+         41.81383610451463
+        ],
+        [
+         1.6461769596232783,
+         41.79929334916836
+        ],
+        [
+         1.6389055819501455,
+         41.784750593822096
+        ],
+        [
+         1.62,
+         41.77893349168359
+        ],
+        [
+         1.6010944180498545,
+         41.784750593822096
+        ],
+        [
+         1.593823040376722,
+         41.79929334916836
+        ],
+        [
+         1.6010944180498545,
+         41.81383610451463
+        ],
+        [
+         1.62,
+         41.81965320665313
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T22:30:00.862Z",
+     "horizon_hours": 8,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.6200000000000003,
+         41.82182492478484
+        ],
+        [
+         1.641174251784163,
+         41.81530977038972
+        ],
+        [
+         1.6493181947780715,
+         41.799021884401895
+        ],
+        [
+         1.641174251784163,
+         41.78273399841408
+        ],
+        [
+         1.6200000000000003,
+         41.776218844018956
+        ],
+        [
+         1.5988257482158372,
+         41.78273399841408
+        ],
+        [
+         1.5906818052219285,
+         41.799021884401895
+        ],
+        [
+         1.5988257482158372,
+         41.81530977038972
+        ],
+        [
+         1.6200000000000003,
+         41.82182492478484
+        ]
+       ]
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "t": "2026-09-19T13:54:00.905Z",
+   "hotspots": [
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.618,
+       41.802
+      ]
+     },
+     "properties": {
+      "id": "hs-001",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:00:01.342Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 134.3,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.625,
+       41.798
+      ]
+     },
+     "properties": {
+      "id": "hs-002",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:00:01.342Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 109.1,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.612,
+       41.806
+      ]
+     },
+     "properties": {
+      "id": "hs-003",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:00:01.342Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 84.8,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.63,
+       41.794
+      ]
+     },
+     "properties": {
+      "id": "hs-004",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:00:01.342Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 69.7,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.633,
+       41.8
+      ]
+     },
+     "properties": {
+      "id": "hs-005",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:00:01.342Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 62.4,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.622,
+       41.809
+      ]
+     },
+     "properties": {
+      "id": "hs-006",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:00:01.342Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 48.4,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.614,
+       41.791
+      ]
+     },
+     "properties": {
+      "id": "hs-007",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:00:01.342Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 38.4,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.606,
+       41.795
+      ]
+     },
+     "properties": {
+      "id": "hs-008",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:00:01.342Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 25.4,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.63,
+       41.811
+      ]
+     },
+     "properties": {
+      "id": "hs-009",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:00:01.342Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 17.1,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.624,
+       41.788
+      ]
+     },
+     "properties": {
+      "id": "hs-010",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:00:01.342Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 9.8,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.644,
+       41.79
+      ]
+     },
+     "properties": {
+      "id": "hs-011",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:00:01.342Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 20,
+      "country": "ES",
+      "active": true
+     }
+    }
+   ],
+   "clusters": [
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.62,
+       41.799
+      ]
+     },
+     "properties": {
+      "id": "cl-01",
+      "first_observed": "2026-09-19T13:53:27.622Z",
+      "last_observed": "2026-09-19T15:00:01.342Z",
+      "active": true
+     }
+    }
+   ],
+   "spread": [
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T15:00:01.342Z",
+     "horizon_hours": 0,
+     "area_km2": 8.3,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81480738781876
+        ],
+        [
+         1.633843431917811,
+         41.81054787030559
+        ],
+        [
+         1.6391678288092766,
+         41.79989907652265
+        ],
+        [
+         1.633843431917811,
+         41.78925028273972
+        ],
+        [
+         1.62,
+         41.78499076522655
+        ],
+        [
+         1.606156568082189,
+         41.78925028273972
+        ],
+        [
+         1.6008321711907234,
+         41.79989907652265
+        ],
+        [
+         1.606156568082189,
+         41.81054787030559
+        ],
+        [
+         1.62,
+         41.81480738781876
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T17:00:01.342Z",
+     "horizon_hours": 2,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81639760769034
+        ],
+        [
+         1.6355046437479484,
+         41.81162694807559
+        ],
+        [
+         1.6414679682663897,
+         41.799700299038705
+        ],
+        [
+         1.6355046437479484,
+         41.787773650001824
+        ],
+        [
+         1.62,
+         41.783002990387075
+        ],
+        [
+         1.6044953562520516,
+         41.787773650001824
+        ],
+        [
+         1.5985320317336102,
+         41.799700299038705
+        ],
+        [
+         1.6044953562520516,
+         41.81162694807559
+        ],
+        [
+         1.62,
+         41.81639760769034
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T19:00:01.342Z",
+     "horizon_hours": 4,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81817865394652
+        ],
+        [
+         1.6373652009977022,
+         41.812835515178
+        ],
+        [
+         1.6440441244583566,
+         41.799477668256685
+        ],
+        [
+         1.6373652009977022,
+         41.786119821335376
+        ],
+        [
+         1.62,
+         41.78077668256685
+        ],
+        [
+         1.602634799002298,
+         41.786119821335376
+        ],
+        [
+         1.5959558755416434,
+         41.799477668256685
+        ],
+        [
+         1.602634799002298,
+         41.812835515178
+        ],
+        [
+         1.62,
+         41.81817865394652
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T21:00:01.342Z",
+     "horizon_hours": 6,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.82017342575344
+        ],
+        [
+         1.6394490251174263,
+         41.81418911033269
+        ],
+        [
+         1.6469294193933595,
+         41.79922832178082
+        ],
+        [
+         1.6394490251174263,
+         41.784267533228956
+        ],
+        [
+         1.62,
+         41.77828321780821
+        ],
+        [
+         1.6005509748825737,
+         41.784267533228956
+        ],
+        [
+         1.5930705806066408,
+         41.79922832178082
+        ],
+        [
+         1.6005509748825737,
+         41.81418911033269
+        ],
+        [
+         1.62,
+         41.82017342575344
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T23:00:01.342Z",
+     "horizon_hours": 8,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.6200000000000003,
+         41.822407570177184
+        ],
+        [
+         1.6417829081315176,
+         41.81570513690595
+        ],
+        [
+         1.6501609497205625,
+         41.79894905372785
+        ],
+        [
+         1.6417829081315176,
+         41.782192970549765
+        ],
+        [
+         1.6200000000000003,
+         41.77549053727853
+        ],
+        [
+         1.5982170918684826,
+         41.782192970549765
+        ],
+        [
+         1.5898390502794375,
+         41.79894905372785
+        ],
+        [
+         1.5982170918684826,
+         41.81570513690595
+        ],
+        [
+         1.6200000000000003,
+         41.822407570177184
+        ]
+       ]
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "t": "2026-09-19T13:54:15.912Z",
+   "hotspots": [
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.618,
+       41.802
+      ]
+     },
+     "properties": {
+      "id": "hs-001",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:30:02.182Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 142.1,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.625,
+       41.798
+      ]
+     },
+     "properties": {
+      "id": "hs-002",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:30:02.182Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 115.5,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.612,
+       41.806
+      ]
+     },
+     "properties": {
+      "id": "hs-003",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:30:02.182Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 89.8,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.63,
+       41.794
+      ]
+     },
+     "properties": {
+      "id": "hs-004",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:30:02.182Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 73.8,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.633,
+       41.8
+      ]
+     },
+     "properties": {
+      "id": "hs-005",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:30:02.182Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 66,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.622,
+       41.809
+      ]
+     },
+     "properties": {
+      "id": "hs-006",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:30:02.182Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 51.2,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.614,
+       41.791
+      ]
+     },
+     "properties": {
+      "id": "hs-007",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:30:02.182Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 40.7,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.606,
+       41.795
+      ]
+     },
+     "properties": {
+      "id": "hs-008",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:30:02.182Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 26.9,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.63,
+       41.811
+      ]
+     },
+     "properties": {
+      "id": "hs-009",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:30:02.182Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 18.1,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.624,
+       41.788
+      ]
+     },
+     "properties": {
+      "id": "hs-010",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:30:02.182Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 10.3,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.645,
+       41.79
+      ]
+     },
+     "properties": {
+      "id": "hs-011",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T15:30:02.182Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 20,
+      "country": "ES",
+      "active": true
+     }
+    }
+   ],
+   "clusters": [
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.62,
+       41.799
+      ]
+     },
+     "properties": {
+      "id": "cl-01",
+      "first_observed": "2026-09-19T13:53:27.622Z",
+      "last_observed": "2026-09-19T15:30:02.062Z",
+      "active": true
+     }
+    }
+   ],
+   "spread": [
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T15:30:02.182Z",
+     "horizon_hours": 0,
+     "area_km2": 8.8,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.815188390538495
+        ],
+        [
+         1.6342414436875354,
+         41.810806407865414
+        ],
+        [
+         1.6397189220288952,
+         41.79985145118268
+        ],
+        [
+         1.6342414436875354,
+         41.788896494499966
+        ],
+        [
+         1.62,
+         41.784514511826885
+        ],
+        [
+         1.6057585563124646,
+         41.788896494499966
+        ],
+        [
+         1.600281077971105,
+         41.79985145118268
+        ],
+        [
+         1.6057585563124646,
+         41.810806407865414
+        ],
+        [
+         1.62,
+         41.815188390538495
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T17:30:02.182Z",
+     "horizon_hours": 2,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81682433073645
+        ],
+        [
+         1.6359504169300398,
+         41.811916510142595
+        ],
+        [
+         1.6420851926723625,
+         41.79964695865794
+        ],
+        [
+         1.6359504169300398,
+         41.787377407173295
+        ],
+        [
+         1.62,
+         41.782469586579445
+        ],
+        [
+         1.6040495830699604,
+         41.787377407173295
+        ],
+        [
+         1.5979148073276375,
+         41.79964695865794
+        ],
+        [
+         1.6040495830699604,
+         41.811916510142595
+        ],
+        [
+         1.62,
+         41.81682433073645
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T19:30:02.182Z",
+     "horizon_hours": 4,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.818656583758155
+        ],
+        [
+         1.6378644669616444,
+         41.81315982469304
+        ],
+        [
+         1.644735415793046,
+         41.79941792703023
+        ],
+        [
+         1.6378644669616444,
+         41.78567602936743
+        ],
+        [
+         1.62,
+         41.780179270302305
+        ],
+        [
+         1.6021355330383555,
+         41.78567602936743
+        ],
+        [
+         1.595264584206954,
+         41.79941792703023
+        ],
+        [
+         1.6021355330383555,
+         41.81315982469304
+        ],
+        [
+         1.62,
+         41.818656583758155
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T21:30:02.182Z",
+     "horizon_hours": 6,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.6200000000000003,
+         41.82070870714247
+        ],
+        [
+         1.640008202997042,
+         41.814552336989536
+        ],
+        [
+         1.6477036656882116,
+         41.79916141160719
+        ],
+        [
+         1.640008202997042,
+         41.78377048622485
+        ],
+        [
+         1.6200000000000003,
+         41.777614116071916
+        ],
+        [
+         1.5999917970029582,
+         41.78377048622485
+        ],
+        [
+         1.5922963343117884,
+         41.79916141160719
+        ],
+        [
+         1.5999917970029582,
+         41.814552336989536
+        ],
+        [
+         1.6200000000000003,
+         41.82070870714247
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T23:30:02.182Z",
+     "horizon_hours": 8,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.6200000000000003,
+         41.8230070853329
+        ],
+        [
+         1.6424091873566868,
+         41.816111950761616
+        ],
+        [
+         1.6510281055707972,
+         41.79887411433339
+        ],
+        [
+         1.6424091873566868,
+         41.78163627790517
+        ],
+        [
+         1.6200000000000003,
+         41.774741143333884
+        ],
+        [
+         1.5975908126433132,
+         41.78163627790517
+        ],
+        [
+         1.588971894429203,
+         41.79887411433339
+        ],
+        [
+         1.5975908126433132,
+         41.816111950761616
+        ],
+        [
+         1.6200000000000003,
+         41.8230070853329
+        ]
+       ]
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "t": "2026-09-19T13:54:30.917Z",
+   "hotspots": [
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.618,
+       41.802
+      ]
+     },
+     "properties": {
+      "id": "hs-001",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:00:02.782Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 150.4,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.625,
+       41.798
+      ]
+     },
+     "properties": {
+      "id": "hs-002",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:00:02.782Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 122.2,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.612,
+       41.806
+      ]
+     },
+     "properties": {
+      "id": "hs-003",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:00:02.782Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 95,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.63,
+       41.794
+      ]
+     },
+     "properties": {
+      "id": "hs-004",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:00:02.782Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 78.1,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.633,
+       41.8
+      ]
+     },
+     "properties": {
+      "id": "hs-005",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:00:02.782Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 69.9,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.622,
+       41.809
+      ]
+     },
+     "properties": {
+      "id": "hs-006",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:00:02.782Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 54.2,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.614,
+       41.791
+      ]
+     },
+     "properties": {
+      "id": "hs-007",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:00:02.782Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 43.1,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.606,
+       41.795
+      ]
+     },
+     "properties": {
+      "id": "hs-008",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:00:02.782Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 28.5,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.63,
+       41.811
+      ]
+     },
+     "properties": {
+      "id": "hs-009",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:00:02.782Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 19.2,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.624,
+       41.788
+      ]
+     },
+     "properties": {
+      "id": "hs-010",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:00:02.782Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 10.9,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.646,
+       41.79
+      ]
+     },
+     "properties": {
+      "id": "hs-011",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:00:02.782Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 20,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.658,
+       41.802
+      ]
+     },
+     "properties": {
+      "id": "hs-012",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:00:02.782Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 30.5,
+      "country": "ES",
+      "active": true
+     }
+    }
+   ],
+   "clusters": [
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.62,
+       41.799
+      ]
+     },
+     "properties": {
+      "id": "cl-01",
+      "first_observed": "2026-09-19T13:53:27.622Z",
+      "last_observed": "2026-09-19T16:00:02.902Z",
+      "active": true
+     }
+    }
+   ],
+   "spread": [
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T16:00:02.902Z",
+     "horizon_hours": 0,
+     "area_km2": 9.3,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81558032095686
+        ],
+        [
+         1.6346508709995784,
+         41.8110723606493
+        ],
+        [
+         1.6402858213840315,
+         41.79980245988039
+        ],
+        [
+         1.6346508709995784,
+         41.78853255911149
+        ],
+        [
+         1.62,
+         41.784024598803924
+        ],
+        [
+         1.6053491290004216,
+         41.78853255911149
+        ],
+        [
+         1.5997141786159685,
+         41.79980245988039
+        ],
+        [
+         1.6053491290004216,
+         41.8110723606493
+        ],
+        [
+         1.62,
+         41.81558032095686
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T18:00:02.902Z",
+     "horizon_hours": 2,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.817263292805016
+        ],
+        [
+         1.6364089755195277,
+         41.81221437726055
+        ],
+        [
+         1.6427201199501151,
+         41.79959208839937
+        ],
+        [
+         1.6364089755195277,
+         41.7869697995382
+        ],
+        [
+         1.62,
+         41.78192088399373
+        ],
+        [
+         1.6035910244804723,
+         41.7869697995382
+        ],
+        [
+         1.5972798800498849,
+         41.79959208839937
+        ],
+        [
+         1.6035910244804723,
+         41.81221437726055
+        ],
+        [
+         1.62,
+         41.817263292805016
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T20:00:02.902Z",
+     "horizon_hours": 4,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81914822127496
+        ],
+        [
+         1.6383780525818712,
+         41.813493435865155
+        ],
+        [
+         1.6454465343441291,
+         41.79935647234063
+        ],
+        [
+         1.6383780525818712,
+         41.78521950881611
+        ],
+        [
+         1.62,
+         41.77956472340631
+        ],
+        [
+         1.601621947418129,
+         41.78521950881611
+        ],
+        [
+         1.594553465655871,
+         41.79935647234063
+        ],
+        [
+         1.601621947418129,
+         41.813493435865155
+        ],
+        [
+         1.62,
+         41.81914822127496
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T22:00:02.902Z",
+     "horizon_hours": 6,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.6200000000000003,
+         41.82125934116128
+        ],
+        [
+         1.6405834188916957,
+         41.814925981502306
+        ],
+        [
+         1.6485001184654247,
+         41.79909258235484
+        ],
+        [
+         1.6405834188916957,
+         41.783259183207385
+        ],
+        [
+         1.6200000000000003,
+         41.7769258235484
+        ],
+        [
+         1.5994165811083045,
+         41.783259183207385
+        ],
+        [
+         1.5914998815345756,
+         41.79909258235484
+        ],
+        [
+         1.5994165811083045,
+         41.814925981502306
+        ],
+        [
+         1.6200000000000003,
+         41.82125934116128
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-20T00:00:02.902Z",
+     "horizon_hours": 8,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.6200000000000003,
+         41.823623795433974
+        ],
+        [
+         1.6430534291586991,
+         41.81653043261591
+        ],
+        [
+         1.6519201326812756,
+         41.79879702557075
+        ],
+        [
+         1.6430534291586991,
+         41.7810636185256
+        ],
+        [
+         1.6200000000000003,
+         41.773970255707546
+        ],
+        [
+         1.596946570841301,
+         41.7810636185256
+        ],
+        [
+         1.5880798673187246,
+         41.79879702557075
+        ],
+        [
+         1.596946570841301,
+         41.81653043261591
+        ],
+        [
+         1.6200000000000003,
+         41.823623795433974
+        ]
+       ]
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "t": "2026-09-19T13:54:45.921Z",
+   "hotspots": [
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.618,
+       41.802
+      ]
+     },
+     "properties": {
+      "id": "hs-001",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:30:03.262Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 159.1,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.625,
+       41.798
+      ]
+     },
+     "properties": {
+      "id": "hs-002",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:30:03.262Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 129.3,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.612,
+       41.806
+      ]
+     },
+     "properties": {
+      "id": "hs-003",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:30:03.262Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 100.5,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.63,
+       41.794
+      ]
+     },
+     "properties": {
+      "id": "hs-004",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:30:03.262Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 82.7,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.633,
+       41.8
+      ]
+     },
+     "properties": {
+      "id": "hs-005",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:30:03.262Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 73.9,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.622,
+       41.809
+      ]
+     },
+     "properties": {
+      "id": "hs-006",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:30:03.262Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 57.4,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.614,
+       41.791
+      ]
+     },
+     "properties": {
+      "id": "hs-007",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:30:03.262Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 45.6,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.606,
+       41.795
+      ]
+     },
+     "properties": {
+      "id": "hs-008",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:30:03.262Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 30.1,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.63,
+       41.811
+      ]
+     },
+     "properties": {
+      "id": "hs-009",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:30:03.262Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 20.3,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.624,
+       41.788
+      ]
+     },
+     "properties": {
+      "id": "hs-010",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:30:03.262Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 11.6,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.647,
+       41.79
+      ]
+     },
+     "properties": {
+      "id": "hs-011",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:30:03.262Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 20,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.659,
+       41.802
+      ]
+     },
+     "properties": {
+      "id": "hs-012",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T16:30:03.262Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 30.5,
+      "country": "ES",
+      "active": true
+     }
+    }
+   ],
+   "clusters": [
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.62,
+       41.799
+      ]
+     },
+     "properties": {
+      "id": "cl-01",
+      "first_observed": "2026-09-19T13:53:27.622Z",
+      "last_observed": "2026-09-19T16:30:03.502Z",
+      "active": true
+     }
+    }
+   ],
+   "spread": [
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T16:30:03.382Z",
+     "horizon_hours": 0,
+     "area_km2": 9.8,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81598346448083
+        ],
+        [
+         1.6350720120022955,
+         41.81134592232628
+        ],
+        [
+         1.6408689396954859,
+         41.799752066939895
+        ],
+        [
+         1.6350720120022955,
+         41.788158211553515
+        ],
+        [
+         1.62,
+         41.78352066939897
+        ],
+        [
+         1.6049279879977045,
+         41.788158211553515
+        ],
+        [
+         1.5991310603045141,
+         41.799752066939895
+        ],
+        [
+         1.6049279879977045,
+         41.81134592232628
+        ],
+        [
+         1.62,
+         41.81598346448083
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T18:30:03.382Z",
+     "horizon_hours": 2,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.817714813551866
+        ],
+        [
+         1.6368806534425708,
+         41.81252076633877
+        ],
+        [
+         1.6433732124589442,
+         41.79953564830601
+        ],
+        [
+         1.6368806534425708,
+         41.78655053027327
+        ],
+        [
+         1.62,
+         41.78135648306017
+        ],
+        [
+         1.6031193465574292,
+         41.78655053027327
+        ],
+        [
+         1.5966267875410558,
+         41.79953564830601
+        ],
+        [
+         1.6031193465574292,
+         41.81252076633877
+        ],
+        [
+         1.62,
+         41.817714813551866
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T20:30:03.382Z",
+     "horizon_hours": 4,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81965392451142
+        ],
+        [
+         1.6389063318556794,
+         41.81383659163276
+        ],
+        [
+         1.6461779979540176,
+         41.79929325943607
+        ],
+        [
+         1.6389063318556794,
+         41.784749927239396
+        ],
+        [
+         1.62,
+         41.77893259436073
+        ],
+        [
+         1.6010936681443206,
+         41.784749927239396
+        ],
+        [
+         1.5938220020459826,
+         41.79929325943607
+        ],
+        [
+         1.6010936681443206,
+         41.81383659163276
+        ],
+        [
+         1.62,
+         41.81965392451142
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T22:30:03.382Z",
+     "horizon_hours": 6,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.6200000000000003,
+         41.82182572878612
+        ],
+        [
+         1.641175091678361,
+         41.815310315962016
+        ],
+        [
+         1.6493193577084997,
+         41.79902178390173
+        ],
+        [
+         1.641175091678361,
+         41.78273325184146
+        ],
+        [
+         1.6200000000000003,
+         41.77621783901735
+        ],
+        [
+         1.598824908321639,
+         41.78273325184146
+        ],
+        [
+         1.5906806422915005,
+         41.79902178390173
+        ],
+        [
+         1.598824908321639,
+         41.815310315962016
+        ],
+        [
+         1.6200000000000003,
+         41.82182572878612
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-20T00:30:03.382Z",
+     "horizon_hours": 8,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.6200000000000003,
+         41.824258149573794
+        ],
+        [
+         1.6437161026797644,
+         41.8169608872108
+        ],
+        [
+         1.6528376806335197,
+         41.79871773130327
+        ],
+        [
+         1.6437161026797644,
+         41.780474575395765
+        ],
+        [
+         1.6200000000000003,
+         41.77317731303277
+        ],
+        [
+         1.5962838973202358,
+         41.780474575395765
+        ],
+        [
+         1.5871623193664806,
+         41.79871773130327
+        ],
+        [
+         1.5962838973202358,
+         41.8169608872108
+        ],
+        [
+         1.6200000000000003,
+         41.824258149573794
+        ]
+       ]
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "t": "2026-09-19T13:55:00.926Z",
+   "hotspots": [
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.618,
+       41.802
+      ]
+     },
+     "properties": {
+      "id": "hs-001",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:00:03.982Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 168.4,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.625,
+       41.798
+      ]
+     },
+     "properties": {
+      "id": "hs-002",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:00:03.982Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 136.9,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.612,
+       41.806
+      ]
+     },
+     "properties": {
+      "id": "hs-003",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:00:03.982Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 106.4,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.63,
+       41.794
+      ]
+     },
+     "properties": {
+      "id": "hs-004",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:00:03.982Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 87.5,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.633,
+       41.8
+      ]
+     },
+     "properties": {
+      "id": "hs-005",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:00:03.982Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 78.2,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.622,
+       41.809
+      ]
+     },
+     "properties": {
+      "id": "hs-006",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:00:03.982Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 60.7,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.614,
+       41.791
+      ]
+     },
+     "properties": {
+      "id": "hs-007",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:00:03.982Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 48.2,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.606,
+       41.795
+      ]
+     },
+     "properties": {
+      "id": "hs-008",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:00:03.982Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 31.9,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.63,
+       41.811
+      ]
+     },
+     "properties": {
+      "id": "hs-009",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:00:03.982Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 21.5,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.624,
+       41.788
+      ]
+     },
+     "properties": {
+      "id": "hs-010",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:00:03.982Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 12.2,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.648,
+       41.79
+      ]
+     },
+     "properties": {
+      "id": "hs-011",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:00:03.982Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 20,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.66,
+       41.802
+      ]
+     },
+     "properties": {
+      "id": "hs-012",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:00:03.982Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 30.5,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.672,
+       41.814
+      ]
+     },
+     "properties": {
+      "id": "hs-013",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:00:03.982Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 26,
+      "country": "ES",
+      "active": true
+     }
+    }
+   ],
+   "clusters": [
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.62,
+       41.799
+      ]
+     },
+     "properties": {
+      "id": "cl-01",
+      "first_observed": "2026-09-19T13:53:27.622Z",
+      "last_observed": "2026-09-19T17:00:04.102Z",
+      "active": true
+     }
+    }
+   ],
+   "spread": [
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T17:00:03.982Z",
+     "horizon_hours": 0,
+     "area_km2": 10.4,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81639822444759
+        ],
+        [
+         1.635505288038995,
+         41.811627366589434
+        ],
+        [
+         1.6414688603616854,
+         41.79970022194405
+        ],
+        [
+         1.635505288038995,
+         41.787773077298674
+        ],
+        [
+         1.62,
+         41.78300221944052
+        ],
+        [
+         1.604494711961005,
+         41.787773077298674
+        ],
+        [
+         1.5985311396383148,
+         41.79970022194405
+        ],
+        [
+         1.604494711961005,
+         41.811627366589434
+        ],
+        [
+         1.62,
+         41.81639822444759
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T19:00:03.982Z",
+     "horizon_hours": 2,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81817934471463
+        ],
+        [
+         1.6373659226036745,
+         41.8128359839135
+        ],
+        [
+         1.6440451236050875,
+         41.79947758191067
+        ],
+        [
+         1.6373659226036745,
+         41.78611917990784
+        ],
+        [
+         1.62,
+         41.780775819106715
+        ],
+        [
+         1.6026340773963257,
+         41.78611917990784
+        ],
+        [
+         1.5959548763949125,
+         41.79947758191067
+        ],
+        [
+         1.6026340773963257,
+         41.8128359839135
+        ],
+        [
+         1.62,
+         41.81817934471463
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T21:00:03.982Z",
+     "horizon_hours": 4,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.82017419941372
+        ],
+        [
+         1.6394498333161154,
+         41.81418963531645
+        ],
+        [
+         1.646930538437698,
+         41.799228225073286
+        ],
+        [
+         1.6394498333161154,
+         41.78426681483012
+        ],
+        [
+         1.62,
+         41.77828225073286
+        ],
+        [
+         1.6005501666838846,
+         41.78426681483012
+        ],
+        [
+         1.593069461562302,
+         41.799228225073286
+        ],
+        [
+         1.6005501666838846,
+         41.81418963531645
+        ],
+        [
+         1.62,
+         41.82017419941372
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T23:00:03.982Z",
+     "horizon_hours": 6,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.6200000000000003,
+         41.822408436676696
+        ],
+        [
+         1.6417838133140492,
+         41.81570572488776
+        ],
+        [
+         1.6501622030502219,
+         41.79894894541541
+        ],
+        [
+         1.6417838133140492,
+         41.782192165943066
+        ],
+        [
+         1.6200000000000003,
+         41.77548945415413
+        ],
+        [
+         1.5982161866859508,
+         41.782192165943066
+        ],
+        [
+         1.5898377969497783,
+         41.79894894541541
+        ],
+        [
+         1.5982161866859508,
+         41.81570572488776
+        ],
+        [
+         1.6200000000000003,
+         41.822408436676696
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-20T01:00:03.982Z",
+     "horizon_hours": 8,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.6200000000000003,
+         41.82491078241124
+        ],
+        [
+         1.6443978709117353,
+         41.81740374520763
+        ],
+        [
+         1.6537816674162484,
+         41.79863615219859
+        ],
+        [
+         1.6443978709117353,
+         41.77986855918957
+        ],
+        [
+         1.6200000000000003,
+         41.772361521985964
+        ],
+        [
+         1.595602129088265,
+         41.77986855918957
+        ],
+        [
+         1.5862183325837518,
+         41.79863615219859
+        ],
+        [
+         1.595602129088265,
+         41.81740374520763
+        ],
+        [
+         1.6200000000000003,
+         41.82491078241124
+        ]
+       ]
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "t": "2026-09-19T13:55:15.930Z",
+   "hotspots": [
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.618,
+       41.802
+      ]
+     },
+     "properties": {
+      "id": "hs-001",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:30:04.462Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 178.3,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.625,
+       41.798
+      ]
+     },
+     "properties": {
+      "id": "hs-002",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:30:04.462Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 144.8,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.612,
+       41.806
+      ]
+     },
+     "properties": {
+      "id": "hs-003",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:30:04.462Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 112.6,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.63,
+       41.794
+      ]
+     },
+     "properties": {
+      "id": "hs-004",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:30:04.462Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 92.6,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.633,
+       41.8
+      ]
+     },
+     "properties": {
+      "id": "hs-005",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:30:04.462Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 82.8,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.622,
+       41.809
+      ]
+     },
+     "properties": {
+      "id": "hs-006",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:30:04.462Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 64.3,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.614,
+       41.791
+      ]
+     },
+     "properties": {
+      "id": "hs-007",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:30:04.462Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 51,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.606,
+       41.795
+      ]
+     },
+     "properties": {
+      "id": "hs-008",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:30:04.462Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 33.7,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.63,
+       41.811
+      ]
+     },
+     "properties": {
+      "id": "hs-009",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:30:04.462Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 22.7,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.624,
+       41.788
+      ]
+     },
+     "properties": {
+      "id": "hs-010",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:30:04.462Z",
+      "source": "MTG_I1",
+      "confidence": "MEDIUM",
+      "fire_radiative_power": 12.9,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.649,
+       41.79
+      ]
+     },
+     "properties": {
+      "id": "hs-011",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:30:04.462Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 20,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.661,
+       41.802
+      ]
+     },
+     "properties": {
+      "id": "hs-012",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:30:04.462Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 30.5,
+      "country": "ES",
+      "active": true
+     }
+    },
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.673,
+       41.814
+      ]
+     },
+     "properties": {
+      "id": "hs-013",
+      "cluster_id": "cl-01",
+      "observed_at": "2026-09-19T17:30:04.462Z",
+      "source": "MTG_I1",
+      "confidence": "HIGH",
+      "fire_radiative_power": 26,
+      "country": "ES",
+      "active": true
+     }
+    }
+   ],
+   "clusters": [
+    {
+     "type": "Feature",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       1.62,
+       41.799
+      ]
+     },
+     "properties": {
+      "id": "cl-01",
+      "first_observed": "2026-09-19T13:53:27.622Z",
+      "last_observed": "2026-09-19T17:30:04.462Z",
+      "active": true
+     }
+    }
+   ],
+   "spread": [
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T17:30:04.582Z",
+     "horizon_hours": 0,
+     "area_km2": 11,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81682490754408
+        ],
+        [
+         1.6359510194880145,
+         41.811916901547775
+        ],
+        [
+         1.6420860269834046,
+         41.799646886556985
+        ],
+        [
+         1.6359510194880145,
+         41.78737687156621
+        ],
+        [
+         1.62,
+         41.782468865569896
+        ],
+        [
+         1.6040489805119855,
+         41.78737687156621
+        ],
+        [
+         1.5979139730165957,
+         41.799646886556985
+        ],
+        [
+         1.6040489805119855,
+         41.811916901547775
+        ],
+        [
+         1.62,
+         41.81682490754408
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T19:30:04.582Z",
+     "horizon_hours": 2,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.62,
+         41.81865722978271
+        ],
+        [
+         1.6378651418265762,
+         41.81316026306684
+        ],
+        [
+         1.644736350221413,
+         41.79941784627716
+        ],
+        [
+         1.6378651418265762,
+         41.78567542948749
+        ],
+        [
+         1.62,
+         41.78017846277162
+        ],
+        [
+         1.6021348581734238,
+         41.78567542948749
+        ],
+        [
+         1.595263649778587,
+         41.79941784627716
+        ],
+        [
+         1.6021348581734238,
+         41.81316026306684
+        ],
+        [
+         1.62,
+         41.81865722978271
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T21:30:04.582Z",
+     "horizon_hours": 4,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.6200000000000003,
+         41.820709430689966
+        ],
+        [
+         1.6400089588457654,
+         41.81455282796819
+        ],
+        [
+         1.6477047122479827,
+         41.79916132116375
+        ],
+        [
+         1.6400089588457654,
+         41.78376981435932
+        ],
+        [
+         1.6200000000000003,
+         41.77761321163755
+        ],
+        [
+         1.5999910411542348,
+         41.78376981435932
+        ],
+        [
+         1.5922952877520176,
+         41.79916132116375
+        ],
+        [
+         1.5999910411542348,
+         41.81455282796819
+        ],
+        [
+         1.6200000000000003,
+         41.820709430689966
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-19T23:30:04.582Z",
+     "horizon_hours": 6,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.6200000000000003,
+         41.8230078957061
+        ],
+        [
+         1.6424100339072571,
+         41.81611250065771
+        ],
+        [
+         1.6510292777177404,
+         41.79887401303674
+        ],
+        [
+         1.6424100339072571,
+         41.78163552541577
+        ],
+        [
+         1.6200000000000003,
+         41.77474013036739
+        ],
+        [
+         1.5975899660927428,
+         41.78163552541577
+        ],
+        [
+         1.5889707222822596,
+         41.79887401303674
+        ],
+        [
+         1.5975899660927428,
+         41.81611250065771
+        ],
+        [
+         1.6200000000000003,
+         41.8230078957061
+        ]
+       ]
+      ]
+     }
+    },
+    {
+     "cluster_id": "cl-01",
+     "valid_time": "2026-09-20T01:30:04.582Z",
+     "horizon_hours": 8,
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         1.6200000000000003,
+         41.82558217652416
+        ],
+        [
+         1.645099237976128,
+         41.81785933406997
+        ],
+        [
+         1.6547527910438695,
+         41.79855222793448
+        ],
+        [
+         1.645099237976128,
+         41.779245121799
+        ],
+        [
+         1.6200000000000003,
+         41.77152227934481
+        ],
+        [
+         1.5949007620238722,
+         41.779245121799
+        ],
+        [
+         1.5852472089561307,
+         41.79855222793448
+        ],
+        [
+         1.5949007620238722,
+         41.81785933406997
+        ],
+        [
+         1.6200000000000003,
+         41.82558217652416
+        ]
+       ]
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

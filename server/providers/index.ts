@@ -17,14 +17,14 @@ export function getProvider(): FireDataProvider {
   return DATA_MODE === 'live' ? live : replay;
 }
 
-export async function getFires(): Promise<FiresResponse> {
+export async function getFires(atSeconds?: number): Promise<FiresResponse> {
   if (DATA_MODE !== 'live') {
-    return replay.getFires();
+    return replay.getFires(atSeconds);
   }
   try {
-    return await live.getFires();
+    return await live.getFires(atSeconds);
   } catch (err) {
     console.warn('[providers] live fetch failed, falling back to replay:', err);
-    return replay.getFires();
+    return replay.getFires(atSeconds);
   }
 }
