@@ -1,123 +1,123 @@
-# Model proposal — growth vector per fire cluster
+# Stream 3 — validation and baselines
 
-For the HackBarna 3.0 team · 19 Sep 2026 · proposal for discussion, nothing built yet
+Cluster growth vector · 19 Sep 2026 · updated after the plan review
 
-## The proposal
+## What this document is now
 
-Train **one small model** that predicts, for each active fire cluster, **where the fire is heading and how fast** — a direction and a rate over the next few hours.
+It began as a proposal to train a model predicting fire direction and rate. A review measured the
+thing it would have to beat, and the result changed the stream: **the baseline wins**, and the
+honest deliverable is a validated baseline shipped with its error bars, plus a harness that will
+tell us if any model ever beats it.
 
-Not a spread simulator. A gradient-boosted regressor over tabular features, with two trivial baselines it has to beat. If it doesn't beat them, we ship the baseline and report both numbers.
+This document records that measurement, corrects a premise the original version got wrong, and
+specifies what Stream 3 builds. The plan itself is in [`work-plan.md`](work-plan.md).
 
-## Why this one, and not a fire-spread model
+## The measurement
 
-Two facts decide it.
+Leave-one-event-out on PT-FireSprd, predicting burned area at *t+dt*:
 
-**1. Our own track asks for direction, and Deepfire doesn't give it.** The Monitoring track reads: *"draw real-time perimeters of active fires from satellite data, determine the direction they are spreading, and simulate their movement."* Deepfire supplies perimeters and a spread simulation. It does not supply direction — clusters carry only `first_observed`, `last_observed`, `active` and `id`. No area, no rate, no growth attribute of any kind. The middle third of our own track's requirement is the gap, and it is the one piece nobody has to reach for.
-
-**2. Spread prediction has no labels.** Training a spread model means learning from observed fire progressions. The only event-dated progression record is the perimeter layer, and it starts **June 2026** — in our region that is one fire with 12 snapshots. The industry spread models train on years of archives across tens of thousands of fires. On one event we would train a memoriser and have no honest way to report its accuracy.
-
-Direction and rate are a different problem, because they can be derived from the hotspot archive we already have back to **January 2025**.
-
-## What it predicts, exactly
-
-For each active cluster at time *t*:
-
-- **Direction** — bearing of movement (degrees, or a coarse class — see open questions)
-- **Rate** — rate of frontal advance (km/h)
-- *or* jointly: displacement in km over the next *N* hours
-
-Horizon *N*: fix from validation, start at 1 h and 3 h.
-
-This is deliberately **observation-driven nowcasting**, not forecasting from ignition. It answers "where is this one going" for a fire that is already burning — the question a coordinator watching a live screen actually asks.
-
-## Data
-
-| Source | Used for | Status |
+| Model | R² | median MAPE |
 | --- | --- | --- |
-| `deepfire:hotspots` | label source and primary features — detections with FRP, source, timestamp | archive since Jan 2025; **pull not yet done** |
-| `deepfire:clusters` | grouping detections into fires | live |
-| `deepfire:satellite-perimeters` | independent check on a subset (Jun 2026 onward) | live |
-| MTG-I1 FCI (LSA-509) | high-cadence detections, 10-minute scans | 2026 archive, 36,815 scans / 77 GB |
-| ERA5 via Open-Meteo | wind speed, direction, gust, RH, temperature | free, no key |
-| Copernicus DEM GLO-30 | slope, aspect | used in the spike |
-| ESA WorldCover 10 m | fuel class | used in the spike |
+| Persistence | 0.9910 | 8.5 % |
+| **Constant rate of spread** | **0.9926** | **7.8 %** |
+| Learned gradient-boosted model | 0.8625 | 13.2 % |
 
-The pull that matters — Iberia bbox, Jan 2025 to now, paginated — is the long pole. It can run in the background while the demo is built.
+Not close. A model trained on the available features loses to two rules that take a line of code.
 
-## Labels — how they are derived
+That is not a reason to stop — it is the reason to be precise about what gets claimed. A measured
+"persistence wins, and here is its error on held-out fires" is a stronger answer to the accuracy
+criterion than a model whose number is worse and unreported.
 
-For each cluster, take a window **[t−3 h, t]** and the following window **(t, t+1 h]**. Compute the FRP-weighted centroid of the detections in each. The label is the displacement vector between them.
+## A premise this document got wrong
 
-That is a measurement, not a judgement — which is why this problem has labels and spread prediction doesn't.
+The original version argued that spread prediction has no labels, because the only event-dated
+progression record was Deepfire's perimeter layer starting June 2026. That was true of the sources
+we had looked at and false overall. Two labelled progression datasets were already downloaded and
+parsed:
 
-Three error sources to handle explicitly rather than hope away:
+| Dataset | Content | Size |
+| --- | --- | --- |
+| **PT-FireSprd** | 80 Portuguese fires, 2015–2021; 34 events / 237 dated intervals parsed | 33 MB (Zenodo 7495506) |
+| **FireSpread_MedEU** | 103 events, 2017–2023 | 2.8 MB (Zenodo 18200075) |
 
-- **Detection drift is not fire motion.** New detections appear at the head, old ones age out. The centroid moves for reasons that are not spread.
-- **Sampling is uneven.** MTG arrives every 10 minutes; polar sensors can be ~2.5 h apart; the July fire had a 40-minute MTG gap (16:28→17:08 UTC) that is a gap in observation, not evidence the fire stopped.
-- **Clusters can be sparse.** 25 of 94 Iberian clusters had no FIRMS detection within 10 km in 24 h.
+Validation by fire is possible on real events today. The 600-day Deepfire hotspot pull that the
+original proposal treated as the long pole existed only to manufacture labels that already exist,
+so **it is dropped**.
 
-So: keep only clusters with enough detections in **both** windows, and carry detection count, age and source mix as features so the model can learn the sampling artefact rather than absorb it as fire behaviour.
+## What the harness tests
 
-## Baselines it must beat
+Both targets, because the measurement above and the product claim are about different quantities:
 
-1. **Persistence** — next displacement = last displacement
-2. **Wind-drift** — move downwind (ERA5 direction) at the observed rate
+- **Burned area at *t+dt*** — what the review measured, and where the baseline is very strong.
+- **Bearing and rate** — what the Monitoring track actually asks for ("determine the direction they
+  are spreading"), and what the original proposal targeted. Constant-ROS winning on area does not
+  imply it wins on direction, and direction is the verb nothing currently provides.
 
-Both are a few lines of code. Build them first, treat them as the thing to beat, and report all three numbers side by side on held-out fires. If the model doesn't beat persistence, we ship persistence and say so — that is a real accuracy result, and it answers the accuracy criterion better than an unvalidated simulator does.
+Scoring the second is the reason this stream still exists. If a model beats persistence on bearing
+and rate, that is a real result with a real place in the product. If it does not, we can say so with
+a number attached.
 
-## Validation
+## Baselines first
 
-- **Split by fire, not by time.** Holding out hours inside one fire leaks the answer — the model has seen that fire's behaviour.
-- **Report a band**, with the baseline beside it. No single number without an error bar.
-- **Include the July fire** in the test set: it is the one event we can compare against a real outcome (the AL-6109 cut, the reported timeline).
-- **State what the score measures**: agreement with satellite detections of the fire, not with the fire front. Those are not the same thing, and the difference is the honest caveat to put on the slide.
+1. **Persistence** — same bearing, same rate as the last observed interval.
+2. **Constant rate of spread** — the measured area-growth rate held constant.
 
-## Where it plugs into the product
+Both are built and scored *before* anything is trained, on the same held-out events. They ship
+unless something beats them.
 
-- **Threat corridor** (values-at-risk overlay): a direction and rate turns "assets within 10 km of the perimeter" into "assets in the path within the next three hours".
-- **Time-of-arrival field**: helps fill the gap after the last observation.
-- It does **not** touch the alert text. That stays template-selected and OSM-checked.
+## Method
 
-## Effort and sequencing
+**Split by fire, never by time.** Holding out hours inside one fire leaks the answer — the model has
+seen how that fire behaves. Every number reported here and later is leave-one-event-out.
 
-| When | What |
-| --- | --- |
-| Now, background | Hotspot archive pull — Iberia bbox, Jan 2025 → now, paginated |
-| After M2 (hotspots + perimeters live) | Dataset build: windowing, labels, features → then baselines → then the model |
-| H38 freeze | Nothing new lands after |
+**Features.** Recent detections (FRP-weighted centroid, spatial spread, age), wind speed, direction
+and gust, DEM slope and aspect, land-cover class, hour of day, time since last detection, and sensor
+mix. The last two matter more than they look: a detection gap is not evidence the fire stopped, and
+without them a model learns the sampling artefact as if it were fire behaviour.
 
-The modelling itself is hours, not days: tabular features, a few thousand rows, gradient boosting. It must not compete with the demo path.
+**Model.** Gradient boosting over tabular features — minutes on CPU. Note that `lightgbm` does not
+load in this environment; `sklearn.ensemble.HistGradientBoostingClassifier` is the same family
+without the OpenMP dependency.
 
-## Kill criteria
+## What ships
 
-- Pull can't produce enough clusters with dense detections → narrow the bbox or the season, or drop it
-- Baseline matches the model → ship the baseline, report both
-- It threatens the demo path → drop it. Demo quality is a judging criterion.
+`GET /api/growth?clusterId=` returns the baseline beside the model's numbers, both with their
+held-out scores, and a `shippedBaseline` flag saying which one is on screen. The console prints the
+number next to the claim rather than leaving it to the Q&A.
+
+If a model wins on bearing and rate, it ships and the baselines travel with it as context. If it
+does not, the baseline ships and the negative result goes in the writeup — which is worth as much
+as a positive one when the question is "how do you know?"
 
 ## Non-goals
 
-- **Not a spread simulator.** That is Deepfire's, and its own validation measures the ceiling (median Jaccard 0.133 over 561 real fires).
-- **Not a detector.** That is the Early detection track and Deepfire's fusion.
-- **Not ignition-type screening.** A valid classifier with real labels, but it is a filter nobody in the demo ever sees.
+- **Not a spread simulator.** Deepfire's, and its own validation measures the ceiling — median
+  Jaccard 0.133 over 561 real fires.
+- **Not a detector.** That is the Early detection track, and Deepfire's fusion already does it.
+- **Not the cut-time mask.** Detection accumulation for the cut mask is Stream 2's, though the two
+  share the detection-drift caveat.
 - **Not the alert text.**
 
-## Jev: what it can and cannot do for us here
+## Can Jev help train it? No.
 
-Checked 19 Sep 2026 against `docs.typesafe.ai/api` and the jev-1.13 jaggedness page.
+Checked against the vendor's API reference and the jev-1.13 model page. Recorded here so nobody
+re-opens it:
 
-**It cannot train or fine-tune anything.** One endpoint, `POST /v1/systemone`; three question types (`noul`, `choice`, `score`); no embeddings, no vector output, no batch API. It returns a typed decision, not a representation — and its own docs say it "is not trained to generate text".
+- **It cannot train, fine-tune or produce a model.** One endpoint, three question types, no
+  embeddings, no vector output, no batch API. It returns a typed decision, not a representation.
+- **It cannot generate these labels.** Displacement between detection windows is arithmetic, and
+  Jev's published limits say it "is not a calculator", "does not count reliably", and reads dates
+  as text rather than ordered values — each of which is a step in the label pipeline.
+- **It could serve as a feature source** if we wanted per-cluster judgement features. An independent
+  replication reports that extracting scored dimensions and fitting local weights beat a single
+  direct question on classification tasks. An add-on, not the model.
 
-**It cannot generate our labels.** Our labels are measured, not judged: displacement between consecutive detection windows is arithmetic, and Jev's published limits say it "is not a calculator", "does not count reliably", and reads dates as text rather than ordered values. Every one of those is a step in our label pipeline.
+The verification gate in the plan is deterministic OSM checks; Jev is out of scope there too.
 
-**It can, however, serve as a feature source.** An independent replicate of Jev's interface reports that extracting 12–14 scored dimensions and fitting local weights beat a single direct question on classification tasks. If we later want per-cluster judgement features — "is this detection pattern one front or several?" — that is a legitimate call. It is an add-on, not the model.
+## Open
 
-**Its limits matter if we do call it:** no arithmetic, no reliable counting, dates as text, accuracy falls as unrelated content grows in the `state`, and it does not treat injected content as hostile. There is also a practical dependency: access is a waitlist, and if the key doesn't arrive the pipeline runs without it.
-
-So Jev stays where the plan already puts it — **selecting and verifying the alert sentence** — and stays out of training.
-
-## Open questions for the team
-
-1. **Horizon** — 1 h, 3 h, or both?
-2. **Direction as bearing or class?** A coarse class (N/NE/E/…) is easier to validate and easier to show on screen; a bearing is more useful downstream. 
-3. **Who owns the archive pull**, and does it run somewhere that stays awake?
-4. **Do we have the Deepfire API key in hand?** The pull needs it before anything else here can start.
+- **Whether a model beats the baselines on bearing and rate.** The harness will say. Until it does,
+  the baseline is what ships.
+- **Whether the area result holds on FireSpread_MedEU.** It was measured on PT-FireSprd only. Running
+  the second dataset is cheap and either confirms the finding or complicates it — both worth knowing
+  before we quote the number.
