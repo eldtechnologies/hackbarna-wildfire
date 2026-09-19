@@ -9,24 +9,52 @@
 // stall. That cost is real but it is paid once per process, so folding it into the
 // per-request figure would misstate what a scrubber actually experiences.
 //
-// The cursors below are the ones a demo scrubber revisits: the start of the window, the
-// hours around the Bédar cut at 19:38 CEST, and the end. A cold cursor and a repeated one
-// both matter — the route layer memoises responses, so the second visit to a cursor is
-// what the cache is for.
+// ## Reading the number
+//
+// Wall-clock on a shared machine, and the run-to-run spread is large — repeated runs of a
+// single revision here have ranged from a 161 ms mean to a 354 ms one. A single comparison
+// against a baseline recorded at another moment is therefore not a signal on its own.
+//
+// So pass the baseline in, and obtain it the same way on the revision you are comparing
+// against, on the same machine and in the same session:
+//
+//     node --import tsx scripts/bench-egress.mts > /tmp/after.txt
+//     git stash && node --import tsx scripts/bench-egress.mts > /tmp/before.txt && git stash pop
+//     node --import tsx scripts/bench-egress.mts --baseline-ms=$(prior mean from /tmp/before.txt)
+//
+// The scenario origin for the committed capture is 00:00Z on 9 July, so a cursor of
+// 63,600 s is 19:40 CEST — just past the AL-6109 cut — and the cursors below are chosen to
+// span the transition rather than to sit entirely in one verdict state.
 
 import { buildEgress, loadContext } from '../server/engine/egress';
 
-/** Seconds since the scenario origin. */
+/**
+ * Seconds since the scenario origin (2026-07-09T00:00:00Z).
+ *
+ * `undefined` is the default cursor, the end of the window. The rest walk from before any
+ * detection has arrived, through the hours where a route is known and open, and across the
+ * cut at 63,480 s — the state where the band is finite and the gate is actually consulted.
+ * A set that stopped at 28,800 s sampled the ungated path seven times out of eight.
+ */
 const CURSORS: Array<number | undefined> = [
   undefined,
   0,
-  3600,
-  7200,
-  10800,
   14400,
-  21600,
   28800,
+  57600,
+  63000,
+  63600,
+  64800,
+  72000,
 ];
+
+/** The baseline mean in ms, if the caller recorded one. */
+function baselineFromArgv(): number | null {
+  const arg = process.argv.find((a) => a.startsWith('--baseline-ms='));
+  if (arg === undefined) return null;
+  const value = Number(arg.slice('--baseline-ms='.length));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
 
 const contextStart = Date.now();
 loadContext();
@@ -41,9 +69,10 @@ for (const at of CURSORS) {
   samples.push(ms);
   const pocket = built.response.pockets[0];
   const routes = pocket?.routes.length ?? 0;
+  const usable = pocket?.routes.filter((r) => r.usable).length ?? 0;
   console.log(
     `  at=${String(at).padStart(8)}  ${String(ms).padStart(5)} ms  ` +
-      `routes=${routes}  verdict=${pocket?.verdict ?? 'none'}`,
+      `routes=${routes} usable=${usable}  verdict=${pocket?.verdict ?? 'none'}`,
   );
 }
 
@@ -55,12 +84,18 @@ console.log(
     `min=${samples[0]} ms  max=${samples[samples.length - 1]} ms  n=${samples.length}`,
 );
 
-// Compared against the figure measured on main at 4a648d7 before this change: mean 156 ms
-// over these same eight cursors. Printed rather than asserted — a wall-clock bound in a
-// test is a flake, and the honest way to hold this is to look at the two numbers together.
-const BASELINE_MEAN_MS = 156;
-const ratio = mean / BASELINE_MEAN_MS;
-console.log(
-  `against the 4a648d7 baseline of ${BASELINE_MEAN_MS} ms: ` +
-    `${ratio.toFixed(2)}x (${mean >= BASELINE_MEAN_MS ? '+' : ''}${(mean - BASELINE_MEAN_MS).toFixed(0)} ms)`,
-);
+const baseline = baselineFromArgv();
+if (baseline === null) {
+  console.log(
+    '\nNo baseline given, so this run says nothing about a change on its own. Re-run with\n' +
+      '--baseline-ms=<mean from the revision you are comparing against, measured on this\n' +
+      'machine in this session>. The run-to-run spread here is wide enough that a baseline\n' +
+      'recorded at another moment is not a comparison.',
+  );
+} else {
+  const ratio = mean / baseline;
+  console.log(
+    `\nagainst a baseline of ${baseline} ms measured in this session: ` +
+      `${ratio.toFixed(2)}x (${mean >= baseline ? '+' : ''}${(mean - baseline).toFixed(0)} ms)`,
+  );
+}

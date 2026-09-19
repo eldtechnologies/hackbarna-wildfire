@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildEgress, loadContext } from './egress';
+import { buildEgress, loadContext, routeBasisFor } from './egress';
 import { buildAlerts } from './alerts';
 import { nearestNode } from './graph';
 import { ASSUMPTION_PROFILES, withAssumedSpeeds } from './assumptions';
@@ -270,12 +270,25 @@ test('each band end is attained by a named combination of configuration and assu
       Math.min(expectedPessimistic, windowEndSeconds),
       `basis names ${eProfile.id}/${eConfig.id} as the pessimistic end, but recomputing it gives a different value`,
     );
+    // The optimistic half is checked whether or not a finite `latest` is published. On this
+    // fixture every band's `latest` is null — some configuration never closes each route —
+    // so a test that skipped the null case would never run the optimistic assertion at all,
+    // and "recomputes the named end" would be indistinguishable from "recomputes the
+    // cautious end twice". When `latest` is null the named combination must therefore
+    // itself come back unbounded.
+    const expectedOptimistic = recomputeDeparture(lConfig.id, lProfile.id, cursor, destNode);
     if (band.latest !== null) {
-      const expectedOptimistic = recomputeDeparture(lConfig.id, lProfile.id, cursor, destNode);
       assert.equal(
         Date.parse(band.latest) / 1000 - originSeconds,
         expectedOptimistic,
         `basis names ${lProfile.id}/${lConfig.id} as the optimistic end, but recomputing it gives a different value`,
+      );
+    } else {
+      assert.equal(
+        expectedOptimistic,
+        Number.POSITIVE_INFINITY,
+        `basis names ${lProfile.id}/${lConfig.id} as the optimistic end and publishes no ` +
+          `latest, but that combination is bounded — so the named end is the wrong one`,
       );
     }
     attributed += 1;
@@ -448,4 +461,56 @@ test('the gate reads the pessimistic end of the band and of the clearance range'
     checked += 1;
   }
   assert.ok(checked > 0, 'fixture sanity: the pocket publishes at least one route');
+});
+
+test('the band basis names both axes distinctly when the ends come from different profiles', () => {
+  // The committed fixture cannot exercise this: every published band has a null `latest`,
+  // and both of its ends are attained under the cautious profile, so a basis that named one
+  // profile for both ends would pass every test above. This drives the builder directly
+  // with a pair the fixture does not produce.
+  const basis = routeBasisFor(
+    { configId: 'all-2x', profileId: 'cautious' },
+    { configId: 'polar-1x', profileId: 'optimistic' },
+    24,
+    24,
+  );
+
+  const cautious = ASSUMPTION_PROFILES.find((p) => p.id === 'cautious')!;
+  const optimistic = ASSUMPTION_PROFILES.find((p) => p.id === 'optimistic')!;
+  const twoBy = SWEEP_CONFIGS.find((c) => c.id === 'all-2x')!;
+  const polar = SWEEP_CONFIGS.find((c) => c.id === 'polar-1x')!;
+
+  assert.match(basis, new RegExp(`earliest from ${twoBy.label} under ${cautious.label}`));
+  assert.match(basis, new RegExp(`latest from ${polar.label} under ${optimistic.label}`));
+  assert.match(basis, /across all 24 combinations/);
+
+  // The wrong version names one profile for both ends. Assert per clause rather than by
+  // counting occurrences: the pessimistic profile must sit in the pessimistic clause and
+  // not in the optimistic one, which is the failure the fixture cannot produce.
+  const clauses = /^earliest from (.+?); latest from (.+?);/.exec(basis);
+  assert.ok(clauses, `the basis has two attributed clauses: ${basis}`);
+  const [, pessimisticClause, optimisticClause] = clauses;
+  assert.ok(pessimisticClause.includes(cautious.label), 'the pessimistic profile is in the pessimistic clause');
+  assert.ok(
+    !optimisticClause.includes(cautious.label),
+    `the pessimistic profile must not be named on the optimistic end: ${optimisticClause}`,
+  );
+  assert.ok(optimisticClause.includes(optimistic.label), 'the optimistic profile is named on the optimistic end');
+  assert.equal(
+    basis.split(cautious.label).length - 1,
+    1,
+    'the pessimistic profile is named exactly once',
+  );
+});
+
+test('a partially contributing basis reports the real denominator, not the full sweep', () => {
+  const basis = routeBasisFor(
+    { configId: 'all-1x', profileId: 'cautious' },
+    { configId: 'all-1x', profileId: 'cautious' },
+    9,
+    24,
+  );
+  assert.match(basis, /across 9 of 24 combinations/);
+  assert.match(basis, /15 never close this route inside the window/);
+  assert.match(basis, /all contributing combinations agree/);
 });

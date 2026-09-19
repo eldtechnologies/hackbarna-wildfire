@@ -17,6 +17,7 @@ import {
   withAssumedSpeeds,
 } from './assumptions';
 import type { RoadGraph } from './solve';
+import { loadGraph } from './graph';
 import type { LatLon } from '../../shared/fires';
 
 const SPEEDS: Record<string, number> = { primary: 80, track: 15, service: 20 };
@@ -134,12 +135,17 @@ test('an invalid profile is refused at construction, naming what is wrong', () =
 });
 
 test('the nominal table is the one the committed graph was built with', () => {
-  // Source of expected: scripts/fetch-roads.mjs HIGHWAY_SPEED_KMH, which is what the
-  // committed travelSeconds were computed from. The identity property above still holds
-  // per-edge if these diverge, but then "nominal" would no longer mean the committed
-  // reality and every profile would be silently offset from the graph it scales.
-  assert.equal(NOMINAL_SPEED_KMH.primary, 80);
-  assert.equal(NOMINAL_SPEED_KMH.track, 15);
-  assert.equal(NOMINAL_SPEED_KMH.motorway, 100);
-  assert.equal(Object.keys(NOMINAL_SPEED_KMH).length, 16, 'every class the fetcher keeps');
+  // Source of expected: the committed graph file itself, which is what scripts/fetch-roads.mjs
+  // computed the committed travelSeconds from.
+  // Read from the committed graph rather than compared against literals. The profiles scale
+  // from this table while the engine scales with the graph's own `speedByHighway`, so a
+  // refetch that changed one class speed would leave "cautious is never faster than the
+  // nominal table" true against a copy and false against the published nominal — silently
+  // inverting the label in the permissive direction. Three spot values would not catch that.
+  const loaded = loadGraph();
+  assert.deepEqual(
+    NOMINAL_SPEED_KMH,
+    loaded.speedByHighway,
+    'the sweep scales from this table, so it must be the table the committed travel times came from',
+  );
 });

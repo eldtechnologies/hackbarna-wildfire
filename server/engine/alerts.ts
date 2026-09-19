@@ -17,7 +17,7 @@ import type {
   RejectedCandidate,
 } from '../../shared/alerts';
 import type { LatLon } from '../../shared/fires';
-import { buildEgress, loadContext, type EgressOptions, type Settlement } from './egress';
+import { PESSIMISTIC_DELAY_MINUTES, buildEgress, loadContext, type EgressOptions, type Settlement } from './egress';
 import { capIdentifier, emitCap, groupByPocket, validateCapSemantics } from './cap/emit';
 import { fillTemplate, languagesFor, templateFor, unresolvedPlaceholders } from './cap/templates';
 import { verifySentence, type Place } from './cap/verify';
@@ -323,7 +323,14 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
       inputs: {
         mobileFraction: clock.mobileFraction,
         vehicleOccupancy: clock.vehicleOccupancy,
-        departureDelayMinutes: clock.departureDelayMinutes,
+        // The delay the GATE subtracted, under the name the gate used. Recording the
+        // nominal here while the gate subtracted the pessimistic one left the ledger unable
+        // to reproduce its own decision: at cursor 19h it recorded 15 minutes while the
+        // route's own reason said the decision was 300 minutes late, and recomputing from
+        // the ledger's inputs gave 285. The nominal still travels, under a name that says
+        // which one it is.
+        departureDelayMinutes: PESSIMISTIC_DELAY_MINUTES,
+        nominalDepartureDelayMinutes: clock.departureDelayMinutes,
         population: settlement.population ?? 'unknown',
         // The pessimistic figure is the one the gate acted on, so it is the one recorded
         // under the plain name; the range travels with it rather than replacing it.

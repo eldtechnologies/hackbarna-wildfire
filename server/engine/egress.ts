@@ -139,7 +139,7 @@ const DEFAULT_CAPACITY_PER_HOUR = 600;
  * delay it subtracts has to be the pessimistic one for the same reason the departure and
  * the clearance are.
  */
-const PESSIMISTIC_DELAY_MINUTES = Math.max(
+export const PESSIMISTIC_DELAY_MINUTES = Math.max(
   ...ASSUMPTION_PROFILES.map((p) => p.assumptions.departureDelayMinutes),
 );
 
@@ -375,7 +375,7 @@ function profileLabelOf(id: string): string {
  * assumptions, and those are different claims about the world. Each end therefore names
  * its configuration and its profile.
  */
-function routeBasisFor(
+export function routeBasisFor(
   earliest: { configId: string; profileId: string },
   latest: { configId: string; profileId: string },
   contributors: number,
@@ -413,12 +413,16 @@ function clearanceBasis(
   const byId = edgesById(graph);
   const part = (entry: ClearanceEntry): string => {
     const a = entry.profile.assumptions;
-    const highway = byId.get(entry.bottleneck.segmentId)?.highway;
-    const capacity = (highway && a.capacityPerHour[highway]) ?? DEFAULT_CAPACITY_PER_HOUR;
+    const edge = byId.get(entry.bottleneck.segmentId);
+    const highway = edge?.highway ?? 'unknown class';
+    const capacity = (edge && a.capacityPerHour[edge.highway]) ?? DEFAULT_CAPACITY_PER_HOUR;
+    // The road class and the segment are named, not just the throughput. The contract
+    // promises the basis says which segment produced each end, and the class is the part a
+    // reader can act on: "track" is why a village of 953 takes three hours to leave.
     return (
       `${entry.bottleneck.clearMinutes.toFixed(0)} min under ${entry.profile.label} ` +
       `(${a.mobileFraction} mobile ÷ ${a.vehicleOccupancy} per vehicle, ` +
-      `${capacity} vehicles/h on the tightest road)`
+      `${capacity} vehicles/h on ${highway} at ${entry.bottleneck.segmentId})`
     );
   };
   return (
@@ -543,12 +547,30 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
     // should be one that survives the pessimistic assumptions rather than one that only
     // works if the optimistic ones are true. That is the spike's own failure: people left
     // by a track that led nowhere.
+    // The masked fields depend on the configuration and the cursor, not on the profile, so
+    // they are computed once per configuration and read by both profiles. Rebuilding them
+    // per profile was 2.6 ms of a ~250 ms request spent producing an identical pair of
+    // arrays twice.
+    //
+    // The loops are NOT swapped to config-major to get this. Profile-major is what makes
+    // the first route found the one that survives the pessimistic assumptions; config-major
+    // would pick whichever configuration happened to come first and could name a road that
+    // only works under the optimistic profile.
+    const maskedByConfig = new Map<string, { cuts: number[]; nodeCut: number[] }>();
+    const maskedField = (configId: string): { cuts: number[]; nodeCut: number[] } => {
+      let field = maskedByConfig.get(configId);
+      if (field === undefined) {
+        field = { cuts: knownCut(configId), nodeCut: knownNodeCut(configId) };
+        maskedByConfig.set(configId, field);
+      }
+      return field;
+    };
+
     for (const profile of ASSUMPTION_PROFILES) {
       const profileGraph = ctx.graphsByProfile.get(profile.id) ?? graph;
 
       for (const config of SWEEP_CONFIGS) {
-        const cuts = knownCut(config.id);
-        const nodeCut = knownNodeCut(config.id);
+        const { cuts, nodeCut } = maskedField(config.id);
 
         // The pocket is not a destination for its own residents, and its own node is
         // excluded from the per-destination solves too. Including it does not merely add a
@@ -768,7 +790,18 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
       provenance: 'replay',
       at: fromEpochMs(origin + cursor * 1000),
       assumptions: { ...ASSUMPTIONS, speedByHighway: ctx.loaded.speedByHighway },
-      profiles: ASSUMPTION_PROFILES.map((p) => ({ ...p, assumptions: { ...p.assumptions } })),
+      // Copied all the way down. Spreading only the top level leaves `speedByHighway` and
+      // `capacityPerHour` as the very objects the solver reads at context load, and the
+      // response is memoised and re-served — so a consumer that normalised a table in place
+      // would corrupt the process-wide profile for every later request.
+      profiles: ASSUMPTION_PROFILES.map((profile) => ({
+        ...profile,
+        assumptions: {
+          ...profile.assumptions,
+          speedByHighway: { ...profile.assumptions.speedByHighway },
+          capacityPerHour: { ...profile.assumptions.capacityPerHour },
+        },
+      })),
       fireId: ctx.scenario,
       clusterIds: ctx.fireClusterIds,
       origin: fromEpochMs(origin),
