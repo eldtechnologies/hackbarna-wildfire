@@ -73,8 +73,30 @@ test('certainty never claims more confidence than the band supports', () => {
   assert.notEqual(certaintyFor(null), 'Observed', 'no verified route is not an observation');
   assert.equal(certaintyFor(null), 'Possible');
 
-  // A band with no upper bound is the strongest thing the model can say.
-  assert.equal(certaintyFor({ earliest: '2026-07-09T19:00:00Z', latest: null }), 'Likely');
+  // A band with no upper bound is NOT the strongest thing the model can say — that was
+  // this assertion's own misreading, and the published data falsifies it. `latest: null`
+  // means at least one configuration never closes the route, not that none does: all four
+  // routes this engine serves carry `latest: null` only because `all-100m` never closes
+  // them, while the other eleven configurations give departures around 17:36. The band
+  // spans [17:36, never), which is the widest band there is.
+  assert.equal(
+    certaintyFor({ earliest: '2026-07-09T19:00:00Z', latest: null }),
+    'Possible',
+    'one unbounded configuration does not make the band narrow',
+  );
+  // It is 'Likely' only when every configuration agrees, which the engine signals by
+  // pinning the pessimistic end to the window end.
+  const WINDOW_END = '2026-07-11T11:08:26.000Z';
+  assert.equal(
+    certaintyFor({ earliest: WINDOW_END, latest: null }, WINDOW_END),
+    'Likely',
+    'an unbounded band at both ends is a route no configuration closes',
+  );
+  assert.equal(
+    certaintyFor({ earliest: '2026-07-09T19:00:00Z', latest: null }, WINDOW_END),
+    'Possible',
+    'an unbounded upper end with a bounded lower one is a disagreement, not a verdict',
+  );
   // A narrow band is close to a point estimate; a wide one is not.
   assert.equal(certaintyFor({ earliest: '2026-07-09T19:00:00Z', latest: '2026-07-09T20:00:00Z' }), 'Likely');
   assert.equal(certaintyFor({ earliest: '2026-07-09T19:00:00Z', latest: '2026-07-10T01:00:00Z' }), 'Possible');

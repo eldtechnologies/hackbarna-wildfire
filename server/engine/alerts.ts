@@ -100,11 +100,25 @@ export function instructionFor(
  * observation of one, and the mask it is derived from is itself an inference from
  * satellite detections rather than a measurement of the fire's edge.
  */
-export function certaintyFor(band: { earliest: string; latest: string | null } | null): AlertPackage['certainty'] {
+export function certaintyFor(
+  band: { earliest: string; latest: string | null } | null,
+  windowEndIso?: string,
+): AlertPackage['certainty'] {
   if (band === null) return 'Possible';
-  // No upper bound means the route is never cut inside the window, which is the
-  // strongest thing the model can say about it.
-  if (band.latest === null) return 'Likely';
+  if (band.latest === null) {
+    // A null upper end means AT LEAST ONE configuration never closes the route, not that
+    // none does. Reading it as "never cut" put the strongest value on the widest possible
+    // band: all four published routes carry `latest: null` only because `all-100m` — the
+    // most fragile configuration, single flat 100 m buffer — never closes them, while the
+    // other eleven give departures around 17:36. The band spans [17:36, never).
+    //
+    // It is only unanimous when the pessimistic end is itself unbounded, which is what
+    // `buildEgress` pins to the window end when no configuration closes the route. Then
+    // every assumption agrees and 'Likely' is earned. Otherwise the band is unbounded and
+    // the function's own width rule already says what an unbounded width is.
+    const unanimous = windowEndIso !== undefined && band.earliest === windowEndIso;
+    return unanimous ? 'Likely' : 'Possible';
+  }
   const widthHours = (Date.parse(band.latest) - Date.parse(band.earliest)) / 3_600_000;
   if (widthHours <= 2) return 'Likely';
   return 'Possible';
@@ -228,7 +242,10 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
       if (leftover.length > 0) {
         rejected.push({
           at: built.response.at, pocketId: settlement.id, instruction, language, text,
-          reason: 'no_evidence',
+          // A missing value is a bug in this file, not a finding about the fire. Reporting
+          // it as `no_evidence` told a reviewer the data did not support the sentence,
+          // which sends them to the wrong place entirely.
+          reason: 'incomplete_template',
           detail: `template left ${leftover.join(', ')} unfilled`,
         });
         continue;
@@ -261,7 +278,7 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
         resolvedNames: outcome.resolved,
         urgency: template.urgency,
         severity: severityFor(fireReaches),
-        certainty: certaintyFor(chosen?.lastSafeDeparture ?? null),
+        certainty: certaintyFor(chosen?.lastSafeDeparture ?? null, built.diagnostics.windowEnd),
         area: settlementArea(settlement),
         departure: chosen?.lastSafeDeparture ?? null,
       });

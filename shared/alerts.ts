@@ -70,7 +70,14 @@ export interface RejectedCandidate {
   instruction: InstructionId;
   language: LanguageCode;
   text: string;
-  reason: 'unresolved_name' | 'not_passable' | 'no_evidence';
+  /**
+   * `incomplete_template` is separate from `no_evidence` on purpose: the first says a
+   * value was missing from the caller, which is a bug here, and the second says the
+   * evidence did not support the claim, which is a statement about the world. Reporting
+   * the first as the second misinforms the one artifact a reviewer reads to find out why
+   * a candidate was dropped.
+   */
+  reason: 'unresolved_name' | 'not_passable' | 'no_evidence' | 'incomplete_template';
   detail: string;
 }
 
