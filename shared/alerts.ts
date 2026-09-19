@@ -31,6 +31,13 @@ export interface CapSenderConfig {
   sender: string;
   senderName: string;
   status: 'Actual' | 'Exercise' | 'System' | 'Test' | 'Draft';
+  /**
+   * Defaults to 'Public', because ES-Alert is a public cell broadcast and that is what
+   * the message describes; `status: 'Test'` carries the "this is not a real alert" flag
+   * instead. `'Restricted'` and `'Private'` both additionally require an `<addresses>`
+   * element under the CAP 1.2 prose spec — the XSD alone does not enforce it, so a
+   * profile that chooses one of those must add it and test for it.
+   */
   scope: 'Public' | 'Restricted' | 'Private';
 }
 
@@ -63,7 +70,14 @@ export interface RejectedCandidate {
   instruction: InstructionId;
   language: LanguageCode;
   text: string;
-  reason: 'unresolved_name' | 'not_passable' | 'no_evidence';
+  /**
+   * `incomplete_template` is separate from `no_evidence` on purpose: the first says a
+   * value was missing from the caller, which is a bug here, and the second says the
+   * evidence did not support the claim, which is a statement about the world. Reporting
+   * the first as the second misinforms the one artifact a reviewer reads to find out why
+   * a candidate was dropped.
+   */
+  reason: 'unresolved_name' | 'not_passable' | 'no_evidence' | 'incomplete_template';
   detail: string;
 }
 

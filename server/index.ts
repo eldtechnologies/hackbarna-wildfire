@@ -4,8 +4,11 @@ import { getFires } from './providers';
 import { getInfrastructure } from './infrastructure';
 import { getThreats } from './threats';
 import { growthFor } from './model';
+import { engineRouter } from './engine/routes';
 
 const app = express();
+
+app.use(engineRouter());
 
 app.get('/api/health', (_req, res) => {
   res.json({

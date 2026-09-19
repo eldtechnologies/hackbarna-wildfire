@@ -11,7 +11,18 @@ import type { LatLon } from './fires';
 /** A range, plus what was varied to produce it. Never a bare point estimate. */
 export interface TimeBand {
   earliest: string; // ISO 8601
-  latest: string; // ISO 8601
+  /**
+   * ISO 8601, or null when at least one configuration in the sweep never closes this at
+   * all within the modelled window.
+   *
+   * Nullable for the same reason `CutTime.cutAt` is: "never within the window" and
+   * "a very late time" are different statements, and without this the only way to say
+   * the former is to invent a window-end timestamp. The engine's internal value here is
+   * Infinity, and `JSON.stringify(Infinity)` is `null` — which the route contract reads
+   * as "already cut", inverting the safest state into the most alarming one. Making the
+   * type nullable forces every consumer to handle it deliberately.
+   */
+  latest: string | null;
   /** Human-readable description of what was swept, printed beside the number. */
   basis: string;
 }
@@ -65,6 +76,12 @@ export interface EgressAssumptions {
   vehicleOccupancy: number;
   /** Modelled speed by OSM highway class, km/h. */
   speedByHighway: Record<string, number>;
+  /**
+   * Vehicles per hour a segment of each highway class can clear, for the bottleneck
+   * calculation. An assumption with no measurement behind it, and labelled as one
+   * wherever it surfaces.
+   */
+  capacityPerHour: Record<string, number>;
 }
 
 /** One way out of a pocket, and how long it stays viable. */
@@ -76,9 +93,36 @@ export interface EgressRoute {
   distanceKm: number;
   travelMinutes: number;
   /**
+   * Worst road class on the path, worst-first. A route that exists only because
+   * `highway=track` is in the graph has to say so on its face — the spike's own account
+   * of the deaths includes people who left by a track that led nowhere, and burying
+   * that inside a free-text basis string loses it.
+   */
+  slowestHighway: string;
+  /**
+   * How long the pocket takes to clear the tightest point on this route, in minutes,
+   * and which segment that is. Vehicles divided by the road's throughput: the number
+   * that decides whether a departure band is achievable at all, and the acceptance
+   * criterion in docs/work-plan.md. Null when the pocket's population is unknown.
+   */
+  clearanceMinutes: number | null;
+  bottleneckSegmentId: string | null;
+  /**
    * Band, not a point. Null when the route is already cut at this cursor.
    */
   lastSafeDeparture: TimeBand | null;
+  /**
+   * Whether this route survives the pessimistic gate at the cursor — the band's earliest
+   * end, minus the clearance at the bottleneck, minus the departure delay.
+   *
+   * Published so a consumer does not have to re-derive it. An earlier version left the
+   * message to recompute the gate with a weaker test than the pocket verdict used, which
+   * produced a window where the response said `no_verified_action` and the CAP sentence
+   * told people to leave.
+   */
+  usable: boolean;
+  /** Why not, in words, when `usable` is false. Null when it is true. */
+  unusableReason: string | null;
 }
 
 export interface PocketEgress {
@@ -87,8 +131,17 @@ export interface PocketEgress {
   /**
    * 'no_verified_action' is not shelter-in-place. Failing to find a route does
    * not show the building is survivable, so the default is operator assessment.
+   *
+   * 'not_yet_observed' is a third state, and it exists because the other two cannot
+   * express it. Before any detection has arrived the cut field is empty, every band is
+   * unbounded, and every route trivially survives the gate — so `routes_open` was
+   * produced by absence of information rather than by evidence of safety. A clean
+   * all-clear is the most consequential thing this response can say, and it must not be
+   * something the engine says when it has seen nothing. This is not a stronger
+   * `no_verified_action`: that one means a route was sought and withdrawn, this one means
+   * none could be assessed.
    */
-  verdict: 'routes_open' | 'no_verified_action';
+  verdict: 'routes_open' | 'no_verified_action' | 'not_yet_observed';
 }
 
 export interface EgressResponse {
@@ -96,6 +149,20 @@ export interface EgressResponse {
   /** The cursor this answered for, at or before the requested time. */
   at: string;
   assumptions: EgressAssumptions;
+  /**
+   * Which fire this describes. The capture's bbox holds three separate heat sources and
+   * the fire itself is carried as two cluster ids, so a response with no fire identity
+   * is ambiguous about which one it solved for.
+   */
+  fireId: string | null;
+  /** The cluster ids that were grouped into this fire. */
+  clusterIds: string[];
+  /**
+   * The instant `?at=<seconds>` counts from. Published because the client's globe and
+   * this engine must agree on what time it is, and a flat snapshot declares no timeline
+   * for either to read.
+   */
+  origin: string;
   segments: CutTime[];
   pockets: PocketEgress[];
   fetchedAt: string;

@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.server.json",
     "record:snapshot": "node scripts/record-snapshot.mjs",
     "mock:deepfire": "node scripts/mock-deepfire.mjs",
-    "test": "node --test --import tsx server/providers/normalize.test.ts server/providers/live.test.ts server/providers/replay.test.ts server/model/model.test.ts"
+    "test": "node --test --import tsx \"server/**/*.test.ts\""
   },
   "dependencies": {
     "@turf/along": "^7.4.0",
