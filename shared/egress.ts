@@ -120,6 +120,18 @@ export interface ClearanceRange {
   pessimisticMinutes: number;
   /** The shortest. Published so the reader can see how much the decision rests on assumptions. */
   optimisticMinutes: number;
+  /**
+   * Which swept profile attained each end.
+   *
+   * Carried as ids rather than left to the basis string because the ledger records the
+   * inputs a reader would recompute from. It used to record the nominal mobile fraction and
+   * occupancy beside a clearance computed from the cautious ones, so recomputing from the
+   * ledger's own inputs gave 181.5 or 108.9 against a published 185.3 — an audit artifact
+   * that could not reproduce the number it was auditing, reading permissive because the
+   * nominal values imply fewer vehicles.
+   */
+  pessimisticProfileId: string;
+  optimisticProfileId: string;
   /** Which values produced each end, and at which segment, in words. */
   basis: string;
 }
@@ -148,6 +160,18 @@ export interface EgressRoute {
   clearanceMinutes: ClearanceRange | null;
   /** The segment the pessimistic clearance was reached at, since that is the one that decides. */
   bottleneckSegmentId: string | null;
+  /**
+   * Which swept profile this route was solved under.
+   *
+   * `segmentIds`, `distanceKm` and `travelMinutes` are that profile's values, not the
+   * nominal ones — the route is taken from the first combination that yields one, and the
+   * profiles are iterated pessimistic-first so the named road is one that survives the
+   * pessimistic assumptions. Without this field the response published a cautious-profile
+   * drive time (72 minutes to Los Gallardos, against the nominal graph's 52) while naming
+   * the nominal set as its `assumptions`, so a reader had no way to tell which values the
+   * route's own numbers came from.
+   */
+  solvedUnderProfileId: string;
   /**
    * Band, not a point. Null when the route is already cut at this cursor.
    */

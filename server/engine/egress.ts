@@ -401,7 +401,11 @@ export function routeBasisFor(
     contributors >= total
       ? `across all ${total} combinations of configuration and assumption profile`
       : `across ${contributors} of ${total} combinations of configuration and assumption profile ` +
-        `(${total - contributors} never close this route inside the window)`;
+        // "Found no route" is the -Infinity case, and it is what a route band drops. The
+        // phrase "never close this route inside the window" belongs to the segment bands,
+        // where the excluded configurations gave Infinity; carried over here it made the
+        // opposite and more reassuring claim about the combinations that were excluded.
+        `(${total - contributors} found no route under these assumptions)`;
   const describe = (combo: { configId: string; profileId: string }): string =>
     `${configLabel(combo.configId)} under ${profileLabelOf(combo.profileId)}`;
   if (earliest.configId === latest.configId && earliest.profileId === latest.profileId) {
@@ -581,6 +585,8 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
       combos: Array<{ configId: string; profileId: string }>;
       /** The raw solve route, so the clearance calculation can reuse its segment list. */
       route: Route | null;
+      /** The profile the route above was solved under, so its numbers can be attributed. */
+      routeProfileId: string | null;
     }
     const byDestination = new Map<string, RouteAccumulator>();
 
@@ -609,7 +615,16 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
     };
 
     for (const profile of ASSUMPTION_PROFILES) {
-      const profileGraph = ctx.graphsByProfile.get(profile.id) ?? graph;
+      // Refused rather than falling back to the committed graph. The fallback would solve
+      // the nominal road network and then publish the answer under this profile's label and
+      // this profile's assumptions — a basis citing an end no combination attained, which
+      // is the plausible-but-wrong number the rest of this file is written to avoid. The map
+      // is built from this same constant in the same call, so the branch is unreachable
+      // today; it is the reachable-tomorrow shape that matters.
+      const profileGraph = ctx.graphsByProfile.get(profile.id);
+      if (profileGraph === undefined) {
+        throw new Error(`no road graph was built for assumption profile "${profile.id}"`);
+      }
 
       for (const config of SWEEP_CONFIGS) {
         const { cuts, nodeCut } = maskedField(config.id);
@@ -636,12 +651,21 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
           if (value === Number.NEGATIVE_INFINITY) continue;
 
           const acc =
-            byDestination.get(settlement.id) ?? { departures: [], combos: [], route: null };
+            byDestination.get(settlement.id) ??
+            { departures: [], combos: [], route: null, routeProfileId: null };
           acc.departures.push(value);
           acc.combos.push({ configId: config.id, profileId: profile.id });
           if (acc.route === null) {
             const r = routeTo(solo, profileGraph, cuts, pocketNode, [node]);
-            if (r) acc.route = r;
+            if (r) {
+              acc.route = r;
+              // Remembered because this profile's travel times become the route's published
+              // `travelMinutes`, `distanceKm` and `segmentIds`. Iterating pessimistic-first
+              // is deliberate — the named road should be one that survives the pessimistic
+              // assumptions — but it left those numbers unattributed against a response
+              // that names the nominal set.
+              acc.routeProfileId = profile.id;
+            }
           }
           byDestination.set(settlement.id, acc);
         }
@@ -667,6 +691,12 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
     const routes: EgressRoute[] = [];
     for (const [settlementId, acc] of byDestination) {
       if (acc.route === null || acc.departures.length === 0) continue;
+      // The two are set together, so one without the other is a programming error rather
+      // than a state to paper over — the fallback here would be exactly the plausible-but-
+      // wrong attribution the rest of this file argues against.
+      if (acc.routeProfileId === null) {
+        throw new Error(`${settlementId} has a route solved under no profile; refusing to publish it unattributed`);
+      }
       const minValue = Math.min(...acc.departures);
       const maxValue = Math.max(...acc.departures);
       const minIndex = acc.departures.indexOf(minValue);
@@ -702,7 +732,12 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
       const population = pocket.population ?? null;
       let clearanceMinutes: ClearanceRange | null = null;
       let bottleneckSegmentId: string | null = null;
-      if (population !== null && population > 0) {
+      // `> 0` used to guard this, so a settlement whose population is a KNOWN zero fell
+      // through with a null clearance and the gate reported "pocket population is unknown,
+      // which is false about data we hold. The contract already distinguishes null (unknown)
+      // from 0 (nobody), so a zero flows through the arithmetic: no vehicles, no clearance,
+      // and the gate turns on the departure alone.
+      if (population !== null) {
         // One clearance per swept profile, over the same segment list. This is where the
         // assumption set actually bites: measured on the committed capture the span is 89
         // to 185 minutes, against a departure band the speed axis moves by under one.
@@ -727,6 +762,8 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
           clearanceMinutes = {
             pessimisticMinutes: Number(worst.bottleneck.clearMinutes.toFixed(1)),
             optimisticMinutes: Number(best.bottleneck.clearMinutes.toFixed(1)),
+            pessimisticProfileId: worst.profile.id,
+            optimisticProfileId: best.profile.id,
             basis: clearanceBasis(population, worst, best, graph),
           };
           // The pessimistic bottleneck is the one that decides, so it is the one named.
@@ -742,6 +779,8 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
         slowestHighway: acc.route.slowestHighway,
         clearanceMinutes,
         bottleneckSegmentId,
+        // The drive time, distance and segment list above are this profile's, not nominal.
+        solvedUnderProfileId: acc.routeProfileId,
         // Filled by the gate below; the object is pushed with the provisional values so
         // the gate reads the same shape the response will.
         usable: true,

@@ -348,3 +348,33 @@ test('an early cursor, before the fire is known, does not invent a package', () 
     assert.ok(pkg.certainty !== 'Observed' || pkg.departure !== null, 'an unverified route is not an observation');
   }
 });
+
+test('the ledger records the inputs its own clearance was computed from', () => {
+  // It used to record the nominal mobile fraction and occupancy beside a clearance computed
+  // from the cautious ones, so recomputing from the ledger's own inputs gave 181.5 or 108.9
+  // against a published 185.3 — and the nominal pair reads permissive, because it implies
+  // fewer vehicles. The audit artifact could not reproduce the number it was auditing. The
+  // divisor was missing too, so even the corrected inputs could not get from vehicles to
+  // minutes.
+  const entry = buildAlerts({ atSeconds: 63_000 }).ledger[0];
+  const recorded = Number(entry.inputs.clearanceMinutes);
+  assert.ok(Number.isFinite(recorded) && recorded > 0, 'fixture sanity: a clearance was computed');
+
+  const population = Number(entry.inputs.population);
+  const vehicles =
+    (population * Number(entry.inputs.mobileFraction)) / Number(entry.inputs.vehicleOccupancy);
+  const capacity = Number(entry.inputs.bottleneckCapacityPerHour);
+  assert.ok(Number.isFinite(capacity) && capacity > 0, 'the divisor is recorded rather than left to inference');
+
+  const recomputed = (vehicles / capacity) * 60;
+  assert.ok(
+    Math.abs(recomputed - recorded) < 0.05,
+    `the ledger's own inputs give ${recomputed.toFixed(1)} against a recorded ${recorded}`,
+  );
+
+  // And the values recorded are the ones the gate acted on, not the nominal centre.
+  assert.equal(entry.inputs.mobileFraction, 0.7, 'the pessimistic profile, not the nominal 0.8');
+  assert.equal(entry.inputs.departureDelayMinutes, 30, 'the gated delay, not the nominal 15');
+  assert.equal(entry.inputs.nominalDepartureDelayMinutes, 15, 'the nominal still travels, named as such');
+  assert.equal(entry.inputs.bottleneckHighway, 'track');
+});

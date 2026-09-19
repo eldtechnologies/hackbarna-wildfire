@@ -511,7 +511,12 @@ test('a partially contributing basis reports the real denominator, not the full 
     24,
   );
   assert.match(basis, /across 9 of 24 combinations/);
-  assert.match(basis, /15 never close this route inside the window/);
+  // The excluded combinations for a ROUTE band are the ones that found no route at all
+  // (their value is -Infinity), not the ones that never closed the road. The segment bands
+  // mean the latter, and carrying their wording here made the opposite and more reassuring
+  // claim about what had been dropped.
+  assert.match(basis, /15 found no route under these assumptions/);
+  assert.doesNotMatch(basis, /never close this route inside the window/);
   assert.match(basis, /all contributing combinations agree/);
 });
 

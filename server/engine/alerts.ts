@@ -17,6 +17,7 @@ import type {
   RejectedCandidate,
 } from '../../shared/alerts';
 import type { LatLon } from '../../shared/fires';
+import { ASSUMPTION_PROFILES } from './assumptions';
 import { PESSIMISTIC_DELAY_MINUTES, buildEgress, loadContext, type EgressOptions, type Settlement } from './egress';
 import { capIdentifier, emitCap, groupByPocket, validateCapSemantics } from './cap/emit';
 import { fillTemplate, languagesFor, templateFor, unresolvedPlaceholders } from './cap/templates';
@@ -24,7 +25,7 @@ import { verifySentence, type Place } from './cap/verify';
 import { loadPocketGeometry } from './pockets';
 import { NOMINAL_ID } from './sweep';
 import { nearestNode } from './graph';
-import type { RoadGraph } from './solve';
+import { edgesById, type RoadGraph } from './solve';
 
 /**
  * Default sender: a fictional demo identity with status=Test, so nothing emitted here can
@@ -284,6 +285,26 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
       });
     }
 
+    // The profile whose values produced the clearance the gate acted on. Resolved by id
+    // from the range rather than inferred from the label, so the ledger records the
+    // attaining profile's numbers even if the profiles are later renamed or reordered.
+    const clearanceProfile = chosen?.clearanceMinutes
+      ? ASSUMPTION_PROFILES.find((p) => p.id === chosen.clearanceMinutes!.pessimisticProfileId)
+      : undefined;
+    // The throughput the clearance divided by. Without it the ledger recorded the vehicles
+    // and the minutes but not the divisor, so a reader still could not get from one to the
+    // other. Named by the road class the bottleneck is on, because that is the term that
+    // moved: a track clears 180 vehicles an hour under the cautious assumptions and 360
+    // under the optimistic ones.
+    const bottleneckHighway =
+      chosen?.bottleneckSegmentId !== null && chosen?.bottleneckSegmentId !== undefined
+        ? edgesById(graph).get(chosen.bottleneckSegmentId)?.highway
+        : undefined;
+    const bottleneckCapacityPerHour =
+      bottleneckHighway !== undefined && clearanceProfile !== undefined
+        ? clearanceProfile.assumptions.capacityPerHour[bottleneckHighway]
+        : undefined;
+
     ledger.push({
       id: `ledger-${settlement.id}-${built.response.at}`,
       at: built.response.at,
@@ -321,8 +342,14 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
         `detections ${built.diagnostics.detections}; persistent-heat polygons ${built.diagnostics.staticHeat.polygons}, detections removed ${built.diagnostics.staticHeat.removed}`,
       ],
       inputs: {
-        mobileFraction: clock.mobileFraction,
-        vehicleOccupancy: clock.vehicleOccupancy,
+        // The values the clearance beside them was actually computed from — the profile
+        // that attained the pessimistic end, not the nominal centre. Recording the nominal
+        // 0.8 and 1.4 next to a 185.3-minute clearance gave a ledger from which the figure
+        // could not be recovered: recomputing from its own inputs returned 181.5 or 108.9,
+        // and the nominal pair reads permissive because it implies fewer vehicles. This is
+        // the same defect that was fixed for the delay and missed for these two.
+        mobileFraction: clearanceProfile?.assumptions.mobileFraction ?? clock.mobileFraction,
+        vehicleOccupancy: clearanceProfile?.assumptions.vehicleOccupancy ?? clock.vehicleOccupancy,
         // The delay the GATE subtracted, under the name the gate used. Recording the
         // nominal here while the gate subtracted the pessimistic one left the ledger unable
         // to reproduce its own decision: at cursor 19h it recorded 15 minutes while the
@@ -335,6 +362,9 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
         // The pessimistic figure is the one the gate acted on, so it is the one recorded
         // under the plain name; the range travels with it rather than replacing it.
         clearanceMinutes: chosen?.clearanceMinutes?.pessimisticMinutes ?? 'unknown',
+        // The divisor, so the figure above can be recomputed from this record alone.
+        bottleneckCapacityPerHour: bottleneckCapacityPerHour ?? 'unknown',
+        bottleneckHighway: bottleneckHighway ?? 'unknown',
         clearanceRangeMinutes: chosen?.clearanceMinutes
           ? `${chosen.clearanceMinutes.optimisticMinutes}..${chosen.clearanceMinutes.pessimisticMinutes}`
           : 'unknown',
