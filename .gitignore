@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+.env.*
+*.log
+.creatumo/
+.DS_Store
