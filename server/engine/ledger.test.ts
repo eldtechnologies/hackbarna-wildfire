@@ -131,9 +131,16 @@ test('entries are appended, never rewritten', () => {
   store.append(entry({ id: 'second', cursorSeconds: 200 }));
   const afterSecond = readFileSync(path, 'utf8');
 
-  // The first write must survive the second byte for byte. A read-modify-write
-  // implementation that re-serialised the whole file would still hold both entries and
-  // still pass a count assertion, so the comparison is against the exact prior content.
+  // The first write must survive the second byte for byte. A read-modify-write implementation that
+  // re-serialised the whole file would still hold both entries and still pass a count assertion, so
+  // the comparison is against the exact prior content.
+  //
+  // What this cannot distinguish, from outside the process: a rewrite that reproduces every prior
+  // byte exactly. That is observationally identical to an append, so the criterion's content —
+  // entries neither modified nor removed — is what is asserted here, and "opened for append" is the
+  // mechanism, visible in `openLedger`'s flags rather than in the file. A mutant that rewrote the
+  // file through `writeFileSync` and re-serialised identically would pass this, and no test in this
+  // process could fail it.
   assert.ok(afterSecond.startsWith(afterFirst), 'the earlier bytes are untouched by the later append');
   assert.equal(afterSecond.split('\n').filter(Boolean).length, 2, 'two lines, one per entry');
 });
