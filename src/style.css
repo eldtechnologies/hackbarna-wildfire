@@ -1,0 +1,150 @@
+:root {
+  --bg: #0a0e12;
+  --amber: #ffb454;
+  --cyan: #4fd8e8;
+  --dim: #6b7c8c;
+  --line: rgba(79, 216, 232, 0.35);
+  --font: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#globe {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  font-family: var(--font);
+}
+
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  color: var(--cyan);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  z-index: 10;
+}
+
+/* Corner brackets */
+.bracket {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+}
+.bracket-tl {
+  top: 12px;
+  left: 12px;
+  border-right: none;
+  border-bottom: none;
+}
+.bracket-tr {
+  top: 12px;
+  right: 12px;
+  border-left: none;
+  border-bottom: none;
+}
+.bracket-bl {
+  bottom: 12px;
+  left: 12px;
+  border-right: none;
+  border-top: none;
+}
+.bracket-br {
+  bottom: 12px;
+  right: 12px;
+  border-left: none;
+  border-top: none;
+}
+
+.hud-header {
+  position: absolute;
+  top: 18px;
+  left: 52px;
+  right: 52px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.hud-title-main {
+  color: var(--amber);
+  font-weight: 600;
+  font-size: 14px;
+  margin-right: 12px;
+}
+
+.hud-title-sub {
+  color: var(--dim);
+  font-size: 10px;
+}
+
+.hud-status {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.hud-badge {
+  color: var(--amber);
+  border: 1px solid var(--amber);
+  padding: 1px 6px;
+  font-size: 10px;
+}
+
+.hud-clock {
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-telemetry {
+  position: absolute;
+  bottom: 20px;
+  left: 52px;
+  line-height: 1.7;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-layers {
+  position: absolute;
+  top: 72px;
+  right: 52px;
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  background: rgba(10, 14, 18, 0.7);
+  pointer-events: auto;
+}
+
+.hud-layers-title {
+  color: var(--dim);
+  font-size: 10px;
+  margin-bottom: 6px;
+}
+
+.hud-layer-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  line-height: 1.9;
+  cursor: pointer;
+  user-select: none;
+}
+
+.hud-layer-row input {
+  accent-color: var(--amber);
+}
+
+/* Keep imagery attribution visible but unobtrusive */
+.cesium-widget-credits {
+  font-size: 9px;
+  opacity: 0.45;
+  font-family: var(--font);
+}
