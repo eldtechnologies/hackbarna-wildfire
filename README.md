@@ -27,6 +27,17 @@ API endpoints:
 
 - `GET /api/infrastructure`: all bundled infrastructure assets (point assets + power line paths).
 - `GET /api/threats?fireId=<clusterId>`: server-side turf.js analysis. For the fire's perimeter, lists every asset inside the perimeter, inside the 5/10/20 km buffer rings, or inside the projected spread corridor, with per-asset distance and category.
+- `GET /api/situation?fireId=<clusterId>`: situation agent. Assembles a computed situation packet (perimeter area, spread drift bearing, hotspot/FRP totals, threat list) and narrates it: plain-language summary plus evacuation recommendations ordered by severity. All figures come from computed geometry; the narrator only phrases them. Returns `narrator: 'llm'` or `'template'` so the demo is honest about which produced the prose.
+
+## Situation agent
+
+The server calls an OpenAI-compatible chat-completions endpoint to narrate the packet. Without `LLM_API_KEY` (or when the call fails, times out after 15 s, or returns malformed output) it falls back to a deterministic template narration, so the endpoint always answers and the keyless demo works offline. The key lives only in the server env, never in the browser.
+
+```bash
+LLM_BASE_URL=https://api.openai.com/v1   # any OpenAI-compatible /chat/completions endpoint
+LLM_API_KEY=...
+LLM_MODEL=gpt-4o-mini
+```
 
 
 ## Data modes

@@ -3,6 +3,7 @@ import { SERVER_PORT } from './config';
 import { getFires } from './providers';
 import { getInfrastructure } from './infrastructure';
 import { getThreats } from './threats';
+import { getSituation } from './situation';
 
 const app = express();
 
@@ -49,6 +50,25 @@ app.get('/api/threats', async (req, res) => {
   } catch (err) {
     console.error('[api] /api/threats failed:', err);
     res.status(502).json({ error: 'threat analysis unavailable' });
+  }
+});
+
+app.get('/api/situation', async (req, res) => {
+  const fireId = typeof req.query.fireId === 'string' ? req.query.fireId : '';
+  if (!fireId) {
+    res.status(400).json({ error: 'fireId query parameter required' });
+    return;
+  }
+  try {
+    const situation = await getSituation(fireId);
+    if (!situation) {
+      res.status(404).json({ error: `unknown fireId ${fireId}` });
+      return;
+    }
+    res.json(situation);
+  } catch (err) {
+    console.error('[api] /api/situation failed:', err);
+    res.status(502).json({ error: 'situation analysis unavailable' });
   }
 });
 

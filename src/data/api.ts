@@ -3,6 +3,7 @@
 
 import type { FiresResponse } from '../../shared/fires';
 import type { InfrastructureResponse, ThreatsResponse } from '../../shared/threats';
+import type { SituationResponse } from '../../shared/situation';
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -22,4 +23,8 @@ export function fetchInfrastructure(): Promise<InfrastructureResponse> {
 
 export function fetchThreats(fireId: string): Promise<ThreatsResponse> {
   return getJson<ThreatsResponse>(`/api/threats?fireId=${encodeURIComponent(fireId)}`);
+}
+
+export function fetchSituation(fireId: string): Promise<SituationResponse> {
+  return getJson<SituationResponse>(`/api/situation?fireId=${encodeURIComponent(fireId)}`);
 }

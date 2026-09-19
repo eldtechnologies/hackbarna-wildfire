@@ -1,0 +1,147 @@
+// Agent panel: shows the LLM/template-narrated situation report for the
+// tracked fire. All figures rendered here come from the situation packet the
+// server computed; the narrator only phrases them.
+
+import { fetchSituation } from '../data/api';
+import type { SituationResponse } from '../../shared/situation';
+
+const CATEGORY_LABEL: Record<SituationResponse['recommendations'][number]['category'], string> = {
+  hospital: 'HOSPITAL',
+  town: 'TOWN',
+  school: 'SCHOOL',
+  'power-line': 'POWER LINE',
+};
+
+export class AgentPanel {
+  private request = 0;
+
+  constructor(private panel: HTMLElement) {}
+
+  /** Track a fire and render its situation report. Null clears the panel. */
+  track(fireId: string | null): void {
+    const seq = ++this.request;
+    if (!fireId) {
+      this.panel.classList.remove('open');
+      this.panel.replaceChildren();
+      return;
+    }
+    this.renderLoading();
+    fetchSituation(fireId)
+      .then((situation) => {
+        if (seq === this.request) this.render(situation);
+      })
+      .catch((err) => {
+        console.error('[agent-panel] situation fetch failed:', err);
+        if (seq === this.request) this.renderError();
+      });
+  }
+
+  private renderLoading(): void {
+    this.panel.classList.add('open');
+    this.panel.replaceChildren();
+    this.panel.append(this.title('SITUATION AGENT'), this.body('ANALYZING...'));
+  }
+
+  private renderError(): void {
+    this.panel.classList.add('open');
+    this.panel.replaceChildren();
+    this.panel.append(this.title('SITUATION AGENT'), this.body('REPORT UNAVAILABLE'));
+  }
+
+  private title(text: string): HTMLElement {
+    const node = document.createElement('div');
+    node.className = 'threat-title';
+    node.textContent = text;
+    return node;
+  }
+
+  private body(text: string): HTMLElement {
+    const node = document.createElement('div');
+    node.className = 'threat-body';
+    node.textContent = text;
+    return node;
+  }
+
+  private render(situation: SituationResponse): void {
+    this.panel.classList.add('open');
+    this.panel.replaceChildren();
+
+    const { packet } = situation;
+
+    const header = document.createElement('div');
+    header.className = 'agent-header';
+    const heading = document.createElement('span');
+    heading.textContent = `SITUATION AGENT / ${packet.fireName ?? packet.fireId}`;
+    const badge = document.createElement('span');
+    badge.className =
+      'agent-badge ' + (situation.narrator === 'llm' ? 'agent-badge-llm' : 'agent-badge-template');
+    badge.textContent = situation.narrator === 'llm' ? 'LLM' : 'TEMPLATE';
+    header.append(heading, badge);
+
+    const summary = document.createElement('div');
+    summary.className = 'agent-summary';
+    summary.textContent = situation.summary;
+
+    const figures = document.createElement('div');
+    figures.className = 'agent-figures';
+    const rows: [string, string][] = [
+      ['PERIMETER', packet.perimeterAreaKm2 != null ? `${packet.perimeterAreaKm2.toFixed(0)} KM2` : 'NONE OBSERVED'],
+      [
+        'SPREAD',
+        packet.spreadHorizonHours > 0
+          ? `${packet.spreadCompass ?? '?'} / ${packet.spreadHorizonHours} H`
+          : 'NO PROJECTION',
+      ],
+      ['HOTSPOTS', String(packet.hotspotCount)],
+      ['THREATS <=20 KM', String(packet.threats.length)],
+      ['IN CORRIDOR', String(packet.corridorCount)],
+    ];
+    for (const [label, value] of rows) {
+      const row = document.createElement('div');
+      row.className = 'agent-figure';
+      const left = document.createElement('span');
+      left.textContent = label;
+      const right = document.createElement('span');
+      right.textContent = value;
+      row.append(left, right);
+      figures.appendChild(row);
+    }
+
+    this.panel.append(header, summary, figures);
+
+    if (situation.recommendations.length > 0) {
+      const heading2 = document.createElement('div');
+      heading2.className = 'threat-ring-heading';
+      heading2.textContent = `EVACUATION PRIORITY (${situation.recommendations.length})`;
+      this.panel.appendChild(heading2);
+
+      const list = document.createElement('div');
+      list.className = 'agent-list';
+      situation.recommendations.forEach((rec, i) => {
+        const row = document.createElement('div');
+        row.className =
+          'agent-rec' + (rec.priority === 1 ? ' urgent' : rec.priority === 2 ? ' elevated' : '');
+        const rank = document.createElement('span');
+        rank.className = 'agent-rec-rank';
+        rank.textContent = String(i + 1).padStart(2, '0');
+        const left = document.createElement('span');
+        left.className = 'threat-asset-name';
+        left.textContent = rec.name;
+        const right = document.createElement('span');
+        right.className = 'threat-asset-info';
+        const dist = rec.ring === 'inside' ? '0 KM' : `${rec.distanceKm.toFixed(1)} KM`;
+        const pop = rec.population != null ? ` / ${rec.population.toLocaleString('en-US')} PAX` : '';
+        right.textContent = `${CATEGORY_LABEL[rec.category]} / ${dist}${rec.inSpreadCorridor ? ' / CORRIDOR' : ''}${pop}`;
+        row.append(rank, left, right);
+        list.appendChild(row);
+      });
+      this.panel.appendChild(list);
+    }
+
+    const footer = document.createElement('div');
+    footer.className = 'agent-footer';
+    const provenance = packet.dataProvenance === 'live' ? 'LIVE' : 'REPLAY';
+    footer.textContent = `${provenance} DATA / COMPUTED ${packet.computedAt.slice(11, 19)} UTC / FIGURES FROM GEOMETRY, NARRATIVE ONLY`;
+    this.panel.appendChild(footer);
+  }
+}
