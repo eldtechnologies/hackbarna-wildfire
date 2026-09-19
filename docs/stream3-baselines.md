@@ -94,6 +94,13 @@ A number without its corpus is a number without its caveat, which is why
 
 ## Known limits
 
+- **The MedEU event set is loader-dependent.** The harness keeps a fire only when it
+  has at least three usable states *and* polygon geometry, and it drops steps of more
+  than 7 days. That gives 60 fires and 173 pairs. An independent pass that kept every
+  fire with two states and no gap filter got 103 fires and 218 pairs, with
+  persistence R²=0.7233 against the 0.7681 above. Same direction, same conclusion,
+  different event set - so quote the loader rule with the number.
+
 - **The MedEU rate is not a rate.** A centroid displacement over a *growing*
   polygon reaches hundreds of km/h. The harness marks that corpus
   `rate_basis: 'centroid_drift'` and the server refuses to serve it as the constant
