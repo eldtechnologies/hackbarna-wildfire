@@ -27,7 +27,7 @@ export function ringCentroid(points: LatLon[]): LatLon {
 // points, starting the walk at the point farthest along the dominant axis of
 // drift between the two rings. This keeps rings with different point counts
 // and different starting vertices comparable for lerp.
-export function resampleRing(points: LatLon[], count: number): LatLon[] {
+function resampleRing(points: LatLon[], count: number): LatLon[] {
   const ring = closeRing(points);
   const out: LatLon[] = [];
   if (ring.length < 3) return ring;

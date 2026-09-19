@@ -32,13 +32,10 @@ export interface FireCase {
 export interface Projection {
   /** Interpolated ring at the requested offset, clamped to [0, maxHorizon]. */
   polygon: LatLon[];
-  /** Requested offset after clamping. */
-  hours: number;
   /** ISO time the projection refers to, base observation + offset. */
   validAt: string;
   areaKm2: number;
 }
-
 export function buildFireCases(response: FiresResponse): FireCase[] {
   const clustersById = new Map(response.clusters.map((c) => [c.id, c]));
 
@@ -96,7 +93,7 @@ export function projectAt(caseData: FireCase, hours: number): Projection {
   ).toISOString();
 
   if (clamped <= 0 || caseData.steps.length === 0) {
-    return { polygon: base.polygon, hours: clamped, validAt, areaKm2: caseData.areaKm2 };
+    return { polygon: base.polygon, validAt, areaKm2: caseData.areaKm2 };
   }
 
   // Exact or interpolated bracket around the clamped offset.
@@ -105,7 +102,6 @@ export function projectAt(caseData: FireCase, hours: number): Projection {
     if (clamped === step.horizonHours) {
       return {
         polygon: step.polygon,
-        hours: clamped,
         validAt,
         areaKm2: ringAreaKm2(step.polygon),
       };
@@ -114,9 +110,9 @@ export function projectAt(caseData: FireCase, hours: number): Projection {
       const span = step.horizonHours - prev.hours;
       const t = span > 0 ? (clamped - prev.hours) / span : 0;
       const ring = lerpRings(prev.ring, step.polygon, t);
-      return { polygon: ring, hours: clamped, validAt, areaKm2: ringAreaKm2(ring) };
+      return { polygon: ring, validAt, areaKm2: ringAreaKm2(ring) };
     }
     prev = { ring: step.polygon, hours: step.horizonHours, area: ringAreaKm2(step.polygon) };
   }
-  return { polygon: prev.ring, hours: clamped, validAt, areaKm2: prev.area };
+  return { polygon: prev.ring, validAt, areaKm2: prev.area };
 }

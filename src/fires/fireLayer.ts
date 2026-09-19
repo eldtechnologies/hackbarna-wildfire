@@ -41,7 +41,9 @@ export interface FireLayerState {
 type StateListener = (state: FireLayerState) => void;
 
 const PLAYBACK_HOURS_PER_SECOND = 0.5;
-const SCRUB_SNAP = 0.25;
+export const SCRUB_SNAP = 0.25;
+/** Brightness multiplier applied to the selected fire's perimeter. */
+const SELECTION_GAIN = 1.45;
 /** Seconds the projection lingers at the far horizon before looping. */
 const LOOP_HOLD_SECONDS = 2;
 
@@ -146,7 +148,9 @@ export class FireLayer {
               polygonHierarchy: new PolygonHierarchy(
                 toCartesians(caseData.basePerimeter.polygon),
               ),
-              vertexFormat: VertexFormat.POSITION_AND_ST,
+              // Must match MaterialAppearance's TEXTURED vertex shader,
+              // which declares the normal attribute.
+              vertexFormat: VertexFormat.POSITION_NORMAL_AND_ST,
             }),
             id: new PerimeterPickId(caseData.cluster.id),
           }),
@@ -187,7 +191,10 @@ export class FireLayer {
     this.lastFrameTime = 0;
     this.holdSeconds = 0;
     for (const entry of this.perimeterEntries) {
-      setGain(entry.primitive, entry.caseData.cluster.id === clusterId ? 1.45 : 1.0);
+      setGain(
+        entry.primitive,
+        entry.caseData.cluster.id === clusterId ? SELECTION_GAIN : 1.0,
+      );
     }
 
     if (target.steps.length > 0) this.buildGhost(target);
@@ -199,7 +206,6 @@ export class FireLayer {
   deselect(): void {
     if (!this.selectedId) return;
     this.clearSelection();
-    this.selectedId = null;
     for (const entry of this.perimeterEntries) {
       setGain(entry.primitive, 1.0);
     }
@@ -332,7 +338,7 @@ export class FireLayer {
     // Spread direction arrow, from perimeter centroid along the drift bearing.
     if (caseData.driftBearingDeg != null) {
       const from = caseData.centroid;
-      const arrowLengthKm = 3.5;
+      const arrowLengthKm = 3.5; // display only, not simulated
       const [toLat, toLon] = destination(from, caseData.driftBearingDeg, arrowLengthKm);
       this.dataSource.entities.add({
         polyline: {
@@ -352,6 +358,7 @@ export class FireLayer {
 
   private clearSelection(): void {
     this.dataSource.entities.removeAll();
+    this.selectedId = null;
     this.scrubHours = 0;
     this.playing = true;
     this.lastFrameTime = 0;

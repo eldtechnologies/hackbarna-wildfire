@@ -5,7 +5,7 @@
 // never interrupted by a state notification.
 
 import type { FireLayer, FireLayerState } from '../fires/fireLayer';
-import { driftLabel } from '../fires/fireLayer';
+import { driftLabel, SCRUB_SNAP } from '../fires/fireLayer';
 
 function el(tag: string, className = '', text = ''): HTMLElement {
   const node = document.createElement(tag);
@@ -53,7 +53,7 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): void {
   const slider = document.createElement('input');
   slider.type = 'range';
   slider.min = '0';
-  slider.step = '0.25';
+  slider.step = String(SCRUB_SNAP);
   slider.addEventListener('input', () => layer.setScrub(Number(slider.value)));
   sliderRow.appendChild(slider);
 
@@ -76,7 +76,16 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): void {
     projection: null,
   };
 
+  // Rebuilding the list every notification would churn DOM ~60x/s during
+  // playback, so it only re-renders when the cases or the selection change.
+  let lastCases: FireLayerState['cases'] | null = null;
+  let lastSelectedId: string | null = null;
+
   const renderList = (state: FireLayerState) => {
+    const selectedId = state.selectedCase?.cluster.id ?? null;
+    if (state.cases === lastCases && selectedId === lastSelectedId) return;
+    lastCases = state.cases;
+    lastSelectedId = selectedId;
     listPanel.replaceChildren(el('div', 'hud-panel-title', 'FIRES'));
     if (state.cases.length === 0) {
       listPanel.appendChild(el('div', 'hud-fires-empty', 'NO ACTIVE PERIMETERS'));
@@ -113,8 +122,9 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): void {
     play.textContent = state.playing ? 'PAUSE' : 'PLAY';
 
     const max = selected.maxHorizonHours;
-    if (slider.max !== String(max)) {
+    if (ticksForId !== selected.cluster.id) {
       // Rebuild the horizon ticks only when the selected fire changes.
+      ticksForId = selected.cluster.id;
       slider.max = String(max);
       slider.disabled = max === 0;
       tickRow.replaceChildren();
@@ -131,6 +141,9 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): void {
     const drift = driftLabel(selected);
     driftStat.textContent = drift ? `DRIFT ${drift}` : '';
   };
+
+  // Which cluster the horizon ticks were built for.
+  let ticksForId: string | null = null;
 
   // While the user drags the slider, its own position wins over state pushes.
   let dragging = false;
