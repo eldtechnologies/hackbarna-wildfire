@@ -4,6 +4,7 @@ import { createGlobeViewer } from './globe/viewer';
 import { initHud } from './hud/hud';
 import { initFirePanels } from './hud/firePanels';
 import { FireLayer } from './fires/fireLayer';
+import { createFireLayer } from './layers/fireLayer';
 import { fetchFires } from './data/api';
 
 const globeEl = document.getElementById('globe');
@@ -18,6 +19,9 @@ const viewer = createGlobeViewer(container);
 const hud = initHud(viewer, hudRoot);
 const fireLayer = new FireLayer(viewer);
 initFirePanels(fireLayer, hudRoot);
+// Hotspot + cluster controller. Polls /api/fires on its own cadence and
+// drives the provenance badge.
+createFireLayer(viewer, hudRoot, hud.setMode);
 
 async function loadFires(): Promise<void> {
   try {

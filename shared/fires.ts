@@ -19,6 +19,7 @@ export interface Hotspot {
   frpMw: number | null; // MW; null when the sensor reported none
   confidence: number | null; // 0..1; null when the word was missing or unrecognised
   detectedAt: string | null; // ISO timestamp; null when the source omitted it
+  satellite: string | null; // source satellite, e.g. 'MTG_I1'; null when omitted
   clusterId: string | null;
 }
 
