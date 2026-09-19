@@ -3,7 +3,14 @@ import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import express from 'express';
 import { engineRouter } from './routes';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { loadContext } from './egress';
+
+/** A ledger path in a temporary directory, so the suite never appends to the real one. */
+const testLedgerPath = (): string =>
+  join(mkdtempSync(join(tmpdir(), 'routes-ledger-')), 'recommendations.jsonl');
 
 // The router had no automated coverage at all: its status codes, its cursor parsing and
 // the CAP refusal path were exercised only by hand. Both of the defects found in it —
@@ -19,7 +26,7 @@ before(async () => {
   // means the first assertion is not competing with a twelve-second parse.
   loadContext();
   const app = express();
-  app.use(engineRouter());
+  app.use(engineRouter({ ledgerPath: testLedgerPath() }));
   server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -141,7 +148,7 @@ test('the cache cannot be turned into a memory amplifier by walking the cursor',
   // rather than growing the process. Driven through a router with a tiny limit rather
   // than 300 cursors at a full solve each.
   const app = express();
-  app.use(engineRouter({ cacheLimit: 4 }));
+  app.use(engineRouter({ cacheLimit: 4, ledgerPath: testLedgerPath() }));
   const small = createServer(app);
   await new Promise<void>((resolve) => small.listen(0, '127.0.0.1', resolve));
   const address = small.address();
@@ -166,4 +173,43 @@ test('the engine routes are reachable without the fire routes being disturbed', 
   // boundary holds, so an engine route cannot shadow or break the console's own route.
   const health = await get('/api/health');
   assert.equal(health.status, 404, 'the engine router does not own /api/health, and does not answer for it');
+});
+
+test('the ledger endpoint serves the store the router was given, in recording order', async () => {
+  // The wiring this pins was found by running the server, not by reading: the router built
+  // its responses with the default ledger path, so a test that exercised it appended to the
+  // deployment's real ledger — and those entries then answered later requests in place of a
+  // computation, the suite silently changing the behaviour of the thing it was testing.
+  const first = await get('/api/alerts?at=64800');
+  assert.equal(first.status, 200);
+
+  const history = await get('/api/ledger');
+  assert.equal(history.status, 200);
+  const body = JSON.parse(history.body) as {
+    path: string;
+    count: number;
+    unreadable: number;
+    entries: Array<{ at: string; pocketId: string; recordedAt: string; evidence: string[] }>;
+  };
+
+  assert.ok(body.path.includes('routes-ledger-'), `the endpoint read its own store, not the deployment's: ${body.path}`);
+  assert.ok(body.count > 0, 'a served recommendation was recorded');
+  assert.equal(body.unreadable, 0);
+  for (const entry of body.entries) {
+    assert.ok(entry.at.length > 0, 'the cursor it applies to');
+    assert.ok(entry.recordedAt.length > 0, 'the wall-clock time it was recorded');
+    assert.ok(entry.pocketId.length > 0, 'the pocket it is about');
+    assert.ok(Array.isArray(entry.evidence) && entry.evidence.length > 0, 'the evidence behind it');
+  }
+});
+
+test('the history carries no cursor parameter, and a bad one does not matter', async () => {
+  // The point of the record is reading the incident without already knowing which moments
+  // to ask for, so the endpoint takes no cursor. A query string it does not read must not
+  // turn a working read into a 400.
+  const plain = await get('/api/ledger');
+  const withJunk = await get('/api/ledger?at=-5&cursorId[]=x');
+  assert.equal(plain.status, 200);
+  assert.equal(withJunk.status, 200);
+  assert.deepEqual(JSON.parse(withJunk.body), JSON.parse(plain.body));
 });

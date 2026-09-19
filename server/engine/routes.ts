@@ -25,7 +25,19 @@ export interface EngineRouterOptions {
    * testable without walking 300 cursors through a full solve each.
    */
   cacheLimit?: number;
+  /**
+   * Where the recommendation ledger lives. Defaults to the configured path.
+   *
+   * An option for the same reason `cacheLimit` is one: without it a test that exercises
+   * the router appends to the deployment's real ledger, and those entries then answer
+   * later requests in place of a computation — the suite silently changing the behaviour
+   * of the thing it is testing.
+   */
+  ledgerPath?: string;
 }
+
+/** The ledger path this router uses, resolved once so every route agrees. */
+const resolveLedgerPath = (options: EngineRouterOptions): string => options.ledgerPath ?? LEDGER_PATH;
 
 /**
  * A cursor the client got wrong.
@@ -192,7 +204,10 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
     try {
       const atSeconds = parseAt(req.query.at);
       const built = memoise(alertsCache, atSeconds, () =>
-        buildAlerts(atSeconds === undefined ? {} : { atSeconds }),
+        buildAlerts({
+          ...(atSeconds === undefined ? {} : { atSeconds }),
+          ledgerPath: resolveLedgerPath(options),
+        }),
       );
       res.json({
         ...built.response,
@@ -216,7 +231,10 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
     try {
       const atSeconds = parseAt(req.query.at);
       const built = memoise(alertsCache, atSeconds, () =>
-        buildAlerts(atSeconds === undefined ? {} : { atSeconds }),
+        buildAlerts({
+          ...(atSeconds === undefined ? {} : { atSeconds }),
+          ledgerPath: resolveLedgerPath(options),
+        }),
       );
       const pocketId = String(req.params.pocketId);
       const xml = built.documents.get(pocketId);
@@ -258,8 +276,9 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
    */
   router.get('/api/ledger', (_req: Request, res: Response) => {
     try {
-      const { entries, unreadable } = openLedger(LEDGER_PATH).history();
-      res.json({ path: LEDGER_PATH, count: entries.length, unreadable, entries });
+      const path = resolveLedgerPath(options);
+      const { entries, unreadable } = openLedger(path).history();
+      res.json({ path, count: entries.length, unreadable, entries });
     } catch (err) {
       fail(res, err, 'recommendation history unavailable');
     }
