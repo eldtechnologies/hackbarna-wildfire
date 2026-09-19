@@ -6,10 +6,19 @@
 // area (R² 0.991 and 0.992 against 0.862), so the console must be able to print the
 // baseline beside any model claim — and `shippedBaseline` says which one is on screen.
 
+/** Which predictor produced this vector. */
+export type PredictorName = 'observed' | 'persistence' | 'constant_ros' | 'model';
+
 /** A cluster's advance, or a naive predictor's answer for the same cluster. */
 export interface GrowthVector {
   clusterId: string;
   at: string;
+  /**
+   * Names the vector. Without it `baselines` is an unlabelled array and a client
+   * cannot print which one is on screen, which is the whole point of shipping the
+   * baseline beside the model.
+   */
+  predictor: PredictorName;
   /** Bearing of movement, degrees clockwise from north. Null when too sparse. */
   bearingDeg: number | null;
   /** Rate of frontal advance, km/h. Null when too sparse. */
@@ -18,14 +27,20 @@ export interface GrowthVector {
   detections: number;
   /** Detections by source, e.g. { 'MTG-I1': 40, 'VIIRS': 3 }. */
   sourceMix: Record<string, number>;
-  /** Hours since the last detection for this cluster. */
-  hoursSinceLastDetection: number;
+  /** Hours since the last detection for this cluster; null when none is dated. */
+  hoursSinceLastDetection: number | null;
 }
 
 /** A predictor's score on held-out events. Both targets are reported. */
 export interface GrowthScore {
   name: 'persistence' | 'constant_ros' | 'model';
   target: 'bearing_rate' | 'burned_area';
+  /**
+   * Corpus the number was measured on. Two corpora with cadences an order of
+   * magnitude apart do not give the same answer, so a score without its corpus is
+   * the caveat-free number this contract exists to prevent.
+   */
+  corpus: string;
   r2: number;
   medianMape: number;
   /** Number of held-out events, not rows. */
@@ -43,4 +58,6 @@ export interface GrowthResponse {
   scores: GrowthScore[];
   /** True when what is on screen is a baseline rather than a trained model. */
   shippedBaseline: boolean;
+  /** Which vector is the shipped one, so the claim and the label cannot drift. */
+  shipped: PredictorName;
 }

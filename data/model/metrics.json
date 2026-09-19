@@ -1,0 +1,174 @@
+[
+  {
+    "corpus": "PT-FireSprd",
+    "gap_filter": "all pairs",
+    "primary": false,
+    "mean_rate_kmh": 9.5688,
+    "rate_basis": "frontal",
+    "fires": 72,
+    "states": 1706,
+    "pairs": 593,
+    "dt_hours": {
+      "median": 1.0,
+      "min": 0.5,
+      "max": 79.0
+    },
+    "burned_area": {
+      "persistence": {
+        "r2": 0.9897,
+        "median_mape": 6.47
+      },
+      "constant_ros": {
+        "r2": 0.9856,
+        "median_mape": 9.46
+      }
+    },
+    "bearing_rate": {
+      "pairs_with_direction": 421,
+      "persistence": {
+        "median_bearing_error_deg": 42.55,
+        "rate_r2": 0.087,
+        "rate_median_mape": 56.61
+      }
+    }
+  },
+  {
+    "corpus": "PT-FireSprd",
+    "gap_filter": "dt <= 168 h",
+    "primary": true,
+    "mean_rate_kmh": 9.5688,
+    "rate_basis": "frontal",
+    "fires": 72,
+    "states": 1706,
+    "pairs": 593,
+    "dt_hours": {
+      "median": 1.0,
+      "min": 0.5,
+      "max": 79.0
+    },
+    "burned_area": {
+      "persistence": {
+        "r2": 0.9897,
+        "median_mape": 6.47
+      },
+      "constant_ros": {
+        "r2": 0.9856,
+        "median_mape": 9.46
+      }
+    },
+    "bearing_rate": {
+      "pairs_with_direction": 421,
+      "persistence": {
+        "median_bearing_error_deg": 42.55,
+        "rate_r2": 0.087,
+        "rate_median_mape": 56.61
+      }
+    },
+    "model": {
+      "computed": true,
+      "pairs": 421,
+      "fires": 69,
+      "bearing": {
+        "persistence_median_error_deg": 42.55,
+        "model_median_error_deg": 56.18
+      },
+      "rate": {
+        "persistence": {
+          "r2": 0.087,
+          "median_mape": 56.61
+        },
+        "model": {
+          "r2": 0.1192,
+          "median_mape": 73.67
+        }
+      },
+      "features": "previous area, previous rate, dt, previous bearing (sin/cos) - no wind, terrain or land cover"
+    }
+  },
+  {
+    "corpus": "FireSpread_MedEU",
+    "gap_filter": "all pairs",
+    "primary": false,
+    "mean_rate_kmh": 222.5317,
+    "rate_basis": "centroid_drift",
+    "fires": 60,
+    "states": 234,
+    "pairs": 174,
+    "dt_hours": {
+      "median": 24.38,
+      "min": 4.39,
+      "max": 8738.14
+    },
+    "burned_area": {
+      "persistence": {
+        "r2": 0.7686,
+        "median_mape": 37.65
+      },
+      "constant_ros": {
+        "r2": -28.4813,
+        "median_mape": 48.74
+      }
+    },
+    "bearing_rate": {
+      "pairs_with_direction": 113,
+      "persistence": {
+        "median_bearing_error_deg": 97.53,
+        "rate_r2": -1.2569,
+        "rate_median_mape": 81.16
+      }
+    }
+  },
+  {
+    "corpus": "FireSpread_MedEU",
+    "gap_filter": "dt <= 168 h",
+    "primary": true,
+    "mean_rate_kmh": 222.5317,
+    "rate_basis": "centroid_drift",
+    "fires": 60,
+    "states": 234,
+    "pairs": 173,
+    "dt_hours": {
+      "median": 24.37,
+      "min": 4.39,
+      "max": 167.96
+    },
+    "burned_area": {
+      "persistence": {
+        "r2": 0.7681,
+        "median_mape": 37.48
+      },
+      "constant_ros": {
+        "r2": 0.8026,
+        "median_mape": 48.49
+      }
+    },
+    "bearing_rate": {
+      "pairs_with_direction": 113,
+      "persistence": {
+        "median_bearing_error_deg": 97.53,
+        "rate_r2": -1.2569,
+        "rate_median_mape": 81.16
+      }
+    },
+    "model": {
+      "computed": true,
+      "pairs": 113,
+      "fires": 59,
+      "bearing": {
+        "persistence_median_error_deg": 97.53,
+        "model_median_error_deg": 99.05
+      },
+      "rate": {
+        "persistence": {
+          "r2": -1.2569,
+          "median_mape": 81.16
+        },
+        "model": {
+          "r2": -0.053,
+          "median_mape": 58.15
+        }
+      },
+      "features": "previous area, previous rate, dt, previous bearing (sin/cos) - no wind, terrain or land cover"
+    }
+  }
+]

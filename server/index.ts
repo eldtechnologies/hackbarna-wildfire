@@ -3,6 +3,7 @@ import { SERVER_HOST, SERVER_PORT } from './config';
 import { getFires } from './providers';
 import { getInfrastructure } from './infrastructure';
 import { getThreats } from './threats';
+import { growthFor } from './model';
 
 const app = express();
 
@@ -54,6 +55,25 @@ app.get('/api/threats', async (req, res) => {
   } catch (err) {
     console.error('[api] /api/threats failed:', err);
     res.status(502).json({ error: 'threat analysis unavailable' });
+  }
+});
+
+app.get('/api/growth', async (req, res) => {
+  const clusterId = String(req.query.clusterId ?? '');
+  if (!clusterId) {
+    res.status(400).json({ error: 'clusterId is required' });
+    return;
+  }
+  try {
+    const body = growthFor(clusterId, await getFires());
+    if (!body) {
+      res.status(404).json({ error: 'cluster not found' });
+      return;
+    }
+    res.json(body);
+  } catch (err) {
+    console.error('[api] /api/growth failed:', err);
+    res.status(502).json({ error: 'growth data unavailable' });
   }
 });
 
