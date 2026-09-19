@@ -17,6 +17,10 @@
 //
 // The API reports no `numberMatched`, and `startIndex` is unreliable on wide
 // bboxes (HTTP 500). The live client chunks by day. See live.ts.
+//
+// The normalizer applies one rule: a value the source did not supply becomes
+// null, never a plausible number. Only features that cannot be placed at all —
+// no usable geometry — are dropped, and the drop is counted and warned.
 
 import type {
   FireCluster,
@@ -31,7 +35,7 @@ type LonLat = [number, number];
 interface OgcFeature<P, G> {
   type: 'Feature';
   id?: string | number;
-  geometry: G;
+  geometry: G | null; // RFC 7946 permits an explicitly null geometry
   properties: P;
 }
 
@@ -92,61 +96,100 @@ export interface RawFiresPayload {
   perimeters: RawPerimeter[];
 }
 
-// The API returns uppercase confidence words. Anything else is unclassified:
-// keep a low value rather than inventing confidence.
 const CONFIDENCE_MAP: Record<string, number> = {
   HIGH: 0.9,
   MEDIUM: 0.65,
   LOW: 0.3,
 };
 
-function normalizeConfidence(value: string | null | undefined): number {
-  if (!value) return 0.3;
-  return CONFIDENCE_MAP[String(value).toUpperCase()] ?? 0.3;
-}
-
-function ringToLatLon(ring: LonLat[]): LatLon[] {
-  return ring.map(([lon, lat]) => ({ lat, lon }));
-}
-
-// A MultiPolygon perimeter becomes one FirePerimeter per part. The outer ring
-// is ring 0; inner rings (holes) are dropped, because the internal schema
-// carries a single closed ring.
-function perimeterParts(
-  geometry: PolygonGeometry | MultiPolygonGeometry,
-): LonLat[][] {
-  if (geometry.type === 'Polygon') return [geometry.coordinates[0] ?? []];
-  return geometry.coordinates.map((poly) => poly[0] ?? []);
-}
-
-function computeBbox(points: LatLon[]): [number, number, number, number] {
-  let west = Infinity;
-  let south = Infinity;
-  let east = -Infinity;
-  let north = -Infinity;
-  for (const p of points) {
-    west = Math.min(west, p.lon);
-    south = Math.min(south, p.lat);
-    east = Math.max(east, p.lon);
-    north = Math.max(north, p.lat);
+// A number the source supplied, or null. Absent, blank and unparseable are all
+// "not measured": Number('') is 0 and Number('abc') is NaN, so neither may be
+// allowed to reach a caller as a number.
+function numberOrNull(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed === '') return null;
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : null;
   }
-  // An empty ring must not produce an inverted box of infinities.
-  if (!Number.isFinite(west)) return [0, 0, 0, 0];
+  return null;
+}
+
+// The first supplied, non-blank string, or null. `??` is not enough here: an
+// empty string is not nullish, so it would survive and produce a value that
+// looks present but is empty.
+function firstNonBlank(...values: unknown[]): string | null {
+  for (const v of values) {
+    if (typeof v === 'string' && v.trim() !== '') return v;
+  }
+  return null;
+}
+
+// An unrecognised confidence word returns null, NOT the LOW value. Collapsing the
+// two would make a real LOW indistinguishable from an API value we do not know.
+function confidenceOf(word: unknown): number | null {
+  if (typeof word !== 'string') return null;
+  return CONFIDENCE_MAP[word.trim().toUpperCase()] ?? null;
+}
+
+// A GeoJSON position that is two finite numbers, or null.
+function pointOf(geometry: PointGeometry | null | undefined): LatLon | null {
+  const coords = geometry?.coordinates;
+  if (!Array.isArray(coords) || coords.length < 2) return null;
+  const [lon, lat] = coords;
+  if (typeof lon !== 'number' || typeof lat !== 'number') return null;
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+  return { lat, lon };
+}
+
+// A closed ring of at least 4 finite positions, or null. GeoJSON requires the
+// first position repeated at the end, so 3 positions is a malformed ring, not a
+// triangle.
+function ringOf(raw: LonLat[] | undefined): LatLon[] | null {
+  if (!Array.isArray(raw) || raw.length < 4) return null;
+  const ring: LatLon[] = [];
+  for (const pos of raw) {
+    if (!Array.isArray(pos) || pos.length < 2) return null;
+    const [lon, lat] = pos;
+    if (typeof lon !== 'number' || typeof lat !== 'number') return null;
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+    ring.push({ lat, lon });
+  }
+  const first = ring[0];
+  const last = ring[ring.length - 1];
+  if (first.lat !== last.lat || first.lon !== last.lon) return null;
+  return ring;
+}
+
+function perimeterParts(
+  geometry: PolygonGeometry | MultiPolygonGeometry | null | undefined,
+): (LonLat[] | undefined)[] {
+  if (!geometry) return [];
+  if (geometry.type === 'Polygon') return [geometry.coordinates?.[0]];
+  if (!Array.isArray(geometry.coordinates)) return [];
+  return geometry.coordinates.map((part) => part?.[0]);
+}
+
+// Every caller passes at least one point (the members, or the cluster's own
+// centroid when it has none), so this needs no empty-input sentinel.
+function computeBbox(points: LatLon[]): [number, number, number, number] {
+  let west = points[0].lon;
+  let south = points[0].lat;
+  let east = points[0].lon;
+  let north = points[0].lat;
+  for (const p of points) {
+    if (p.lon < west) west = p.lon;
+    if (p.lat < south) south = p.lat;
+    if (p.lon > east) east = p.lon;
+    if (p.lat > north) north = p.lat;
+  }
   return [west, south, east, north];
 }
 
-function num(value: number | string | null | undefined): number {
-  const n = typeof value === 'string' ? Number(value) : value;
-  return typeof n === 'number' && Number.isFinite(n) ? n : 0;
-}
-
-// FRP is nullable, and null is not 0. A missing value stays null. An
-// unparseable value is also missing, so it stays null rather than becoming a
-// fake measurement. A real 0.0 is kept: the sensor reported zero power.
-function parseFrp(value: number | string | null | undefined): number | null {
-  if (value == null) return null;
-  const n = typeof value === 'string' ? Number(value) : value;
-  return typeof n === 'number' && Number.isFinite(n) ? n : null;
+function warnSkipped(kind: string, skipped: number, total: number): void {
+  if (skipped === 0) return;
+  console.warn(`[normalize] dropped ${skipped}/${total} ${kind} with no usable geometry`);
 }
 
 export function normalize(
@@ -154,18 +197,26 @@ export function normalize(
   provenance: 'live' | 'replay',
   scenario: string | null,
 ): FiresResponse {
-  const hotspots: Hotspot[] = (raw.hotspots ?? []).map((f) => {
-    const p = f.properties;
-    const [lon, lat] = f.geometry.coordinates;
-    return {
+  const rawHotspots = raw.hotspots ?? [];
+  const hotspots: Hotspot[] = [];
+  let skippedHotspots = 0;
+  for (const f of rawHotspots) {
+    const position = pointOf(f?.geometry);
+    if (!position) {
+      skippedHotspots += 1;
+      continue;
+    }
+    const p = f.properties ?? ({} as RawHotspotProps);
+    hotspots.push({
       id: String(p.id ?? f.id ?? ''),
-      position: { lat, lon },
-      frpMw: parseFrp(p.fire_radiative_power),
-      confidence: normalizeConfidence(p.confidence),
-      detectedAt: p.observed_at,
+      position,
+      frpMw: numberOrNull(p.fire_radiative_power),
+      confidence: confidenceOf(p.confidence),
+      detectedAt: firstNonBlank(p.observed_at),
       clusterId: p.cluster_id != null ? String(p.cluster_id) : null,
-    };
-  });
+    });
+  }
+  warnSkipped('hotspots', skippedHotspots, rawHotspots.length);
 
   const hotspotsByCluster = new Map<string, Hotspot[]>();
   for (const h of hotspots) {
@@ -175,42 +226,61 @@ export function normalize(
     hotspotsByCluster.set(h.clusterId, list);
   }
 
-  // The real cluster carries only id, first_observed, last_observed, active.
-  // Membership comes from each hotspot's cluster_id, never from the cluster.
-  const clusters: FireCluster[] = (raw.clusters ?? []).map((f) => {
-    const p = f.properties;
+  const rawClusters = raw.clusters ?? [];
+  const clusters: FireCluster[] = [];
+  let skippedClusters = 0;
+  for (const f of rawClusters) {
+    const centroid = pointOf(f?.geometry);
+    if (!centroid) {
+      skippedClusters += 1;
+      continue;
+    }
+    const p = f.properties ?? ({} as RawClusterProps);
     const id = String(p.id ?? f.id ?? '');
-    const [lon, lat] = f.geometry.coordinates;
     const members = hotspotsByCluster.get(id) ?? [];
-    const totalFrpMw = members.reduce((sum, h) => sum + (h.frpMw ?? 0), 0);
-    return {
+    const measured = members
+      .map((h) => h.frpMw)
+      .filter((v): v is number => v !== null);
+    clusters.push({
       id,
       name: null,
-      centroid: { lat, lon },
+      centroid,
       hotspotIds: members.map((h) => h.id),
-      bbox:
-        members.length > 0
-          ? computeBbox(members.map((h) => h.position))
-          : computeBbox([{ lat, lon }]),
-      totalFrpMw,
-      firstDetectedAt: p.first_observed,
-      lastDetectedAt: p.last_observed,
-    };
-  });
+      // The real cluster carries no geometry of its own beyond its centroid and
+      // no member list, so membership is derived from the hotspots above.
+      bbox: computeBbox(members.length > 0 ? members.map((h) => h.position) : [centroid]),
+      totalFrpMw: measured.length > 0 ? measured.reduce((a, b) => a + b, 0) : null,
+      firstDetectedAt: firstNonBlank(p.first_observed),
+      lastDetectedAt: firstNonBlank(p.last_observed),
+    });
+  }
+  warnSkipped('clusters', skippedClusters, rawClusters.length);
 
+  const rawPerimeters = raw.perimeters ?? [];
   const perimeters: FirePerimeter[] = [];
-  for (const f of raw.perimeters ?? []) {
-    const p = f.properties;
-    for (const ring of perimeterParts(f.geometry)) {
-      if (ring.length < 3) continue;
+  let skippedPerimeters = 0;
+  for (const f of rawPerimeters) {
+    const parts = perimeterParts(f?.geometry);
+    const rings = parts.map(ringOf).filter((r): r is LatLon[] => r !== null);
+    if (rings.length === 0) {
+      skippedPerimeters += 1;
+      continue;
+    }
+    const p = f.properties ?? ({} as RawPerimeterProps);
+    const m2 = numberOrNull(p.area_m2);
+    const observedAt = firstNonBlank(p.observed_watermark, p.computed_at);
+    for (let i = 0; i < rings.length; i += 1) {
       perimeters.push({
         clusterId: String(p.cluster_id),
-        polygon: ringToLatLon(ring),
-        areaKm2: num(p.area_m2) / 1e6,
-        observedAt: p.observed_watermark ?? p.computed_at,
+        polygon: rings[i],
+        areaKm2: m2 === null ? null : m2 / 1e6,
+        observedAt,
+        partIndex: i,
+        partCount: rings.length,
       });
     }
   }
+  warnSkipped('perimeters', skippedPerimeters, rawPerimeters.length);
 
   return {
     provenance,

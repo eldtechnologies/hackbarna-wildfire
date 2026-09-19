@@ -11,7 +11,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.server.json",
-    "test": "node --test --import tsx \"server/**/*.test.ts\""
+    "test": "node --test --import tsx server/providers/normalize.test.ts server/providers/live.test.ts"
   },
   "dependencies": {
     "cesium": "1.145.0",

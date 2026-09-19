@@ -17,7 +17,8 @@ npm run dev
 
 Starts the Vite client on http://localhost:5173 and the Express proxy on http://localhost:3001 (the client proxies `/api/*` to it).
 
-Other scripts: `npm run build` (production build), `npm run typecheck` (client + server type check).
+Other scripts: `bun run build` (production build), `bun run typecheck` (client + server type check),
+`bun run test` (server unit tests, Node's built-in runner).
 
 ## Data modes
 
