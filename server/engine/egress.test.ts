@@ -642,3 +642,51 @@ test('the engine names exactly the settlements the fire reaches', () => {
   assert.deepEqual([...early].sort(), [...threatenedSettlementIds].sort(), 'at the window start');
   assert.deepEqual([...late].sort(), [...threatenedSettlementIds].sort(), 'and at 17:00');
 });
+
+test('the response reports what each sensor family contributed to the cut field', () => {
+  // Source of expected: the committed capture, read through the mask. The counts are post
+  // static-heat subtraction, so they are lower than the raw series the issue quotes (MTG-I1 2,010,
+  // VIIRS 570, Sentinel-3 108, MODIS 55 -> 2,743), which is the same data minus the industrial
+  // cells; the sum below is asserted against the response's own detection count rather than a
+  // literal, so the two cannot drift apart.
+  const built = buildEgress({ atSeconds: 61200 });
+  const rows = built.response.sensorFamilies;
+  const by = new Map(rows.map((r) => [r.family, r]));
+
+  // Four instruments, not seven feeds: the three VIIRS series are one sensor on three satellites,
+  // and a response listing them separately would tell a reader the capture was seen by seven.
+  assert.deepEqual([...by.keys()], ['MODIS', 'MTG-I1', 'Sentinel-3', 'VIIRS']);
+  assert.deepEqual(by.get('VIIRS')?.sources, ['VIIRS_NOAA20_NRT', 'VIIRS_NOAA21_NRT', 'VIIRS_SNPP_NRT']);
+
+  // Nothing is double-counted and nothing is dropped.
+  assert.equal(
+    rows.reduce((sum, r) => sum + r.detections, 0),
+    built.diagnostics.detections,
+    'every detection in the capture belongs to exactly one family',
+  );
+
+  // The reading the field exists for: reaching a road is not the same as setting a cut time. VIIRS
+  // has 483 detections whose discs reach a road and attains a cut on 2 segments — the other
+  // families get there first — so `usedDetections` equal to `detections`, or `cutSegments` equal to
+  // `usedDetections`, would both be the wrong version of this number.
+  for (const row of rows) {
+    assert.ok(row.usedDetections <= row.detections, `${row.family}: used cannot exceed the capture`);
+    assert.ok(row.cutSegments >= 0);
+  }
+  assert.ok((by.get('VIIRS')?.usedDetections ?? 0) > 0, 'VIIRS detections do reach roads');
+  assert.ok(
+    (by.get('VIIRS')?.cutSegments ?? 0) < (by.get('VIIRS')?.usedDetections ?? 0),
+    'but reach them less often than they set a time',
+  );
+
+  // The omission this issue is about would be visible here: a family the decision named and the
+  // capture never carried appears with zeroes, not by its absence from the list.
+  assert.equal(rows.some((r) => /seviri/i.test(r.family)), false, 'no family claims an instrument the capture lacks');
+  assert.ok(rows.every((r) => r.detections > 0), 'and every family listed is one the capture carries');
+
+  // Cut counts are per segment, so no family can have attained more cuts than the field holds.
+  const cutSegments = built.response.segments.filter((s) => s.cutAt !== null).length;
+  for (const row of rows) {
+    assert.ok(row.cutSegments <= cutSegments, `${row.family}: cuts cannot exceed the cut field`);
+  }
+});

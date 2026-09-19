@@ -2,7 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { buildPairIndex, cutField, radiusFor, type Detection, type SweepConfig } from './mask';
+import {
+  SENSOR_FAMILY, SENSOR_FOOTPRINT_M, buildPairIndex, cutField, familyOf, knownFamilies, radiusFor,
+  sensorFamilyRows, type Detection, type SweepConfig,
+} from './mask';
+import { loadContext } from './egress';
 import { detectionsFromCapture, groupClustersIntoEvents, loadCapture, pickEventForWindow } from './capture';
 import { formatCapTimestamp, toEpochMs } from './time';
 import type { LatLon } from '../../shared/fires';
@@ -191,4 +195,117 @@ test('radiusFor prefers a fixed radius and falls back to the sensor footprint', 
   assert.equal(radiusFor(config({}), 'VIIRS_SNPP_NRT'), 375);
   assert.equal(radiusFor(config({ radiusScale: 2 }), 'MTG_I1'), 1200);
   assert.equal(radiusFor(config({}), 'SOMETHING_UNKNOWN'), 1000, 'an unknown sensor is assumed coarse, not fine');
+});
+
+test('decision 5 names exactly the sensor families the footprint table covers', () => {
+  // The defect issue #27 reports, made to fail rather than to be noticed: decision 5 named a
+  // family the capture never carried, and nothing compared the two. This reads the table the mask
+  // actually uses — `SENSOR_FOOTPRINT_M` — so deleting a family from it fails here, which a check
+  // against a hand-typed list would not.
+  const plan = readFileSync(new URL('../../docs/work-plan.md', import.meta.url), 'utf8');
+  const decision = plan.split('\n').find((line) => /^\|\s*5\s*\|/.test(line));
+  assert.ok(decision, 'decision 5 is in the plan');
+
+  // "The cut mask is A + B + C + D, sensor-footprint buffered, ..."
+  const list = /is\s+([^,]+),\s*sensor-footprint/.exec(decision)?.[1];
+  assert.ok(list, `decision 5 names its sensors in the expected shape: ${decision}`);
+
+  // The plan writes the geostationary feed "MTG"; the table keys it MTG_I1. Every other name is the
+  // family name verbatim, which is what makes a bare "and SEVIRI" in that list detectable.
+  const ALIAS: Record<string, string> = { MTG: 'MTG-I1' };
+  // "hotspots" is the Deepfire hotspot layer, not an instrument: it carries detections whose own
+  // `source` field names the sensor, so it has no footprint and no family. The decision names it
+  // because it is one of the mask's inputs; it is excluded here because it is not one of the
+  // instruments that can be missing from it. Anything else in the list is a family and is checked.
+  const NOT_AN_INSTRUMENT = new Set(['hotspots']);
+  const fromPlan = [...new Set(list.split('+').map((n) => n.trim()).map((n) => ALIAS[n] ?? n))]
+    .filter((n) => !NOT_AN_INSTRUMENT.has(n))
+    .sort();
+  const fromTable = [...new Set(Object.keys(SENSOR_FOOTPRINT_M).map(familyOf))].sort();
+  assert.deepEqual(fromPlan, fromTable, 'the plan and the footprint table name the same families');
+
+  assert.deepEqual(
+    Object.keys(SENSOR_FOOTPRINT_M).filter((s) => SENSOR_FAMILY[s] === undefined),
+    [],
+    'and every source in the table has a family, so neither can drift from the other',
+  );
+});
+
+test('SEVIRI is absent from the table and from the capture, so nothing claims to include it', () => {
+  // Criteria 2 and 3 are conditional on obtaining SEVIRI detections. Rather than passing vacuously
+  // on a false antecedent, this asserts the antecedent IS false: a capture carrying SEVIRI, or a
+  // table entry for it, fails here and sends a reader back to the amendment — instead of leaving a
+  // satisfied-looking conditional that was never exercised.
+  const named = [...Object.keys(SENSOR_FOOTPRINT_M), ...Object.values(SENSOR_FAMILY)].filter((s) => /seviri/i.test(s));
+  assert.deepEqual(named, [], 'the footprint table has no SEVIRI entry');
+
+  const sources = new Set(loadContext().detections.map((d) => d.source));
+  assert.ok(sources.size > 0, 'the capture has detections to check');
+  assert.deepEqual([...sources].filter((s) => /seviri/i.test(s)), [], 'and carries no SEVIRI series');
+});
+
+test('the plan records the amendment, and the open question about the SEVIRI band is closed', () => {
+  // "The plan records why" is a claim about a file, so it is checked against the file. The old
+  // bullet — "How much the SEVIRI band actually widens." — carried no closure and fails here.
+  const plan = readFileSync(new URL('../../docs/work-plan.md', import.meta.url), 'utf8');
+
+  const decision = plan.split('\n').find((line) => /^\|\s*5\s*\|/.test(line)) ?? '';
+  assert.match(decision, /Amended/, 'decision 5 records that it was amended');
+  assert.match(decision, /#27/, 'and names the issue that amended it');
+
+  const open = plan.slice(plan.indexOf('## Open'));
+  const bullet = open
+    .split(/\n(?=- )/)
+    .find((block) => /SEVIRI/i.test(block));
+  assert.ok(bullet, 'the open section still says what happened to the SEVIRI question');
+  assert.match(bullet, /closed/i, `and says it is closed, not left standing: ${bullet.slice(0, 80)}`);
+});
+
+test('the family breakdown counts feeds as instruments, and a shared cut once', () => {
+  // Four risk-map rows in one input where each right version differs observably from its wrong one.
+  const det = (id: string, source: string): Detection => ({
+    id, source, lat: 37.17, lon: -2.01, atSeconds: 0, confidence: 1, clusterId: null,
+  });
+  const detections = [
+    det('v1', 'VIIRS_SNPP_NRT'),
+    det('v2', 'VIIRS_NOAA20_NRT'),
+    det('v3', 'VIIRS_NOAA21_NRT'),
+    det('m1', 'MTG_I1'),
+    det('s1', 'SENTINEL_3A'),
+    det('w1', 'WEIRD_NEW_SENSOR'),
+  ];
+  // Two VIIRS detections reached a road and the unrecognised one did; NOTHING from Sentinel-3,
+  // which is in the capture and reached none.
+  const used = ['v1', 'v2', 'w1'];
+  // Segment 0 is attained by TWO VIIRS feeds, segment 1 by MTG.
+  const evidence = [['v1', 'v2'], ['m1']];
+
+  const by = new Map(sensorFamilyRows(detections, used, evidence).map((r) => [r.family, r]));
+
+  // family grouping — the wrong version lists three VIIRS rows and reads as three instruments
+  assert.equal(by.get('VIIRS')?.sources.length, 3, 'the three VIIRS feeds are one family');
+  assert.equal(by.get('VIIRS')?.detections, 3, 'and their detections are summed into it');
+  assert.equal(by.get('VIIRS')?.usedDetections, 2, 'two of which reached a road');
+  // cut counting — the wrong version sums per source and reports two cuts for one segment
+  assert.equal(by.get('VIIRS')?.cutSegments, 1, 'a segment cut by two feeds of one family is one cut');
+
+  // used is not detections — the wrong version reports the capture's count as the contribution
+  assert.equal(by.get('Sentinel-3')?.detections, 1, 'Sentinel-3 is in the capture');
+  assert.equal(by.get('Sentinel-3')?.usedDetections, 0, 'and none of its detections reached a road');
+  assert.equal(by.get('Sentinel-3')?.cutSegments, 0);
+
+  // an unrecognised sensor keeps its own name rather than borrowing a family
+  assert.equal(by.get('WEIRD_NEW_SENSOR')?.usedDetections, 1, 'an unknown sensor is its own family');
+});
+
+test('an empty capture still reports every family the table knows', () => {
+  // An empty list would read as "no sensor saw this fire", the same inversion as an empty mask
+  // reading as all-clear. The families come from the table, not from what happened to be seen.
+  const rows = sensorFamilyRows([], [], []);
+  assert.ok(rows.length > 0, 'the list is not empty');
+  assert.deepEqual(rows.map((r) => r.family), knownFamilies(), 'a zero row per known family');
+  assert.ok(
+    rows.every((r) => r.detections === 0 && r.usedDetections === 0 && r.cutSegments === 0),
+    'every count zero rather than absent',
+  );
 });

@@ -53,6 +53,8 @@ export interface BandedField {
   /** Cut times under the nominal configuration, seconds since origin. */
   nominalCutAtSeconds: number[];
   nominalEvidence: string[][];
+  /** The nominal configuration's detections that reached a road, by id. See `CutField`. */
+  nominalUsedDetectionIds: string[];
   /** Earliest and latest cut per segment across the whole sweep. */
   earliestCutAtSeconds: number[];
   latestCutAtSeconds: number[];
@@ -140,6 +142,7 @@ export function sweepField(
 
   let nominalCut = new Array<number>(segments.length).fill(Number.POSITIVE_INFINITY);
   let nominalEvidence: string[][] = Array.from({ length: segments.length }, () => []);
+  let nominalUsedDetectionIds: string[] = [];
 
   for (const config of configs) {
     const useRaw = config.includeStaticHeatSources && altPairs !== null;
@@ -165,6 +168,7 @@ export function sweepField(
     if (config.id === NOMINAL_ID) {
       nominalCut = cut;
       nominalEvidence = all.evidenceDetectionIds.slice(0, segments.length);
+      nominalUsedDetectionIds = all.usedDetectionIds;
     }
 
     for (let i = 0; i < segments.length; i++) {
@@ -186,6 +190,7 @@ export function sweepField(
     field: {
       nominalCutAtSeconds: nominalCut,
       nominalEvidence,
+      nominalUsedDetectionIds,
       earliestCutAtSeconds: earliest,
       latestCutAtSeconds: latest,
       earliestConfigId: earliestConfig,

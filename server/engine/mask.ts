@@ -18,6 +18,7 @@
 // for the July capture. Instead every pair is measured once at the largest radius any
 // configuration will use, and each configuration is then a filter over that pair list.
 
+import type { SensorFamilyRow } from '../../shared/egress';
 import type { LatLon } from '../../shared/fires';
 import { bboxOf, pointInRing, pointToSegmentMetres } from './geometry';
 
@@ -41,6 +42,102 @@ export const SENSOR_FOOTPRINT_M: Record<string, number> = {
 };
 
 export const DEFAULT_FOOTPRINT_M = 1000;
+
+/**
+ * The family each source belongs to.
+ *
+ * Several feeds are one instrument: the three VIIRS series are three satellites carrying the same
+ * sensor, and counting them as three would tell a reader the capture was seen by seven instruments
+ * when it was seen by four. A family is the unit a reader thinks in and the unit decision 5 names.
+ *
+ * A source with no entry here is its own family, which is how an unrecognised sensor stays visible
+ * in the breakdown rather than being folded into the default footprint's family.
+ */
+export const SENSOR_FAMILY: Record<string, string> = {
+  MTG_I1: 'MTG-I1',
+  VIIRS_SNPP_NRT: 'VIIRS',
+  VIIRS_NOAA20_NRT: 'VIIRS',
+  VIIRS_NOAA21_NRT: 'VIIRS',
+  MODIS_NRT: 'MODIS',
+  SENTINEL_3A: 'Sentinel-3',
+  SENTINEL_3B: 'Sentinel-3',
+};
+
+/** The family a source belongs to, or the source itself when it is not a known one. */
+export function familyOf(source: string): string {
+  return SENSOR_FAMILY[source] ?? source;
+}
+
+/** Every family the footprint table knows, in a stable order. */
+export function knownFamilies(): string[] {
+  return [...new Set(Object.values(SENSOR_FAMILY))].sort();
+}
+
+/**
+ * What each sensor family contributed to the field, one row per family.
+ *
+ * Per family rather than per source, and every known family appears even when the capture carries
+ * none of it — the same posture the mask takes on an empty field. A family absent from the list
+ * would be indistinguishable from a family whose detections never reached a road, and the whole
+ * point of publishing this is that an absent family be visible rather than implied.
+ */
+export function sensorFamilyRows(
+  detections: Detection[],
+  usedDetectionIds: string[],
+  evidencePerSegment: string[][],
+): SensorFamilyRow[] {
+  const sourceOf = new Map<string, string>();
+  const sourcesByFamily = new Map<string, Set<string>>();
+  const detectionsByFamily = new Map<string, number>();
+  for (const d of detections) {
+    sourceOf.set(d.id, d.source);
+    const family = familyOf(d.source);
+    if (!sourcesByFamily.has(family)) sourcesByFamily.set(family, new Set());
+    sourcesByFamily.get(family)!.add(d.source);
+    detectionsByFamily.set(family, (detectionsByFamily.get(family) ?? 0) + 1);
+  }
+
+  const usedByFamily = new Map<string, number>();
+  for (const id of usedDetectionIds) {
+    const source = sourceOf.get(id);
+    if (source === undefined) continue;
+    const family = familyOf(source);
+    usedByFamily.set(family, (usedByFamily.get(family) ?? 0) + 1);
+  }
+
+  // Counted as (family, segment) pairs. A segment attained by two feeds of one family is one cut
+  // for that family: summing per source would count the same road twice and inflate exactly the
+  // family with the most feeds, which is VIIRS.
+  const cutsByFamily = new Map<string, Set<number>>();
+  for (let segment = 0; segment < evidencePerSegment.length; segment++) {
+    const families = new Set<string>();
+    for (const id of evidencePerSegment[segment] ?? []) {
+      const source = sourceOf.get(id);
+      if (source !== undefined) families.add(familyOf(source));
+    }
+    for (const family of families) {
+      if (!cutsByFamily.has(family)) cutsByFamily.set(family, new Set());
+      cutsByFamily.get(family)!.add(segment);
+    }
+  }
+
+  // Every family the table knows, plus any the capture carries that the table does not — those
+  // keep their own name, so an unrecognised instrument shows up as itself.
+  const families = [...new Set([...knownFamilies(), ...sourcesByFamily.keys()])].sort();
+  // Frozen, because the context that holds these is cached and every response hands them out —
+  // the same reason `buildSegments` freezes its own.
+  return Object.freeze(
+    families.map((family) =>
+      Object.freeze({
+        family,
+        sources: Object.freeze([...(sourcesByFamily.get(family) ?? [])].sort()) as unknown as string[],
+        detections: detectionsByFamily.get(family) ?? 0,
+        usedDetections: usedByFamily.get(family) ?? 0,
+        cutSegments: cutsByFamily.get(family)?.size ?? 0,
+      }),
+    ),
+  ) as SensorFamilyRow[];
+}
 
 /** Geostationary versus polar — the axis that actually moves the answer. */
 export const GEO_SOURCES = new Set(['MTG_I1']);
@@ -237,6 +334,15 @@ export interface CutField {
   evidenceDetectionIds: string[][];
   /** Detections that passed the filter, for the "how much of the data was used" number. */
   usedDetections: number;
+  /**
+   * Those same detections, by id.
+   *
+   * The count above answers "how much of the data was used" for the whole field; the ids are what
+   * lets the response answer it per sensor family, which is a question the count cannot: a family
+   * whose detections never reach a road and one that reaches every road are the same number here
+   * and different numbers once they are told apart.
+   */
+  usedDetectionIds: string[];
 }
 
 export function configAllows(config: SweepConfig, det: Detection): boolean {
@@ -284,7 +390,15 @@ export function cutField(
   }
 
   for (const list of evidence) list.sort();
-  return { configId: config.id, cutAtSeconds, evidenceDetectionIds: evidence, usedDetections: used.size };
+  return {
+    configId: config.id,
+    cutAtSeconds,
+    evidenceDetectionIds: evidence,
+    usedDetections: used.size,
+    // `used` holds indices; the response needs ids, because an index means nothing outside the
+    // array it came from and the breakdown is published.
+    usedDetectionIds: [...used].map((i) => detections[i].id),
+  };
 }
 
 /**

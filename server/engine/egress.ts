@@ -26,6 +26,7 @@ import type {
   EgressResponse,
   EgressRoute,
   PocketEgress,
+  SensorFamilyRow,
   TimeBand,
 } from '../../shared/egress';
 import type { LatLon } from '../../shared/fires';
@@ -37,7 +38,7 @@ import {
 } from './assumptions';
 import { detectionsFromCapture, groupClustersIntoEvents, loadCapture, pickEventForWindow } from './capture';
 import { DEFAULT_GRAPH_PATH, loadGraph, nearestNode, type LoadedGraph } from './graph';
-import { subtractStaticHeatSources, type Detection } from './mask';
+import { sensorFamilyRows, subtractStaticHeatSources, type Detection } from './mask';
 import { loadPocketGeometry } from './pockets';
 import {
   allNodesSafe,
@@ -175,6 +176,14 @@ interface Context {
    * reconstructed on every scrub frame. Measured at 12.5 ms of a 156 ms request.
    */
   segments: CutTime[];
+  /**
+   * What each sensor family contributed to the cut field.
+   *
+   * Cursor-independent like `segments` — which detections reached which road is a whole-window
+   * property, not a function of the moment being asked about — so it is built once here rather
+   * than derived per scrub frame.
+   */
+  sensorFamilies: SensorFamilyRow[];
   detections: Detection[];
   originMs: number;
   /**
@@ -368,6 +377,7 @@ export function loadContext(graphPath: string = DEFAULT_GRAPH_PATH): Context {
 
   cached = {
     loaded, graph: loaded.graph, graphsByProfile, segments: buildSegments(loaded.graph, sweep, originMs),
+    sensorFamilies: sensorFamilyRows(detections, sweep.field.nominalUsedDetectionIds, sweep.field.nominalEvidence),
     detections, originMs, graphHash, captureHash, heatFixtureHash,
     scenario: capture.scenario, settlements, sweep,
     staticHeatRemoved: removed.length, staticHeatPolygons: heatRings.length, heatFixtureLoaded,
@@ -965,6 +975,10 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
     response: {
       provenance: 'replay',
       at: fromEpochMs(origin + cursor * 1000),
+      // Copied, like the tables below and for the same reason: the context is cached and every
+      // response hands out these rows, so a consumer editing one would edit it for every later
+      // request. The rows themselves are frozen with the context.
+      sensorFamilies: ctx.sensorFamilies.map((row) => ({ ...row, sources: [...row.sources] })),
       // Copied, not shared. `ctx.loaded.speedByHighway` is the very table the solver scales
       // travel times with, and the response is memoised and re-served, so a consumer that
       // touched it in place would not merely misprint an assumption — it would change the

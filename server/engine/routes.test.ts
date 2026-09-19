@@ -383,3 +383,21 @@ test('GET /api/reach serves the over-alerting figure with what it rests on', asy
   assert.deepEqual(body.unknownPopulation, [], 'the committed settlements all have a known population');
   assert.deepEqual(body.unusableSettlements, [], 'and all of them have a usable position');
 });
+
+test('the cut-field payload carries what each sensor family contributed', async () => {
+  // `/api/egress/field` names its fields one by one rather than spreading the response, so it is
+  // the endpoint that can silently drop a new one — and it is the payload a client fetches once,
+  // where a cursor-independent breakdown belongs. `/api/egress` spreads, so it carries it either
+  // way; this asserts the one that has to be told.
+  const res = await get('/api/egress/field');
+  assert.equal(res.status, 200);
+  const body = JSON.parse(res.body) as {
+    sensorFamilies: Array<{ family: string; sources: string[]; detections: number; usedDetections: number; cutSegments: number }>;
+  };
+  assert.ok(Array.isArray(body.sensorFamilies), 'the field carries the breakdown');
+  assert.deepEqual(body.sensorFamilies.map((r) => r.family), ['MODIS', 'MTG-I1', 'Sentinel-3', 'VIIRS']);
+
+  // And the moving endpoint carries the same rows, so a client reading either sees one answer.
+  const moving = JSON.parse((await get(`/api/egress?at=${AT}`)).body) as { sensorFamilies: unknown };
+  assert.deepEqual(moving.sensorFamilies, body.sensorFamilies, 'both endpoints report the same families');
+});

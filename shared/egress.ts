@@ -44,6 +44,31 @@ export interface RoadSegment {
  * sensor-calibrated mask intersects it. `cutAt: null` means never, within the
  * modelled window, which is a different statement from "not yet".
  */
+/**
+ * What one sensor family contributed to the cut field.
+ *
+ * Published because the omission of a family is otherwise discoverable only by reading the code
+ * that builds the mask: the field carries per-cut evidence ids, but nothing that says which
+ * instruments those ids came from or which instruments were absent. Decision 5 named three
+ * families for two months while the capture carried four and the table knew seven sources, and
+ * neither document nor response showed it.
+ *
+ * Counted per FAMILY, not per source. The three VIIRS feeds are one instrument on three
+ * satellites, and a table headed "family" listing VIIRS three times would read as three sensors —
+ * `sources` names the feeds so the grouping is legible rather than taken on trust.
+ */
+export interface SensorFamilyRow {
+  family: string;
+  /** The source keys this family comprises, as they appear in the capture. */
+  sources: string[];
+  /** Detections the capture holds for this family. */
+  detections: number;
+  /** How many of those reached a road and attained a cut. */
+  usedDetections: number;
+  /** Distinct cut segments this family attained at least one of. */
+  cutSegments: number;
+}
+
 export interface CutTime {
   segmentId: string;
   cutAt: string | null;
@@ -218,6 +243,13 @@ export interface EgressResponse {
    * number without its assumptions is the point estimate the spike showed is indefensible.
    */
   assumptions: EgressAssumptions;
+  /**
+   * What each sensor family contributed to the cut field, including the ones that contributed
+   * nothing. Published beside the assumptions for the same reason: a number without the inputs
+   * behind it is the point estimate the spike showed is indefensible, and this is the input that
+   * was silently missing a family. See `SensorFamilyRow`.
+   */
+  sensorFamilies: SensorFamilyRow[];
   /**
    * The assumption sets this response was actually solved under, in the order the band's
    * basis names them. Every band and clearance range in the response is the envelope of
