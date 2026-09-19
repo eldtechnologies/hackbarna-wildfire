@@ -1,0 +1,72 @@
+{
+  "samples": 5077,
+  "events_with_a_label": 294,
+  "samples_with_fire_in_window": 4380,
+  "samples_with_fire_in_label": 5059,
+  "samples_with_no_detection": 697,
+  "samples_with_fire_that_stops": 18,
+  "current_frp_mw": {
+    "p50": 157.98643493652344,
+    "p90": 4863.489843750001,
+    "max": 182018.21875
+  },
+  "observations": 246528,
+  "observations_span": [
+    "2026-01-01 00:08:30+00:00",
+    "2026-09-19 09:58:37+00:00"
+  ],
+  "events": 783,
+  "cell_deg": 0.02,
+  "horizon_hours": 6,
+  "history_hours": 3,
+  "step_minutes": 60,
+  "episode_params": {
+    "eps_km": 5.0,
+    "min_samples": 4,
+    "gap_hours": 6.0,
+    "min_observations": 30
+  },
+  "shards": [
+    {
+      "file": "shard-0000.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0001.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0002.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0003.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0004.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0005.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0006.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0007.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0008.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0009.npz",
+      "samples": 469
+    }
+  ],
+  "seconds": 8.7
+}
