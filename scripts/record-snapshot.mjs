@@ -1,15 +1,17 @@
-// Records fire data from the Deepfire API (or any server speaking the same
-// raw shape, e.g. npm run mock:deepfire) into data/snapshots/ as timestamped
-// JSON. Output is in the raw Deepfire shape so replay goes through the same
+// Records fire data from the mock Deepfire server (npm run mock:deepfire, or
+// any server speaking the same flat {hotspots, clusters, spread} shape) into
+// data/snapshots/ as timestamped JSON. The real Deepfire API speaks OGC
+// FeatureCollections on different paths, so it cannot be recorded with this
+// script today. Output is in the raw shape so replay goes through the same
 // normalizer as live data.
 //
 // Single capture (one moment):
-//   DEEPFIRE_BASE_URL=... DEEPFIRE_API_KEY=... npm run record:snapshot -- --scenario castelltallat
+//   DEEPFIRE_BASE_URL=http://localhost:4590 npm run record:snapshot -- --scenario castelltallat
 //
 // Continuous recording (accelerated event capture):
-//   npm run mock:deepfire &   # or a real API
-//   DEEPFIRE_BASE_URL=http://localhost:4590 DEEPFIRE_API_KEY=dev \
-//   npm run record:snapshot -- --scenario castelltallat-drill --frames 8 --interval 4
+//   npm run mock:deepfire &
+//   DEEPFIRE_BASE_URL=http://localhost:4590 \
+//   npm run record:snapshot -- --scenario castelltallat-drill --frames 8 --interval 15
 //
 // Args:
 //   --scenario <name>  snapshot name, file becomes <name>-<UTCstamp>.json (default: capture)
@@ -103,7 +105,7 @@ try {
   await mkdir(outDir, { recursive: true });
 
   if (args.frames === 1) {
-    // Flat snapshot: same shape as castelltallat-2025.json.
+    // Flat snapshot: same shape as the other files in data/snapshots/.
     const frame = await captureFrame();
     const file = path.join(outDir, `${args.scenario}-${timestamp()}.json`);
     await writeFile(file, JSON.stringify({ scenario: args.scenario, ...frame }, null, 2));

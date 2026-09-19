@@ -306,32 +306,33 @@ export function normalize(
   // observed perimeter at that frame; positive horizons are projections.
   const spread: SpreadStep[] = [];
   let skippedSpread = 0;
-  for (const s of raw.spread ?? []) {
+  const rawSpread = raw.spread ?? [];
+  for (const s of rawSpread) {
     const ring = ringOf(s?.geometry?.coordinates?.[0]);
     const clusterId = firstNonBlank(s?.cluster_id == null ? null : String(s.cluster_id));
     const validTime = firstNonBlank(s?.valid_time);
-    const horizon =
-      typeof s?.horizon_hours === 'number' && Number.isFinite(s.horizon_hours)
-        ? s.horizon_hours
-        : null;
+    const horizon = numberOrNull(s?.horizon_hours);
     if (!ring || !clusterId || !validTime || horizon === null) {
       skippedSpread += 1;
       continue;
     }
-    if (horizon <= 0) {
+    if (horizon === 0) {
       perimeters.push({
         clusterId,
         polygon: ring,
-        areaKm2: typeof s.area_km2 === 'number' ? s.area_km2 : null,
+        areaKm2: numberOrNull(s.area_km2),
         observedAt: validTime,
         partIndex: 0,
         partCount: 1,
       });
-    } else {
+    } else if (horizon > 0) {
       spread.push({ clusterId, at: validTime, horizonHours: horizon, polygon: ring });
+    } else {
+      // A negative horizon is neither the observed perimeter nor a projection.
+      skippedSpread += 1;
     }
   }
-  warnSkipped('spread steps', skippedSpread, skippedSpread);
+  warnSkipped('spread steps', skippedSpread, rawSpread.length);
 
   return {
     provenance,

@@ -19,6 +19,15 @@ import http from 'node:http';
 
 const PORT = Number(process.env.MOCK_PORT ?? 4590);
 const SPEED = Number(process.env.MOCK_SPEED ?? 120); // sim seconds per real second
+if (!Number.isFinite(PORT) || PORT <= 0 || !Number.isFinite(SPEED) || SPEED <= 0) {
+  console.error('[mock] MOCK_PORT and MOCK_SPEED must be positive numbers');
+  process.exit(1);
+}
+
+// Growth is exponential, so it must be capped: at ~6200 simulated hours the
+// ring scale overflows to Infinity. 100 sim-hours is 50 real minutes at the
+// default speed, well past any rehearsal.
+const MAX_SIM_HOURS = 100;
 
 // Numeric confidence to the API's word scale (LOW|MEDIUM|HIGH).
 function confidenceWord(value) {
@@ -166,7 +175,7 @@ function stateAt(simDate, hours) {
 
 const server = http.createServer((req, res) => {
   const simDate = simNow();
-  const hours = simHours();
+  const hours = Math.min(simHours(), MAX_SIM_HOURS);
   const state = stateAt(simDate, hours);
 
   const routes = {

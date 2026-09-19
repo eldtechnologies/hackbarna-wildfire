@@ -27,10 +27,15 @@ interface SnapshotFile extends RawFiresPayload {
   scenario?: string;
 }
 
+// Recording frame as written by the record script: raw payload + t.
+interface FrameFile extends RawFiresPayload {
+  t: string;
+}
+
 interface RecordingFile {
   scenario?: string;
   recordedAt?: string;
-  frames?: Array<{ t: string } & RawFiresPayload>;
+  frames?: FrameFile[];
 }
 
 function isRecording(file: unknown): file is RecordingFile {
@@ -41,18 +46,14 @@ function isRecording(file: unknown): file is RecordingFile {
   );
 }
 
-// Recording frame as written by the record script: raw payload + t.
-interface FrameFile extends RawFiresPayload {
-  t: string;
-}
-
 // Pick which snapshot file to serve:
 //   1. REPLAY_SNAPSHOT naming a file in data/snapshots/ exactly.
 //   2. REPLAY_SNAPSHOT as a scenario prefix (<name>-*.json), newest match.
 //      When REPLAY_SNAPSHOT is set but matches nothing, that is an error:
 //      a curated demo must not silently serve a different scenario.
-//   3. no setting: the newest .json in the directory, so a fresh recording
-//      automatically becomes the demo scenario.
+//   3. REPLAY_SNAPSHOT set to an empty value: the newest .json in the
+//      directory, so a fresh recording automatically becomes the demo
+//      scenario. Unset serves the pinned default above.
 async function pickSnapshot(): Promise<string | null> {
   let entries: string[];
   try {
@@ -85,23 +86,30 @@ async function pickSnapshot(): Promise<string | null> {
   return withMtime[withMtime.length - 1].name;
 }
 
-function buildTimeline(scenario: string, frames: FrameFile[]): ReplayTimeline {
-  const times = frames.map((f) => f.t).sort();
+export function sortedFrames(frames: FrameFile[]): FrameFile[] {
+  return [...frames].sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
+}
+
+export function buildTimeline(scenario: string, frames: FrameFile[]): ReplayTimeline {
+  const times = sortedFrames(frames).map((f) => f.t);
   const startMs = Date.parse(times[0]);
   const endMs = Date.parse(times[times.length - 1]);
   return {
     scenario,
     start: times[0],
     end: times[times.length - 1],
-    durationSeconds: Math.max(0, Math.round((endMs - startMs) / 1000)),
+    // Ceil, so ?at=durationSeconds actually reaches the final frame; rounding
+    // down would leave the tail of the last interval unreachable.
+    durationSeconds: Math.max(0, Math.ceil((endMs - startMs) / 1000)),
     frames: times,
   };
 }
 
 // Frame selection for accelerated playback: the latest frame at or before
-// eventStart + atSeconds. Clamped to [0, durationSeconds].
-function frameAt(frames: FrameFile[], atSeconds: number): FrameFile {
-  const sorted = [...frames].sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
+// eventStart + atSeconds. The lower bound clamps to the first frame; a time
+// past the last frame returns the last frame.
+export function frameAt(frames: FrameFile[], atSeconds: number): FrameFile {
+  const sorted = sortedFrames(frames);
   const startMs = Date.parse(sorted[0].t);
   const targetMs = startMs + Math.max(0, atSeconds) * 1000;
   let chosen = sorted[0];
@@ -132,9 +140,7 @@ export class ReplayProvider implements FireDataProvider {
       const scenario = parsed.scenario ?? path.basename(file, '.json');
       const frame =
         atSeconds === undefined
-          ? [...frames].sort((a, b) => Date.parse(a.t) - Date.parse(b.t))[
-              frames.length - 1
-            ]
+          ? sortedFrames(frames)[frames.length - 1]
           : frameAt(frames, atSeconds);
       const response = normalize(frame, 'replay', scenario);
       response.timeline = buildTimeline(scenario, frames);
