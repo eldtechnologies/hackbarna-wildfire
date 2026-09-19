@@ -94,7 +94,7 @@ Track 4's actual wording: *"Build an **agentic** system that identifies the infr
 
 ### Satellites over Iberia
 
-Of the 15 sources Deepfire ingests, GOES-18/19 and Himawari-9 are irrelevant here. What matters over Spain: VIIRS ×3 (375 m, polar), Landsat 8/9 (30 m), Sentinel-3A/B SLSTR (1 km), MetOp-B/C (1.1 km), MODIS (1 km), and for temporal density MTG-I1 FCI (nominal 1 km) and Meteosat-9/10 SEVIRI (3 km).
+Of the 15 sources Deepfire ingests, GOES-18/19 and Himawari-9 are irrelevant here. What matters over Spain: VIIRS ×3 (375 m, polar), Landsat 8/9 (30 m), Sentinel-3A/B SLSTR (1 km), MetOp-B/C (1.1 km), MODIS (1 km), and for temporal density MTG-I1 FCI (nominal 1 km) and Meteosat-9/10 SEVIRI (**3.0 × 4.2 km** over Iberia, not 3 km — see A17).
 
 ## The thesis
 
@@ -838,3 +838,36 @@ Caveats: the benchmark is US fires on LANDFIRE fuels; the no-output cases are pa
 | A13 | Values at risk | Catastro unanswered; the gap is the whole evacuation dataset, not just buildings |
 | A14 | Simulation ceiling | ELMFIRE median Jaccard 0.133 (n=561); FARSITE 0.137 |
 | A15 | Own model | MAE 10 h at R0=0.03 (area 3× over); area within 7 % at R0=0.01 (MAE 23 h) |
+
+### A17. The SEVIRI pixel footprint — measured, not read off the label
+
+The FRP-PIXEL product (LSA-502) reports a per-pixel `PIXEL_SIZE` field with the HDF5
+attribute `UNITS = 'Km'`. Read as a **length**, the median over Iberia is **12.58 km**,
+which would disqualify SEVIRI as a mask source for anything but a very large fire.
+
+That reading is wrong. `PIXEL_SIZE` is an **area in km²**, and the attribute is mislabelled.
+
+The test is the nadir limit. SEVIRI samples 3 × 3 km at the sub-satellite point, so its nadir
+footprint is **9 km²**. Measured over the pulled archive (5,922,602 detections):
+
+| view zenith angle | `PIXEL_SIZE` (median) |
+| --- | --- |
+| < 10° (near nadir, n = 9,499) | **9.08**, minimum **9.00** |
+| Iberia, median VZA 44.3° (n = 63,549) | **12.58** |
+
+Near nadir the value converges on **9**, not on 3. A length would converge on 3. So the field
+is an area, and `UNITS = 'Km'` means km².
+
+Over Iberia the area is 12.58 km², which decomposes as **3.0 km × 4.2 km** — the along-scan
+dimension stretches by 1/cos(VZA) while the other stays near 3 km. The fit `A = 9 / cos(VZA)`
+matches the measured values with correlation **1.0000**.
+
+So the pixel over Iberia is roughly **3.1–4.2 km across**: coarse, but not disqualified.
+
+Two consequences:
+
+- Any buffer or mask built from SEVIRI detections must use the **real footprint at that
+  latitude**, not the 3 km nadir figure and not the 12.58 figure read as a length. Buffer by
+  `sqrt(PIXEL_SIZE)` per pixel, which the product already provides.
+- The 12 km error propagated into at least one review as "SEVIRI cannot carry the mask". The
+  corrected reading is what put SEVIRI into the three-source cut mask.
