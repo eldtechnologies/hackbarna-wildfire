@@ -16,7 +16,7 @@ import { Router, type Request, type Response } from 'express';
 import { buildEgress, loadContext } from './egress';
 import { buildAlerts } from './alerts';
 import { SWEEP_CONFIGS } from './sweep';
-import { openLedger } from './ledger';
+import { ledgerName, openLedger, type StoredEntry } from './ledger';
 import { LEDGER_PATH } from '../config';
 
 export interface EngineRouterOptions {
@@ -40,14 +40,14 @@ export interface EngineRouterOptions {
 const resolveLedgerPath = (options: EngineRouterOptions): string => options.ledgerPath ?? LEDGER_PATH;
 
 /**
- * A cursor the client got wrong.
+ * A request parameter the client got wrong — the cursor, or the history limit.
  *
  * Distinct from the engine's own RangeErrors — the profile scaling refuses an unusable
  * speed, the mask refuses a lattice it cannot cover — so `fail` can answer 400 for the one
  * and 502 for the other. Both were RangeErrors, and catching the class rather than the
  * meaning turned an engine fault into a client error.
  */
-class CursorError extends RangeError {}
+class RequestError extends RangeError {}
 
 export function engineRouter(options: EngineRouterOptions = {}): Router {
   const router = Router();
@@ -69,7 +69,7 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
     // refuses a lattice it cannot cover — so a corrupt committed graph was answered as
     // "your request was invalid" with the engine's internal message echoed to the caller,
     // on every request, forever. Engine failures are ours and belong in the log.
-    if (err instanceof CursorError) {
+    if (err instanceof RequestError) {
       res.status(400).json({ error: err.message });
       return;
     }
@@ -91,15 +91,46 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
       // Express hands `?at[]=1&at[]=2` through as an array. Silently falling back would
       // serve the end of the window — the most-informed state — to a client that asked
       // for something else, which is the opposite answer.
-      throw new CursorError('at must be a single value');
+      throw new RequestError('at must be a single value');
     }
     if (raw === '') return undefined;
     // Canonical digits only: `Number()` also accepts '0x10', '1e5' and ' 42 ', so a
     // cursor would silently mean something other than what the client wrote.
-    if (!/^\d+$/.test(raw)) throw new CursorError('at must be a non-negative integer number of seconds');
+    if (!/^\d+$/.test(raw)) throw new RequestError('at must be a non-negative integer number of seconds');
     const n = Number(raw);
-    if (n > MAX_AT_SECONDS) throw new CursorError('at is beyond the representable range of a CAP timestamp');
+    if (n > MAX_AT_SECONDS) throw new RequestError('at is beyond the representable range of a CAP timestamp');
     return n;
+  };
+
+  /**
+   * Parse `?limit=`: how many of the most recent entries to return.
+   *
+   * Absent means all of them, which is what the endpoint returned before a limit existed and
+   * what a small history wants. Rejected rather than falling back when malformed, for the same
+   * reason the cursor is: the fallback is the least bounded answer, so a client that asked for
+   * a bounded one and got the whole file has the opposite of what it asked for.
+   */
+  const parseLimit = (raw: unknown): number | undefined => {
+    if (raw === undefined || raw === '') return undefined;
+    if (typeof raw !== 'string') throw new RequestError('limit must be a single value');
+    if (!/^\d+$/.test(raw)) throw new RequestError('limit must be a non-negative integer');
+    const n = Number(raw);
+    // A digit string long enough to overflow is not a count of anything.
+    if (!Number.isSafeInteger(n)) throw new RequestError('limit is too large to be a number of entries');
+    return n;
+  };
+
+  /**
+   * The tail of the history that a limit asks for.
+   *
+   * Spelled out rather than written `entries.slice(-limit)`, because `-0` is `0` to `slice`:
+   * a limit of zero would return `slice(0)` — the entire store — which is the exact inversion
+   * of the request, in the direction that costs the most.
+   */
+  const selectEntries = (entries: StoredEntry[], limit: number | undefined): StoredEntry[] => {
+    if (limit === undefined || limit >= entries.length) return entries;
+    if (limit === 0) return [];
+    return entries.slice(-limit);
   };
 
   /**
@@ -274,11 +305,23 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
    * `unreadable` travels with the entries so a short history cannot be read as a complete
    * one — a truncated line from a crash mid-append is skipped, not hidden.
    */
-  router.get('/api/ledger', (_req: Request, res: Response) => {
+  router.get('/api/ledger', (req: Request, res: Response) => {
     try {
       const path = resolveLedgerPath(options);
       const { entries, unreadable } = openLedger(path).history();
-      res.json({ path, count: entries.length, unreadable, entries });
+      const limit = parseLimit(req.query.limit);
+      // `count` is what the store holds and `entries` is what this response carries, so a
+      // limited read is never mistaken for a short history. The limit bounds the RESPONSE, not
+      // the read — the file is parsed whole either way, and the store's byte cap is what bounds
+      // that. A full store serialised to 15.5 MiB, which is not a page anyone can open.
+      res.json({
+        // The name rather than the path: this route needs no credentials, and the configured
+        // path is the absolute one a real deployment uses. See `ledgerName`.
+        store: ledgerName(path),
+        count: entries.length,
+        unreadable,
+        entries: selectEntries(entries, limit),
+      });
     } catch (err) {
       fail(res, err, 'recommendation history unavailable');
     }

@@ -1,13 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildAlerts, certaintyFor, instructionFor, severityFor } from './alerts';
 import { openLedger, type StoredEntry } from './ledger';
 import { buildEgress, loadContext } from './egress';
+import { DEFAULT_GRAPH_PATH } from './graph';
 import { SWEEP_CONFIGS } from './sweep';
 import { ASSUMPTION_PROFILES } from './assumptions';
 
@@ -371,24 +373,83 @@ test('a cursor already recorded is served from the record, not recomputed', () =
 
 test('the ledger records what the file holds, and a changed input set does not reuse it', () => {
   // The risk-map row the fingerprint exists for. Keying by cursor alone would let a store
-  // written under one set of inputs answer for another, serving a recommendation the
-  // current inputs do not support with nothing in the record saying so.
+  // written under one set of inputs answer for another, serving a recommendation the current
+  // inputs do not support with nothing in the record saying so.
+  //
+  // The store is seeded with this cursor under a DIFFERENT input set, which is what a changed
+  // capture or changed assumption values leave behind — a different literal merely passed to the
+  // lookup would be different by construction, and would pass even if the key were comparing
+  // nothing at all. That version of this test did exactly that, and so would not have caught the
+  // digest being blind to the assumption values.
+  //
+  // Whether the digest MOVES for a real input change is a property of the fingerprint itself and
+  // is pinned in ledger.test.ts, where the call site's nested shape can be varied directly.
   const path = tmpLedger();
+  const [recorded] = buildAlerts({ atSeconds: CURSOR, ledgerPath: tmpLedger() }).ledger as StoredEntry[];
+  assert.ok(recorded, 'the seed build recorded an entry');
+  openLedger(path).append({
+    ...recorded,
+    inputFingerprint: `${recorded.inputFingerprint}-other`,
+    evidence: ['SEEDED'],
+  });
+
   const built = buildAlerts({ atSeconds: CURSOR, ledgerPath: path });
-  const store = openLedger(path);
+  assert.equal(built.diagnostics.ledger.reused, 0, 'a changed input set is not served the recorded entry');
+  assert.equal(built.diagnostics.ledger.appended, 1, 'so the recommendation is computed and appended');
+  const [served] = built.ledger as StoredEntry[];
+  assert.notEqual(served.evidence[0], 'SEEDED', 'and what is served is the new entry, not the seeded one');
 
-  for (const entry of built.ledger as StoredEntry[]) {
-    assert.ok(store.find(entry.cursorSeconds, entry.inputFingerprint, entry.pocketId), 'recorded and findable');
-    // The same cursor under different inputs is a miss, which is what makes the caller
-    // compute and append instead of reinterpreting the old entry.
-    assert.equal(store.find(entry.cursorSeconds, 'a-different-input-set', entry.pocketId), undefined);
-    // And the same inputs for a different pocket is a separate entry, not a shared one.
-    assert.equal(store.find(entry.cursorSeconds, entry.inputFingerprint, 'not-a-pocket'), undefined);
+  // The converse, which is what makes this a key rather than a switch that disables reuse: the
+  // same cursor under the same inputs IS served from the store.
+  const again = buildAlerts({ atSeconds: CURSOR, ledgerPath: path });
+  assert.equal(again.diagnostics.ledger.reused, 1, 'the same inputs serve the recorded entry');
+  assert.equal(again.diagnostics.ledger.appended, 0, 'without computing a second one');
+
+  // And the record and the response cannot disagree: what is served is what was written. In the
+  // committed capture nothing is ever rejected, so this compares the whole entry rather than the
+  // rejection list — which is the interface contract anyway, and catches any field diverging
+  // rather than only that one.
+  const { entries, unreadable } = openLedger(path).history();
+  assert.equal(unreadable, 0);
+  assert.equal(entries.length, 2, 'the seeded line and the appended one');
+  assert.deepEqual(entries[entries.length - 1], served, 'the persisted line is the entry that was served');
+});
+
+test('the ledger key covers the road data by content, not by path', () => {
+  // A re-imported OSM extract changes which roads exist, how long they take and which ones the
+  // fire cuts, while leaving the path alone — so the path cannot be the key. Without this the
+  // fingerprint has the same hole the assumption values had, one level further out: an entry
+  // computed on the old geometry answers for the new one, and `reused` counts it as a normal
+  // reuse. The digest has to be of the bytes actually on disk, and not a constant that would
+  // make the input a silent no-op.
+  const context = loadContext();
+  assert.match(context.graphHash, /^[0-9a-f]{16}$/, 'the graph is identified by a content digest');
+  const onDisk = createHash('sha256').update(readFileSync(DEFAULT_GRAPH_PATH)).digest('hex').slice(0, 16);
+  assert.equal(context.graphHash, onDisk, 'and it is the digest of the committed file the context was built from');
+});
+
+test('a recommendation that could not be recorded is served but not reported as recorded', () => {
+  // `appended` counts writes, not attempts. Counting attempts put `appended: 1` in the same
+  // diagnostics as `writeFailures: ['bedar']`, so a reader summing appended + reused found more
+  // entries than the history they could then go and read — in the one artefact that exists to be
+  // reconciled against that history.
+  const path = tmpLedger();
+  // A first request creates the file; the second is then asked to append to a store it cannot
+  // write, which is a full disk or a permission change mid-run.
+  buildAlerts({ atSeconds: CURSOR, ledgerPath: path });
+  chmodSync(path, 0o444);
+  try {
+    const built = buildAlerts({ atSeconds: EARLY_CURSOR, ledgerPath: path });
+    assert.equal(built.diagnostics.ledger.appended, 0, 'nothing reached the file, so nothing is counted as written');
+    assert.deepEqual(
+      built.diagnostics.ledger.writeFailures,
+      ['bedar'],
+      'the pocket that could not be recorded is named',
+    );
+    assert.ok(built.ledger.length > 0, 'and the recommendation is still served');
+  } finally {
+    chmodSync(path, 0o644);
   }
-
-  // The store holds exactly one line per pocket, and nothing was written twice.
-  assert.equal(store.history().entries.length, built.ledger.length);
-  assert.equal(store.history().unreadable, 0);
 });
 
 test('an early cursor, before the fire is known, does not invent a package', () => {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import express from 'express';
 import { engineRouter } from './routes';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadContext } from './egress';
@@ -11,6 +11,16 @@ import { loadContext } from './egress';
 /** A ledger path in a temporary directory, so the suite never appends to the real one. */
 const testLedgerPath = (): string =>
   join(mkdtempSync(join(tmpdir(), 'routes-ledger-')), 'recommendations.jsonl');
+
+/**
+ * The store the main router was given, held so a test can go and read that exact file.
+ *
+ * The endpoint reports the store's NAME and not its path — it is reachable without credentials,
+ * and the configured path is the absolute one a real deployment uses. So the test cannot tell
+ * the configured store from the default one by reading the response, and checks the file instead,
+ * which is the stronger assertion anyway.
+ */
+const routerLedgerPath = testLedgerPath();
 
 // The router had no automated coverage at all: its status codes, its cursor parsing and
 // the CAP refusal path were exercised only by hand. Both of the defects found in it —
@@ -26,7 +36,7 @@ before(async () => {
   // means the first assertion is not competing with a twelve-second parse.
   loadContext();
   const app = express();
-  app.use(engineRouter({ ledgerPath: testLedgerPath() }));
+  app.use(engineRouter({ ledgerPath: routerLedgerPath }));
   server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -186,14 +196,18 @@ test('the ledger endpoint serves the store the router was given, in recording or
   const history = await get('/api/ledger');
   assert.equal(history.status, 200);
   const body = JSON.parse(history.body) as {
-    path: string;
+    store: string;
     count: number;
     unreadable: number;
     entries: Array<{ at: string; pocketId: string; recordedAt: string; evidence: string[] }>;
   };
 
-  assert.ok(body.path.includes('routes-ledger-'), `the endpoint read its own store, not the deployment's: ${body.path}`);
+  assert.equal(body.store, 'recommendations.jsonl', 'the store is named, not its directory');
   assert.ok(body.count > 0, 'a served recommendation was recorded');
+  // The endpoint read the file the router was configured with: this is that file, and the
+  // response is a rendering of it rather than of some other store it happened to reach.
+  const lines = readFileSync(routerLedgerPath, 'utf8').split('\n').filter((line) => line.trim() !== '');
+  assert.equal(lines.length, body.count, 'the response carries exactly the lines of the configured store');
   assert.equal(body.unreadable, 0);
   for (const entry of body.entries) {
     assert.ok(entry.at.length > 0, 'the cursor it applies to');

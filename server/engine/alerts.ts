@@ -19,7 +19,7 @@ import type {
 import type { LatLon } from '../../shared/fires';
 import { ASSUMPTION_PROFILES } from './assumptions';
 import { LEDGER_PATH } from '../config';
-import { fingerprintInputs, openLedger, type LedgerStore, type StoredEntry } from './ledger';
+import { findEntry, fingerprintInputs, ledgerName, openLedger, type LedgerStore, type StoredEntry } from './ledger';
 import { PESSIMISTIC_DELAY_MINUTES, buildEgress, loadContext, type EgressOptions, type Settlement } from './egress';
 import { capIdentifier, emitCap, groupByPocket, validateCapSemantics } from './cap/emit';
 import { fillTemplate, languagesFor, templateFor, unresolvedPlaceholders } from './cap/templates';
@@ -60,10 +60,13 @@ export interface BuildAlertsResult {
      * (the history is shorter than it looks).
      */
     ledger: {
-      path: string;
+      /** The store's name, without its directory. See `ledgerName`. */
+      store: string;
+      /** Entries this request wrote. Not attempts — a failed write is not counted here. */
       appended: number;
       reused: number;
       unreadable: number;
+      /** Pockets whose recommendation this request computed but could not record. */
       writeFailures: string[];
       /** True once the store has reached its cap and stopped accepting entries. */
       full: boolean;
@@ -189,10 +192,20 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
     windowEnd: built.diagnostics.windowEnd,
     detections: built.diagnostics.detections,
     scenario: built.diagnostics.scenario,
+    // The road data, by content. It is an input like any other: a re-imported extract changes
+    // which roads exist and how long they take, so an entry computed on the old geometry must
+    // not answer for the new one — and the path stays the same across a re-import, so the path
+    // is what cannot be the key.
+    graph: context.graphHash,
     profiles: built.response.profiles.map((profile) => [profile.id, profile.assumptions]),
     pockets: context.settlements.map((s) => [s.id, s.population, s.buildings]),
   });
   const ledgerStore: LedgerStore = openLedger(options.ledgerPath ?? LEDGER_PATH);
+  // Read once for the whole request. The lookup runs per settlement, and going back to the
+  // store for each would re-read and re-parse the file once per village. `unreadable` is taken
+  // here too: this request's own appends write well-formed lines, so it cannot have changed by
+  // the time the diagnostics are assembled.
+  const history = ledgerStore.history();
   // Settlements are the places a sentence may name as a destination. They resolve
   // outside the road graph because a village is not a road.
   const places: Place[] = context.settlements.map((s) => ({
@@ -203,7 +216,6 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
   const packages: AlertPackage[] = [];
   const rejected: RejectedCandidate[] = [];
   const ledger: LedgerEntry[] = [];
-  const freshEntries: StoredEntry[] = [];
   let appended = 0;
   let reused = 0;
   const writeFailures: string[] = [];
@@ -409,7 +421,16 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
           ? `${chosen.clearanceMinutes.optimisticMinutes}..${chosen.clearanceMinutes.pessimisticMinutes}`
           : 'unknown',
       },
-      rejected: [],
+      // Attached here, before the append rather than in a pass over the fresh entries after it.
+      // `append` serializes the entry when it is called, so a later pass mutates objects that
+      // were already written — every persisted line carried `rejected: []`, and the rejection
+      // log survived only inside the process that computed it, disappearing at exactly the
+      // restart the store exists to survive. The route memo hid it: within one process a reused
+      // entry came off the mutated in-memory object and looked intact.
+      //
+      // Complete at this point: rejections are pushed while this pocket's packages are built,
+      // above, and no later pocket can add one carrying this pocket's id.
+      rejected: rejected.filter((r) => r.pocketId === settlement.id),
       cursorSeconds,
       inputFingerprint,
     };
@@ -418,32 +439,29 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
     // entry rather than a fresh computation. Deterministic as the solve is, the recorded
     // one is what the system actually advised, and that is what an audit artifact has to
     // return — a recomputation would quietly replace history with a current answer.
-    const recorded = ledgerStore.find(cursorSeconds, inputFingerprint, settlement.id);
+    const recorded = findEntry(history.entries, cursorSeconds, inputFingerprint, settlement.id);
     if (recorded !== undefined) {
       ledger.push(recorded);
       reused += 1;
       continue;
     }
     const written = ledgerStore.append(fresh);
-    if (!written.ok) {
+    if (written.ok) {
+      appended += 1;
+    } else if (written.reason === 'full') {
       // A full store is the record working as designed and saying so; a failed write is a
       // fault. Reporting them as one number would let a reader dismiss a lost record as a
       // cap having been reached.
-      if (written.reason === 'full') ledgerFull = true;
-      else writeFailures.push(settlement.id);
+      ledgerFull = true;
+    } else {
+      writeFailures.push(settlement.id);
     }
-    freshEntries.push(fresh);
+    // Served either way: the recommendation was computed for this request and belongs in the
+    // response whether or not its bytes reached the file. `appended` counts writes and not
+    // attempts — counting attempts would put `appended: 1` in the same diagnostics as
+    // `writeFailures: ['bedar']`, and a reader summing appended + reused would find a total
+    // larger than the history they can go and read.
     ledger.push(fresh);
-    appended += 1;
-  }
-
-  // Rejections are per pocket, so they are attached to the ledger entry that produced them
-  // — the fresh ones only. A reused entry already carries the rejections recorded with it,
-  // and overwriting them with this request's would edit a record that is meant to be
-  // append-only, in the one place the ledger is read to find out why a candidate was
-  // dropped.
-  for (const entry of freshEntries) {
-    entry.rejected = rejected.filter((r) => r.pocketId === entry.pocketId);
   }
 
   // CAP is one <alert> per pocket, one <info> per language; a multi-pocket send is
@@ -480,10 +498,12 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
     ledger,
     diagnostics: {
       ledger: {
-        path: options.ledgerPath ?? LEDGER_PATH,
+        // The store's name, not its path: `/api/alerts` is reachable without credentials and the
+        // configured path is the absolute one a real deployment uses. See `ledgerName`.
+        store: ledgerName(options.ledgerPath ?? LEDGER_PATH),
         appended,
         reused,
-        unreadable: ledgerStore.history().unreadable,
+        unreadable: history.unreadable,
         writeFailures,
         full: ledgerFull || ledgerStore.isFull(),
       },

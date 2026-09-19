@@ -14,6 +14,7 @@
 //    that it could not demonstrate lead time partly because it conflated them. The
 //    physical cut time stays physical; a separate offset decides when it became known.
 
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -165,6 +166,16 @@ interface Context {
   segments: CutTime[];
   detections: Detection[];
   originMs: number;
+  /**
+   * A digest of the road data this context was built from.
+   *
+   * The recommendation ledger keys entries on the inputs they were computed from, and the graph
+   * is one of them: a re-imported OSM extract changes the routes, the distances and the travel
+   * times, so an entry computed on the old geometry must not answer for the new one. A content
+   * digest rather than the path, because the path is precisely what stays the same across a
+   * re-import.
+   */
+  graphHash: string;
   scenario: string;
   settlements: Settlement[];
   sweep: ReturnType<typeof sweepField>;
@@ -244,6 +255,11 @@ export function loadContext(graphPath: string = DEFAULT_GRAPH_PATH): Context {
   if (cached && cachedPath === graphPath) return cached;
 
   const loaded = loadGraph(graphPath);
+
+  // Read a second time to digest it, rather than threading the raw bytes out of `loadGraph`.
+  // Paid once per process, against a cold build already measured in seconds.
+  const graphHash = createHash('sha256').update(readFileSync(graphPath)).digest('hex').slice(0, 16);
+
   const capture = loadCapture(JSON.parse(readFileSync(CAPTURE_PATH, 'utf8')));
   const originMs = resolveTimelineOrigin(
     capture.hotspots.map((h) => h.properties.observed_at ?? null),
@@ -325,7 +341,7 @@ export function loadContext(graphPath: string = DEFAULT_GRAPH_PATH): Context {
 
   cached = {
     loaded, graph: loaded.graph, graphsByProfile, segments: buildSegments(loaded.graph, sweep, originMs),
-    detections, originMs,
+    detections, originMs, graphHash,
     scenario: capture.scenario, settlements, sweep,
     staticHeatRemoved: removed.length, staticHeatPolygons: heatRings.length, heatFixtureLoaded,
     fireClusterIds: fire.clusterIds,
