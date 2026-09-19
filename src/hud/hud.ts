@@ -10,6 +10,11 @@ import { LAYERS, isLayerVisible, setLayerVisible } from '../layers/registry';
 // HUD shell: corner brackets, title, UTC clock, telemetry, layer toggles.
 // Pure DOM overlay on top of the Cesium canvas.
 
+export interface HudHandle {
+  /** Update the LIVE/REPLAY badge from the API response provenance. */
+  setMode: (mode: 'live' | 'replay') => void;
+}
+
 function el(tag: string, className = '', text = ''): HTMLElement {
   const node = document.createElement(tag);
   node.className = className;
@@ -22,7 +27,7 @@ function formatCoordinate(deg: number, pos: string, neg: string): string {
   return `${Math.abs(deg).toFixed(4).padStart(7, '0')} ${hemi}`;
 }
 
-export function initHud(viewer: Viewer, root: HTMLElement): void {
+export function initHud(viewer: Viewer, root: HTMLElement): HudHandle {
   for (const corner of ['tl', 'tr', 'bl', 'br']) {
     root.appendChild(el('div', `bracket bracket-${corner}`));
   }
@@ -32,9 +37,7 @@ export function initHud(viewer: Viewer, root: HTMLElement): void {
   title.appendChild(el('span', 'hud-title-main', 'OJO DE FUEGO'));
   title.appendChild(el('span', 'hud-title-sub', 'WILDFIRE INTELLIGENCE / IBERIA'));
   const status = el('div', 'hud-status');
-  // Display only, not simulated: hardcoded until a data-mode card reads the
-  // server's DATA_MODE.
-  const modeBadge = el('span', 'hud-badge', 'REPLAY');
+  const modeBadge = el('span', 'hud-badge', '---');
   const clock = el('span', 'hud-clock');
   status.appendChild(modeBadge);
   status.appendChild(clock);
@@ -49,8 +52,8 @@ export function initHud(viewer: Viewer, root: HTMLElement): void {
   telemetry.appendChild(heightLine);
   root.appendChild(telemetry);
 
-  const layersPanel = el('div', 'hud-layers');
-  layersPanel.appendChild(el('div', 'hud-layers-title', 'LAYERS'));
+  const layersPanel = el('div', 'hud-panel hud-layers');
+  layersPanel.appendChild(el('div', 'hud-panel-title', 'LAYERS'));
   for (const layer of LAYERS) {
     const row = el('label', 'hud-layer-row');
     const box = document.createElement('input');
@@ -88,4 +91,10 @@ export function initHud(viewer: Viewer, root: HTMLElement): void {
     const lon = formatCoordinate(CesiumMath.toDegrees(carto.longitude), 'E', 'W');
     cursorLine.textContent = `CUR ${lat} / ${lon}`;
   }, ScreenSpaceEventType.MOUSE_MOVE);
+
+  return {
+    setMode(mode) {
+      modeBadge.textContent = mode.toUpperCase();
+    },
+  };
 }
