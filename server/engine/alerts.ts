@@ -1,0 +1,439 @@
+// Turn an egress solve into the package a coordinator could send.
+//
+// The geometry decides the situation; the sentence is then selected from a closed set,
+// never written. Everything in this file is arithmetic, lookup and string substitution,
+// which is the point: there is no generative step to hallucinate a road name.
+//
+// The rejection log is a feature, not an error path. A candidate that names a road OSM
+// does not have, or one that is not on the recommended route, is discarded and shown —
+// and that log is the artifact that answers the first question anyone asks.
+
+import type {
+  AlertPackage,
+  AlertsResponse,
+  CapSenderConfig,
+  InstructionId,
+  LedgerEntry,
+  RejectedCandidate,
+} from '../../shared/alerts';
+import type { LatLon } from '../../shared/fires';
+import { ASSUMPTIONS, buildEgress, loadContext, type EgressOptions, type Settlement } from './egress';
+import { capIdentifier, emitCap, groupByPocket, validateCapSemantics } from './cap/emit';
+import { fillTemplate, languagesFor, templateFor, unresolvedPlaceholders } from './cap/templates';
+import { verifySentence, type Place } from './cap/verify';
+import { loadPocketGeometry } from './pockets';
+import { NOMINAL_ID } from './sweep';
+import { nearestNode } from './graph';
+import type { RoadGraph } from './solve';
+
+/**
+ * Default sender: a fictional demo identity with status=Test, so nothing emitted here can
+ * be mistaken for a real alert. Scope is Public because ES-Alert is a public cell
+ * broadcast; `status` carries the "not real" flag instead.
+ */
+export const DEFAULT_SENDER: CapSenderConfig = {
+  sender: 'demo@ojo-de-fuego.invalid',
+  senderName: 'Ojo de Fuego (demo)',
+  status: 'Test',
+  scope: 'Public',
+};
+
+export interface BuildAlertsResult {
+  response: AlertsResponse;
+  /** One CAP document per pocket, keyed by pocket id. */
+  documents: Map<string, string>;
+  ledger: LedgerEntry[];
+  diagnostics: {
+    emitter: {
+      identifierSeed: string;
+      accepted: number;
+      rejected: number;
+      validation: Record<string, ReturnType<typeof validateCapSemantics>>;
+    };
+  };
+}
+
+/**
+ * Which approved instruction fits this pocket's situation.
+ *
+ * The mapping is deliberately blunt. `no_verified_action` is the default whenever no
+ * route survives, and it is NOT shelter-in-place: failing to find a route does not show
+ * that staying is survivable, so the honest output is "the operator must decide".
+ */
+export function instructionFor(
+  route: { slowestHighway: string; lastSafeDeparture: { earliest: string } | null; usable?: boolean } | null,
+  cursorMs: number,
+  fireReachesPocket = true,
+): InstructionId {
+  // A pocket the fire never reaches within the modelled window needs no action, and
+  // saying so is a different statement from "we could not find you a route". Without
+  // this the only outputs were an evacuation or a failure, so a safe pocket would have
+  // been told to evacuate or told nothing useful.
+  if (!fireReachesPocket) return 'no_action';
+
+  // The route's own gate decides, not a re-derivation here. Any second opinion is a
+  // chance for the message and the verdict to disagree.
+  if (route === null || route.lastSafeDeparture === null) return 'no_verified_action';
+  if (route.usable === false) return 'no_verified_action';
+
+  // Kept as a backstop for callers that pass a hand-built route without the flag: if the
+  // pessimistic end has passed, there is no verified action.
+  const pessimistic = Date.parse(route.lastSafeDeparture.earliest);
+  if (Number.isFinite(pessimistic) && pessimistic < cursorMs) return 'no_verified_action';
+
+  // A route that only exists because a track is in the graph is the case the spike
+  // describes: the main road is not safe and the way out is a track. Naming that route
+  // as the primary one would repeat the failure the product exists to prevent.
+  if (route.slowestHighway === 'track' || route.slowestHighway === 'service') {
+    return 'evacuate_alternate';
+  }
+  return 'evacuate_primary';
+}
+
+/**
+ * CAP certainty is our confidence in what the message says, so it tracks the width of
+ * the departure band.
+ *
+ * The null case used to return 'Observed' — CAP's most confident value — for the
+ * situation where no route could be verified at all, which is the least confident thing
+ * the engine ever says. The band's absence is a failure to establish a route, not an
+ * observation of one, and the mask it is derived from is itself an inference from
+ * satellite detections rather than a measurement of the fire's edge.
+ */
+export function certaintyFor(
+  band: { earliest: string; latest: string | null } | null,
+  windowEndIso?: string,
+): AlertPackage['certainty'] {
+  if (band === null) return 'Possible';
+  if (band.latest === null) {
+    // A null upper end means AT LEAST ONE configuration never closes the route, not that
+    // none does. Reading it as "never cut" put the strongest value on the widest possible
+    // band: all four published routes carry `latest: null` only because `all-100m` — the
+    // most fragile configuration, single flat 100 m buffer — never closes them, while the
+    // other eleven give departures around 17:36. The band spans [17:36, never).
+    //
+    // It is only unanimous when the pessimistic end is itself unbounded, which is what
+    // `buildEgress` pins to the window end when no configuration closes the route. Then
+    // every assumption agrees and 'Likely' is earned. Otherwise the band is unbounded and
+    // the function's own width rule already says what an unbounded width is.
+    const unanimous = windowEndIso !== undefined && band.earliest === windowEndIso;
+    return unanimous ? 'Likely' : 'Possible';
+  }
+  const widthHours = (Date.parse(band.latest) - Date.parse(band.earliest)) / 3_600_000;
+  if (widthHours <= 2) return 'Likely';
+  return 'Possible';
+}
+
+/**
+ * CAP severity describes the HAZARD, not our confidence and not how hard the decision was.
+ *
+ * Mapping it off the instruction instead — "we could not route them, so Extreme" — reads
+ * plausibly and gets the semantics wrong: it reports our own uncertainty as the fire's
+ * severity, and it inflates the hazard exactly when the fire may be least threatening to
+ * that particular pocket. Certainty is the field for how sure we are, and it is set from
+ * the band above.
+ *
+ * Measured off the mask: a pocket the fire reaches within the window is Extreme, one it
+ * does not is Severe. With no node field available the hazard is assumed real, because
+ * under-reporting severity is the direction that gets people killed.
+ */
+export function severityFor(fireReaches: boolean): AlertPackage['severity'] {
+  return fireReaches ? 'Extreme' : 'Severe';
+}
+
+export interface AlertsOptions extends EgressOptions {
+  sender?: CapSenderConfig;
+  /** Pockets to emit for. Defaults to the egress pockets. */
+  pocketIds?: string[];
+}
+
+export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
+  const built = buildEgress(options);
+  const sender = options.sender ?? DEFAULT_SENDER;
+  const atMs = Date.parse(built.response.at);
+  const clock = built.response.assumptions;
+
+  // The name checks run against the same road data the route was built from, not a
+  // re-read of it, so a name and its geometry cannot come from different versions.
+  const context = loadContext(options.graphPath);
+  const graph = context.graph;
+  // Settlements are the places a sentence may name as a destination. They resolve
+  // outside the road graph because a village is not a road.
+  const places: Place[] = context.settlements.map((s) => ({
+    id: s.id, name: s.name, lat: s.lat, lon: s.lon,
+  }));
+  const nodeCut = context.sweep.nodeCutByConfig.get(NOMINAL_ID);
+
+  const packages: AlertPackage[] = [];
+  const rejected: RejectedCandidate[] = [];
+  const ledger: LedgerEntry[] = [];
+  const byPocket = new Map<string, Settlement>();
+
+  for (const pocketEgress of built.response.pockets) {
+    const settlement = settlementFor(pocketEgress.pocketId, options.graphPath);
+    if (!settlement) continue;
+    byPocket.set(pocketEgress.pocketId, settlement);
+
+    // The route the message is about: among those the pocket verdict accepts, the one
+    // with the latest pessimistic departure.
+    //
+    // Filtering on the engine's own `usable` flag rather than re-deriving it here. The
+    // two used to be computed separately and disagreed: the verdict withdraws a route
+    // when its band, minus clearance and delay, has passed, while this file only checked
+    // the band — so for a window as long as the clearance there could be a CAP sentence
+    // telling people to leave for a pocket the same response marked `no_verified_action`.
+    // A pocket the engine has no observation for has no route to recommend, whatever its
+    // bands say. Before anything had arrived the bands were unbounded and every route
+    // passed the gate, so this used to compose an evacuation sentence naming a real road,
+    // out of no data at all. The verdict is the engine's statement about that, and it is
+    // read here rather than re-derived.
+    const usableRoutes = (pocketEgress.verdict === 'not_yet_observed' ? [] : pocketEgress.routes)
+      .filter((r) => r.usable)
+      .sort((a, b) => Date.parse(b.lastSafeDeparture!.earliest) - Date.parse(a.lastSafeDeparture!.earliest));
+    const chosen = usableRoutes[0] ?? null;
+
+    // Read off the mask, once per pocket: does the fire reach this village within the
+    // modelled window at all? It drives both the instruction and the severity.
+    const pocketNode = nearestNode(graph, { lat: settlement.lat, lon: settlement.lon });
+    const fireReaches =
+      pocketNode === null || nodeCut === undefined ? true : Number.isFinite(nodeCut[pocketNode]);
+
+    // `fireReaches` is a whole-window fact about the fire, not about what was known at
+    // the cursor. So a pocket the fire never reaches would otherwise be told "no action is
+    // required" at a cursor where nothing has been reported at all — the same all-clear
+    // from absent data that the verdict exists to prevent, arriving through a second
+    // branch. Where nothing has been observed, nothing can be declared safe.
+    const instruction =
+      pocketEgress.verdict === 'not_yet_observed'
+        ? 'no_verified_action'
+        : instructionFor(chosen, atMs, fireReaches);
+    const template = templateFor(instruction);
+
+    const values = {
+      pocket: settlement.name,
+      road: roadNameOf(chosen, graph),
+      destination: chosen?.destination ?? '',
+    };
+
+    // A template that names a road needs one. Substituting an empty string produces a
+    // grammatical sentence with a hole in it — "Leave Bédar now via  towards Lubrín" —
+    // and every existing check passes it, because the placeholder was filled. Presence
+    // of the value, not just absence of the placeholder, is what has to be verified.
+    if (template.namesRoad && values.road.trim().length === 0) {
+      rejected.push({
+        at: built.response.at,
+        pocketId: settlement.id,
+        instruction,
+        language: languagesFor(settlement)[0],
+        text: '(not composed)',
+        reason: 'unresolved_name',
+        detail: 'the recommended route carries no named road, so the sentence would name nothing',
+      });
+      continue;
+    }
+
+    for (const language of languagesFor(settlement)) {
+      const text = fillTemplate(template, language, values);
+
+      // A sentence that still holds a placeholder has a missing value, which is a bug in
+      // the caller rather than bad data; rejecting it keeps the invariant that what
+      // ships is always a complete, approved sentence.
+      const leftover = unresolvedPlaceholders(text);
+      if (leftover.length > 0) {
+        rejected.push({
+          at: built.response.at, pocketId: settlement.id, instruction, language, text,
+          // A missing value is a bug in this file, not a finding about the fire. Reporting
+          // it as `no_evidence` told a reviewer the data did not support the sentence,
+          // which sends them to the wrong place entirely.
+          reason: 'incomplete_template',
+          detail: `template left ${leftover.join(', ')} unfilled`,
+        });
+        continue;
+      }
+
+      const names = template.namesRoad
+        ? [{ text: values.road }, { text: values.destination }].filter((n) => n.text.length > 0)
+        : [];
+      const outcome = verifySentence(
+        { text, names, routeSegmentIds: chosen?.segmentIds ?? [] },
+        graph,
+        places,
+      );
+      if (outcome.rejection) {
+        rejected.push({
+          at: built.response.at, pocketId: settlement.id, instruction, language, text,
+          reason: outcome.rejection.reason, detail: outcome.rejection.detail,
+        });
+        continue;
+      }
+
+      packages.push({
+        id: capIdentifier(settlement.id, built.response.at, instruction),
+        pocketId: settlement.id,
+        pocketName: settlement.name,
+        at: built.response.at,
+        instruction,
+        language,
+        text,
+        resolvedNames: outcome.resolved,
+        urgency: template.urgency,
+        severity: severityFor(fireReaches),
+        certainty: certaintyFor(chosen?.lastSafeDeparture ?? null, built.diagnostics.windowEnd),
+        area: settlementArea(settlement),
+        departure: chosen?.lastSafeDeparture ?? null,
+      });
+    }
+
+    ledger.push({
+      id: `ledger-${settlement.id}-${built.response.at}`,
+      at: built.response.at,
+      recordedAt: new Date().toISOString(),
+      pocketId: settlement.id,
+      recommendation: instruction,
+      // The evidence has to describe the recommendation that was actually made. It was
+      // keyed off whether a route existed rather than off the instruction, so a ledger
+      // entry reading `no_verified_action` could carry the line "recommended Los
+      // Gallardos: 17.5 km, 55 min" — the auditable artifact disagreeing with itself,
+      // and in the encouraging direction.
+      evidence: [
+        instruction === 'no_action'
+          ? 'the fire does not reach this pocket within the modelled window'
+          : pocketEgress.verdict === 'not_yet_observed'
+            ? // Distinguishing this from the line below matters: "no route survived the
+              // sweep" asserts a search that came up empty, and auditing it against a
+              // response that lists four routes would read as the ledger contradicting
+              // itself. Nothing was searched, because nothing had been reported.
+              'no detection had arrived at this cursor, so no route could be assessed'
+            : chosen === null
+              ? 'no route survived the sweep from this pocket'
+            : instruction === 'no_verified_action'
+              ? `a route exists to ${chosen.destination} (${chosen.distanceKm} km, ${chosen.travelMinutes} min, worst road ${chosen.slowestHighway}) but its pessimistic departure has passed`
+              : `recommended ${chosen.destination}: ${chosen.distanceKm} km, ${chosen.travelMinutes} min, worst road ${chosen.slowestHighway}`,
+        `departure band ${chosen?.lastSafeDeparture ? `${chosen.lastSafeDeparture.earliest} .. ${chosen.lastSafeDeparture.latest ?? 'never closes inside the window'}` : 'none'}`,
+        chosen?.lastSafeDeparture ? `basis: ${chosen.lastSafeDeparture.basis}` : 'basis: n/a',
+        chosen?.clearanceMinutes != null
+          ? 'clearance at the tightest point: ' +
+            `${chosen.clearanceMinutes} min ` +
+            `(${settlement.population ?? 'unknown'} residents at ` +
+            `${ASSUMPTIONS.mobileFraction} mobile ÷ ${ASSUMPTIONS.vehicleOccupancy} per vehicle)`
+          : 'clearance: not computed',
+        `detections ${built.diagnostics.detections}; persistent-heat polygons ${built.diagnostics.staticHeat.polygons}, detections removed ${built.diagnostics.staticHeat.removed}`,
+      ],
+      inputs: {
+        mobileFraction: clock.mobileFraction,
+        vehicleOccupancy: clock.vehicleOccupancy,
+        departureDelayMinutes: clock.departureDelayMinutes,
+        population: settlement.population ?? 'unknown',
+        clearanceMinutes: chosen?.clearanceMinutes ?? 'unknown',
+      },
+      rejected: [],
+    });
+  }
+
+  // Rejections are per pocket, so they are attached to the ledger entry that produced them.
+  for (const entry of ledger) {
+    entry.rejected = rejected.filter((r) => r.pocketId === entry.pocketId);
+  }
+
+  // CAP is one <alert> per pocket, one <info> per language; a multi-pocket send is
+  // several documents, because <alert> is the document root.
+  const documents = new Map<string, string>();
+  const validation: Record<string, ReturnType<typeof validateCapSemantics>> = {};
+  for (const [pocketId, pocketPackages] of groupByPocket(packages)) {
+    const settlement = byPocket.get(pocketId);
+    if (!settlement) continue;
+    const first = pocketPackages[0];
+    const input = {
+      identifier: capIdentifier(pocketId, first.at, first.instruction),
+      sender,
+      sentMs: atMs,
+      source: `ojo-de-fuego replay ${built.diagnostics.scenario}`,
+      packages: pocketPackages,
+      area: settlementArea(settlement),
+      eventName: 'Incendio forestal / Wildfire',
+    };
+    const xml = emitCap(input);
+    documents.set(pocketId, xml);
+    validation[pocketId] = validateCapSemantics(input, xml);
+  }
+
+  return {
+    response: {
+      provenance: built.response.provenance,
+      at: built.response.at,
+      cap: sender,
+      packages,
+      rejected,
+    },
+    documents,
+    ledger,
+    diagnostics: {
+      emitter: {
+        identifierSeed: built.response.fireId ?? 'unknown',
+        accepted: packages.length,
+        rejected: rejected.length,
+        validation,
+      },
+    },
+  };
+}
+
+/**
+ * The road named in the sentence: the first significant named road on the route, walking
+ * outward from the pocket.
+ *
+ * "First significant" rather than "first" or "longest", because both of those name the
+ * wrong road. The first named edge out of a village is a residential street — "leave via
+ * Calle Llanos" — which is true and useless to someone standing in Bédar. The longest is
+ * wherever the route spends its time, which on a 25 km route to another town is a road
+ * near the far end: that produced "Leave Bédar via Carretera de Turre a Mojácar towards
+ * Mojácar".
+ *
+ * What a person needs is the road they walk out to and join. So: walk from the pocket,
+ * skip the village streets, and take the first named road of a through class. Falls back
+ * to the first named edge of any class when the route never reaches one, and returns
+ * empty when the route has no named edge at all — which the caller treats as a rejection
+ * rather than composing a sentence with a hole in it.
+ *
+ * Taken from the route the model actually selected, so the name and the geometry cannot
+ * disagree, which is what makes the passability check meaningful rather than circular.
+ */
+const THROUGH_CLASSES = new Set(['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified']);
+
+function roadNameOf(route: { segmentIds: string[] } | null, graph: RoadGraph): string {
+  if (route === null) return '';
+  const byId = new Map(graph.edges.map((e) => [e.id, e]));
+  let fallback = '';
+  for (const id of route.segmentIds) {
+    const edge = byId.get(id);
+    if (!edge?.name) continue;
+    if (fallback === '') fallback = edge.name;
+    if (THROUGH_CLASSES.has(edge.highway)) return edge.name;
+  }
+  return fallback;
+}
+
+/**
+ * The pocket outline.
+ *
+ * The hull of the settlement's buildings when the Catastro fixture is present, which is
+ * what defines where the pocket actually is. Failing that, a 400 m box about the village
+ * point — a placeholder that will draw a square over whatever happens to be nearby, and
+ * which is reported as a placeholder rather than passed off as the pocket's extent.
+ */
+function settlementArea(settlement: Settlement): LatLon[] {
+  const geometry = loadPocketGeometry().get(settlement.id);
+  if (geometry && geometry.outline.length >= 4) return geometry.outline;
+  const d = 0.004;
+  return [
+    { lat: settlement.lat - d, lon: settlement.lon - d },
+    { lat: settlement.lat - d, lon: settlement.lon + d },
+    { lat: settlement.lat + d, lon: settlement.lon + d },
+    { lat: settlement.lat + d, lon: settlement.lon - d },
+    { lat: settlement.lat - d, lon: settlement.lon - d },
+  ];
+}
+
+function settlementFor(pocketId: string, graphPath?: string): Settlement | undefined {
+  return loadContext(graphPath).settlements.find((s) => s.id === pocketId);
+}

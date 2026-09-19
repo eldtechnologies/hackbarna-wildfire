@@ -3,8 +3,11 @@ import { SERVER_HOST, SERVER_PORT } from './config';
 import { getFires } from './providers';
 import { getInfrastructure } from './infrastructure';
 import { getThreats } from './threats';
+import { engineRouter } from './engine/routes';
 
 const app = express();
+
+app.use(engineRouter());
 
 app.get('/api/health', (_req, res) => {
   res.json({
