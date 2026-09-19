@@ -70,13 +70,15 @@ export function createHotspotPanel(
     const lat = `${Math.abs(hotspot.position.lat).toFixed(4)} ${hotspot.position.lat >= 0 ? 'N' : 'S'}`;
     const lon = `${Math.abs(hotspot.position.lon).toFixed(4)} ${hotspot.position.lon >= 0 ? 'E' : 'W'}`;
     body.replaceChildren(
-      row('DETECTED', formatUtc(hotspot.detectedAt)),
+      row('DETECTED', hotspot.detectedAt ? formatUtc(hotspot.detectedAt) : 'UNKNOWN'),
       row(
         'CONFIDENCE',
-        `${Math.round(hotspot.confidence * 100)}% ${confidenceLabel(hotspot.confidence)}`,
+        hotspot.confidence != null
+          ? `${Math.round(hotspot.confidence * 100)}% ${confidenceLabel(hotspot.confidence)}`
+          : 'UNKNOWN',
       ),
-      row('SATELLITE', hotspot.satellite),
-      row('FRP', `${hotspot.frpMw.toFixed(1)} MW`),
+      row('SATELLITE', hotspot.satellite ?? 'UNKNOWN'),
+      row('FRP', hotspot.frpMw != null ? `${hotspot.frpMw.toFixed(1)} MW` : 'UNMEASURED'),
       row('POSITION', `${lat} / ${lon}`),
       row('CLUSTER', cluster ? (cluster.name ?? cluster.id) : 'UNCLUSTERED'),
     );

@@ -16,7 +16,7 @@ import {
 import type { FireCluster, FiresResponse, Hotspot } from '../../shared/fires';
 import { fetchFires } from '../data/api';
 import { createHotspotPanel } from '../hud/hotspotPanel';
-import { isLayerVisible, onLayerVisibilityChanged } from './registry';
+import { isLayerVisible, onVisibilityChanged } from './registry';
 
 // Poll cadence. MTG hotspot cadence is ~10 min live; replay snapshots are
 // static per request so we refresh faster to keep the demo responsive.
@@ -140,6 +140,8 @@ export function createFireLayer(
 
     const hotspotsVisible = isLayerVisible('hotspots');
     for (const [index, hotspot] of data.hotspots.entries()) {
+      // An unmeasured FRP (null) renders as the smallest, coolest marker.
+      const frpMw = hotspot.frpMw ?? 0;
       const entity = viewer.entities.add({
         id: `hotspot-${hotspot.id}`,
         show: hotspotsVisible,
@@ -148,8 +150,8 @@ export function createFireLayer(
           hotspot.position.lat,
         ),
         point: {
-          pixelSize: pulsingSize(frpBaseSize(hotspot.frpMw), index * 0.6),
-          color: frpColor(hotspot.frpMw),
+          pixelSize: pulsingSize(frpBaseSize(frpMw), index * 0.6),
+          color: frpColor(frpMw),
           outlineColor:
             selectedId === hotspot.id
               ? COLOR_SELECTED
@@ -183,14 +185,18 @@ export function createFireLayer(
     }
   }
 
-  onLayerVisibilityChanged('hotspots', (visible) => {
-    for (const entity of hotspotEntities.values()) {
-      entity.show = visible;
+  onVisibilityChanged((layer) => {
+    if (layer === 'hotspots') {
+      const visible = isLayerVisible('hotspots');
+      for (const entity of hotspotEntities.values()) {
+        entity.show = visible;
+      }
     }
-  });
-  onLayerVisibilityChanged('clusters', (visible) => {
-    for (const entity of clusterEntities.values()) {
-      entity.show = visible;
+    if (layer === 'clusters') {
+      const visible = isLayerVisible('clusters');
+      for (const entity of clusterEntities.values()) {
+        entity.show = visible;
+      }
     }
   });
 

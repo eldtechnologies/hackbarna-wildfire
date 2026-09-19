@@ -2,14 +2,40 @@ import 'cesium/Build/Cesium/Widgets/widgets.css';
 import './style.css';
 import { createGlobeViewer } from './globe/viewer';
 import { initHud } from './hud/hud';
+import { initFirePanels } from './hud/firePanels';
+import { FireLayer } from './fires/fireLayer';
 import { createFireLayer } from './layers/fireLayer';
+import { fetchFires } from './data/api';
 
-const container = document.getElementById('globe');
-const hudRoot = document.getElementById('hud');
-if (!container || !hudRoot) {
+const globeEl = document.getElementById('globe');
+const hudEl = document.getElementById('hud');
+if (!globeEl || !hudEl) {
   throw new Error('Missing #globe or #hud root element');
 }
+const container = globeEl;
+const hudRoot = hudEl;
 
 const viewer = createGlobeViewer(container);
 const hud = initHud(viewer, hudRoot);
-createFireLayer(viewer, hudRoot, hud.setModeBadge);
+const fireLayer = new FireLayer(viewer);
+initFirePanels(fireLayer, hudRoot);
+// Hotspot + cluster controller. Polls /api/fires on its own cadence and
+// drives the provenance badge. Unifying its store with loadFires is planned
+// in docs/work-plan.md.
+createFireLayer(viewer, hudRoot, hud.setMode);
+
+async function loadFires(): Promise<void> {
+  try {
+    const response = await fetchFires();
+    hud.setMode(response.provenance);
+    fireLayer.setData(response);
+  } catch (err) {
+    const banner = document.createElement('div');
+    banner.className = 'hud-error';
+    banner.textContent = 'FIRE DATA UNAVAILABLE';
+    hudRoot.appendChild(banner);
+    throw err;
+  }
+}
+
+void loadFires();

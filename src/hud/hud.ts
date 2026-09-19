@@ -10,6 +10,11 @@ import { LAYERS, isLayerVisible, setLayerVisible } from '../layers/registry';
 // HUD shell: corner brackets, title, UTC clock, telemetry, layer toggles.
 // Pure DOM overlay on top of the Cesium canvas.
 
+export interface HudHandle {
+  /** Update the LIVE/REPLAY badge from the API response provenance. */
+  setMode: (mode: 'live' | 'replay') => void;
+}
+
 function el(tag: string, className = '', text = ''): HTMLElement {
   const node = document.createElement(tag);
   node.className = className;
@@ -22,7 +27,7 @@ function formatCoordinate(deg: number, pos: string, neg: string): string {
   return `${Math.abs(deg).toFixed(4).padStart(7, '0')} ${hemi}`;
 }
 
-export function initHud(viewer: Viewer, root: HTMLElement): { setModeBadge: (provenance: 'live' | 'replay') => void } {
+export function initHud(viewer: Viewer, root: HTMLElement): HudHandle {
   for (const corner of ['tl', 'tr', 'bl', 'br']) {
     root.appendChild(el('div', `bracket bracket-${corner}`));
   }
@@ -32,21 +37,13 @@ export function initHud(viewer: Viewer, root: HTMLElement): { setModeBadge: (pro
   title.appendChild(el('span', 'hud-title-main', 'OJO DE FUEGO'));
   title.appendChild(el('span', 'hud-title-sub', 'WILDFIRE INTELLIGENCE / IBERIA'));
   const status = el('div', 'hud-status');
-  const modeBadge = el('span', 'hud-badge hud-badge-replay', 'REPLAY');
+  const modeBadge = el('span', 'hud-badge', '---');
   const clock = el('span', 'hud-clock');
   status.appendChild(modeBadge);
   status.appendChild(clock);
   header.appendChild(title);
   header.appendChild(status);
   root.appendChild(header);
-
-  // Provenance comes from the fire layer controller once the first fetch
-  // resolves. Until then the badge stays in its neutral "connecting" look.
-  const setModeBadge = (provenance: 'live' | 'replay') => {
-    modeBadge.textContent = provenance.toUpperCase();
-    modeBadge.classList.toggle('hud-badge-live', provenance === 'live');
-    modeBadge.classList.toggle('hud-badge-replay', provenance === 'replay');
-  };
 
   const telemetry = el('div', 'hud-telemetry');
   const cursorLine = el('div', '', 'CUR -------- / --------');
@@ -55,8 +52,8 @@ export function initHud(viewer: Viewer, root: HTMLElement): { setModeBadge: (pro
   telemetry.appendChild(heightLine);
   root.appendChild(telemetry);
 
-  const layersPanel = el('div', 'hud-layers');
-  layersPanel.appendChild(el('div', 'hud-layers-title', 'LAYERS'));
+  const layersPanel = el('div', 'hud-panel hud-layers');
+  layersPanel.appendChild(el('div', 'hud-panel-title', 'LAYERS'));
   for (const layer of LAYERS) {
     const row = el('label', 'hud-layer-row');
     const box = document.createElement('input');
@@ -95,5 +92,11 @@ export function initHud(viewer: Viewer, root: HTMLElement): { setModeBadge: (pro
     cursorLine.textContent = `CUR ${lat} / ${lon}`;
   }, ScreenSpaceEventType.MOUSE_MOVE);
 
-  return { setModeBadge };
+  return {
+    setMode(mode) {
+      modeBadge.textContent = mode.toUpperCase();
+      // Live gets the cyan accent; replay keeps the default amber.
+      modeBadge.classList.toggle('hud-badge-live', mode === 'live');
+    },
+  };
 }

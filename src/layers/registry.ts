@@ -1,6 +1,5 @@
-// Layer registry. Visibility flags for the globe layers plus change listeners
-// so a layer controller can show/hide its Cesium primitives when the HUD
-// checkbox flips.
+// Layer registry: shared visibility flags for globe layers plus change
+// notification so layers can react to HUD toggles.
 
 export type LayerId =
   | 'hotspots'
@@ -19,29 +18,23 @@ export const LAYERS: { id: LayerId; label: string }[] = [
 
 const visibility = new Map<LayerId, boolean>(LAYERS.map((l) => [l.id, true]));
 
-type VisibilityListener = (visible: boolean) => void;
+type VisibilityListener = (id: LayerId) => void;
+const listeners = new Set<VisibilityListener>();
 
-const listeners = new Map<LayerId, Set<VisibilityListener>>();
+/** Fires when a layer's visibility is toggled from the HUD. */
+export function onVisibilityChanged(listener: VisibilityListener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
 
 export function isLayerVisible(id: LayerId): boolean {
   return visibility.get(id) ?? true;
 }
 
 export function setLayerVisible(id: LayerId, visible: boolean): void {
+  if (visibility.get(id) === visible) return;
   visibility.set(id, visible);
-  for (const listener of listeners.get(id) ?? []) {
-    listener(visible);
-  }
-}
-
-export function onLayerVisibilityChanged(
-  id: LayerId,
-  listener: VisibilityListener,
-): void {
-  let set = listeners.get(id);
-  if (!set) {
-    set = new Set();
-    listeners.set(id, set);
-  }
-  set.add(listener);
+  for (const listener of listeners) listener(id);
 }
