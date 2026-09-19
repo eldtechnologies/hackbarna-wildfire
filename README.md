@@ -20,6 +20,15 @@ Starts the Vite client on http://localhost:5173 and the Express proxy on http://
 Other scripts: `bun run build` (production build), `bun run typecheck` (client + server type check),
 `bun run test` (server unit tests, Node's built-in runner).
 
+## Infrastructure + threat analysis
+
+Bundled infrastructure (hospitals, schools, towns, power lines) lives in `data/infrastructure/*.geojson` and is committed to the repo. Regenerate with `node scripts/fetch-infrastructure.mjs` (needs network). Sources: Generalitat de Catalunya open data (equipaments, caps de municipi) and OpenStreetMap high-voltage power lines via the Overpass API, attribution in each file's `properties`.
+
+API endpoints:
+
+- `GET /api/infrastructure`: all bundled infrastructure assets (point assets + power line paths).
+- `GET /api/threats?fireId=<clusterId>`: server-side turf.js analysis. For the fire's perimeter, lists every asset inside the perimeter, inside the 5/10/20 km buffer rings, or inside the projected spread corridor, with per-asset distance and category.
+
 ## Data modes
 
 The server has two data sources, selected with `DATA_MODE`:

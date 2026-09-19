@@ -1,10 +1,13 @@
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import './style.css';
+import { Cartesian3 } from 'cesium';
 import { createGlobeViewer } from './globe/viewer';
 import { initHud } from './hud/hud';
 import { initFirePanels } from './hud/firePanels';
 import { FireLayer } from './fires/fireLayer';
 import { createFireLayer } from './layers/fireLayer';
+import { InfrastructureLayer } from './layers/infrastructure';
+import { FireSelectionLayer } from './layers/fireSelection';
 import { fetchFires } from './data/api';
 
 const globeEl = document.getElementById('globe');
@@ -22,6 +25,31 @@ initFirePanels(fireLayer, hudRoot);
 // Hotspot + cluster controller. Polls /api/fires on its own cadence and
 // drives the provenance badge.
 createFireLayer(viewer, hudRoot, hud.setMode);
+
+const threatPanel = document.createElement('div');
+threatPanel.className = 'threat-panel';
+hudRoot.appendChild(threatPanel);
+
+new InfrastructureLayer(viewer.scene, (asset) => {
+  viewer.camera.flyTo({
+    destination: Cartesian3.fromDegrees(
+      asset.position.lon,
+      asset.position.lat,
+      15_000,
+    ),
+    duration: 1.2,
+  });
+});
+
+// Selecting a fire's pick marker also selects it in the perimeter layer, so
+// the spread ghost and scrubber follow the threat analysis.
+new FireSelectionLayer(viewer, threatPanel, (fireId) => {
+  if (fireId) {
+    fireLayer.select(fireId, { flyTo: true });
+  } else {
+    fireLayer.deselect();
+  }
+});
 
 async function loadFires(): Promise<void> {
   try {
