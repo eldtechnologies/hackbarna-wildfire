@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "concurrently -k \"npm run server\" \"npm run client\"",
     "client": "vite",
-    "server": "tsx watch server/index.ts",
+    "server": "tsx watch --env-file-if-exists=.env server/index.ts",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.server.json"

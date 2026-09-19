@@ -26,4 +26,12 @@ The server has two data sources, selected with `DATA_MODE`:
 - `replay` (default): serves a cached snapshot from `data/snapshots/` (set `REPLAY_SNAPSHOT` to pick the file). Works with no keys and no network.
 - `live`: calls the Deepfire API (`DEEPFIRE_BASE_URL`, `DEEPFIRE_API_KEY`) and normalizes the response. On any failure it transparently falls back to the replay snapshot.
 
+Put keys in a `.env` file at the project root (gitignored, auto-loaded by `npm run server`):
+
+```bash
+DATA_MODE=live
+DEEPFIRE_BASE_URL=https://...
+DEEPFIRE_API_KEY=...
+```
+
 Every `/api/fires` response carries a `provenance` field (`live` or `replay`) so the HUD can show which source served the data. The Deepfire payload shapes are mocked from the public API description in `server/providers/normalize.ts`; adjust that one file when the real spec arrives.
