@@ -76,12 +76,21 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
   /**
    * Memoised responses, because the build is deterministic.
    *
-   * Every engine request runs the twelve-configuration sweep on the event loop — measured
-   * at 210-260 ms of CPU with no coalescing, so eight concurrent callers serialise to
-   * 1.8 s and one client at a few requests a second stalls `/api/fires` and `/api/health`
-   * with it. The routes are unauthenticated and the server binds every interface, so the
-   * cursor is the only thing that varies and it is a small integer space a scrubber
+   * Every engine request runs the twelve-configuration sweep on the event loop, over each
+   * swept assumption profile — measured at roughly 200-260 ms of CPU with no coalescing,
+   * so eight concurrent callers serialise to about 2 s and one client at a few requests a
+   * second stalls `/api/fires` and `/api/health` with it. The routes are unauthenticated,
+   * so the cursor is the only thing that varies and it is a small integer space a scrubber
    * revisits constantly.
+   *
+   * Reachability, stated accurately rather than as the reassurance that used to be here:
+   * `SERVER_HOST` defaults to `127.0.0.1` (server/config.ts), so by default this is
+   * loopback-only and the exposure is a local process. Setting `HOST=0.0.0.0` — which that
+   * file documents as the way to show the demo from a phone — puts unauthenticated,
+   * unthrottled, ~250 ms-of-event-loop routes on the LAN. The earlier wording here claimed
+   * the server "binds every interface" unconditionally, which is not true by default and
+   * invites a reader to misjudge the exposure in whichever direction they were already
+   * leaning.
    *
    * Bounded so a hostile cursor walk cannot use the cache as a memory amplifier: the
    * scrubber's own path through the window is tens of entries, and a producer that

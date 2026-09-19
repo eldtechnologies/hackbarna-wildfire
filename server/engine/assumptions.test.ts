@@ -149,3 +149,18 @@ test('the nominal table is the one the committed graph was built with', () => {
     'the sweep scales from this table, so it must be the table the committed travel times came from',
   );
 });
+
+test('a profile with an empty assumption table is refused at construction', () => {
+  // Every value check iterates what is present, so an empty table used to pass. It falls
+  // back to the committed nominal for every class — safe, but it makes the profile a no-op
+  // on that axis while still looking swept, which is the exact failure this change removes.
+  const base = ASSUMPTION_PROFILES[0];
+  assert.throws(
+    () => assertProfile({ ...base, id: 'bad', assumptions: { ...base.assumptions, speedByHighway: {} } }),
+    RangeError,
+  );
+  assert.throws(
+    () => assertProfile({ ...base, id: 'bad', assumptions: { ...base.assumptions, capacityPerHour: {} } }),
+    RangeError,
+  );
+});

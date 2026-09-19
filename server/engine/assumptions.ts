@@ -198,6 +198,17 @@ export function assertProfile(profile: AssumptionProfile): void {
   if (!Number.isFinite(assumptions.departureDelayMinutes) || assumptions.departureDelayMinutes < 0) {
     bad('departureDelayMinutes', assumptions.departureDelayMinutes);
   }
+  // Presence as well as value. Every check below iterates what is there, so an EMPTY table
+  // passed validation: it falls back to the committed nominal for every class, which is
+  // safe but silently makes the profile a no-op on that axis, and an axis that looks swept
+  // while doing nothing is the failure this whole change exists to remove. The guarantee
+  // used to live only in a test asserting about the validator rather than in the validator.
+  if (Object.keys(assumptions.speedByHighway).length === 0) {
+    throw new RangeError(`assumption profile "${id}" has an empty speed table`);
+  }
+  if (Object.keys(assumptions.capacityPerHour).length === 0) {
+    throw new RangeError(`assumption profile "${id}" has an empty capacity table`);
+  }
   for (const [highway, speed] of Object.entries(assumptions.speedByHighway)) {
     if (!Number.isFinite(speed) || speed <= 0) bad(`speed for ${highway}`, speed);
   }

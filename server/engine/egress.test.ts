@@ -548,3 +548,46 @@ test('the extreme is selected by value, not by the profile label', () => {
 
   assert.throws(() => extremesBy([], (e: { minutes: number }) => e.minutes), RangeError);
 });
+
+test('the published assumption tables are copies, not the objects the solver reads', () => {
+  // The response is memoised and re-served, and the speed table it used to share is the
+  // very table the solver scales travel times with — so an in-place edit through one
+  // response would have changed the road network every later request was solved on, not
+  // merely misprinted an assumption.
+  const first = buildEgress({}).response;
+  const solverTable = ctx.loaded.speedByHighway;
+
+  assert.notEqual(first.assumptions.speedByHighway, solverTable, 'the published table is its own object');
+  first.assumptions.speedByHighway.track = 999;
+  assert.notEqual(solverTable.track, 999, 'a write through the response reached the solver');
+
+  const second = buildEgress({}).response;
+  assert.equal(second.assumptions.speedByHighway.track, solverTable.track, 'the solver is unchanged');
+  for (const profile of second.profiles) {
+    const source = ASSUMPTION_PROFILES.find((p) => p.id === profile.id)!;
+    assert.notEqual(profile.assumptions.speedByHighway, source.assumptions.speedByHighway);
+    assert.notEqual(profile.assumptions.capacityPerHour, source.assumptions.capacityPerHour);
+  }
+});
+
+test('the published cut field is frozen, so a shared response cannot be edited in place', () => {
+  // Hoisting the segments into the context made every response hand out the same 29,834
+  // objects, which the per-request construction could not do. Freezing converts a silent
+  // process-wide corruption into a TypeError at the write.
+  const segments = buildEgress({}).response.segments;
+  assert.ok(segments.length > 0, 'fixture sanity: the field is served');
+  assert.throws(() => {
+    (segments[0] as { segmentId: string }).segmentId = 'rewritten';
+  }, TypeError);
+  assert.throws(() => {
+    (segments[0].evidenceHotspotIds as string[]).push('injected');
+  }, TypeError);
+});
+
+test('the frozen field is still serialisable and still identical between responses', () => {
+  // Freezing must not break anything a consumer does with the field — it is served as JSON.
+  const a = buildEgress({ atSeconds: 17 * 3600 }).response.segments;
+  const b = buildEgress({ atSeconds: 17 * 3600 }).response.segments;
+  assert.equal(a, b, 'the same frozen array is reused rather than rebuilt');
+  assert.equal(JSON.parse(JSON.stringify(a)).length, a.length, 'it survives serialisation');
+});

@@ -28,6 +28,12 @@ import type {
   TimeBand,
 } from '../../shared/egress';
 import type { LatLon } from '../../shared/fires';
+import {
+  ASSUMPTION_PROFILES,
+  NOMINAL_CAPACITY_PER_HOUR,
+  profileById,
+  withAssumedSpeeds,
+} from './assumptions';
 import { detectionsFromCapture, groupClustersIntoEvents, loadCapture, pickEventForWindow } from './capture';
 import { DEFAULT_GRAPH_PATH, loadGraph, nearestNode, type LoadedGraph } from './graph';
 import { subtractStaticHeatSources, type Detection } from './mask';
@@ -42,12 +48,6 @@ import {
   type Route,
 } from './solve';
 import { SWEEP_CONFIGS, basisFor, configLabel, sweepField } from './sweep';
-import {
-  ASSUMPTION_PROFILES,
-  NOMINAL_CAPACITY_PER_HOUR,
-  profileById,
-  withAssumedSpeeds,
-} from './assumptions';
 
 import { DEFAULT_LATENCY_SECONDS, LATENCY_SECONDS, fromEpochMs, resolveTimelineOrigin } from './time';
 
@@ -192,7 +192,7 @@ let cachedPath: string | null = null;
  * scrub frame for an identical answer.
  */
 function buildSegments(graph: RoadGraph, sweep: Context['sweep'], originMs: number): CutTime[] {
-  return graph.edges.map((edge, i) => {
+  const segments = graph.edges.map((edge, i) => {
     const cut = sweep.field.nominalCutAtSeconds[i];
     const earliest = sweep.field.earliestCutAtSeconds[i];
     const latest = sweep.field.latestCutAtSeconds[i];
@@ -221,6 +221,22 @@ function buildSegments(graph: RoadGraph, sweep: Context['sweep'], originMs: numb
       evidenceHotspotIds: sweep.field.nominalEvidence[i] ?? [],
     };
   });
+
+  // Frozen, all the way down, before it is shared.
+  //
+  // Hoisting this array into the context made every response hand out the SAME 29,834
+  // objects — verified by identity, and by an in-place edit through one response coming
+  // back out of the next build — where the previous code rebuilt them per request and so
+  // could not share them. The response is memoised and re-served on top of that, so a
+  // future in-place edit anywhere on the response path would persist for the process
+  // rather than for one answer. Freezing turns that from a silent corruption into a
+  // TypeError at the point of the write.
+  for (const segment of segments) {
+    Object.freeze(segment.evidenceHotspotIds);
+    if (segment.band) Object.freeze(segment.band);
+    Object.freeze(segment);
+  }
+  return Object.freeze(segments) as CutTime[];
 }
 
 /** Everything that does not depend on the cursor, built once. */
@@ -809,7 +825,16 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
     response: {
       provenance: 'replay',
       at: fromEpochMs(origin + cursor * 1000),
-      assumptions: { ...ASSUMPTIONS, speedByHighway: ctx.loaded.speedByHighway },
+      // Copied, not shared. `ctx.loaded.speedByHighway` is the very table the solver scales
+      // travel times with, and the response is memoised and re-served, so a consumer that
+      // touched it in place would not merely misprint an assumption — it would change the
+      // road network every later request is solved on. The `profiles` array below is copied
+      // for the same reason, and this line was the remaining hole.
+      assumptions: {
+        ...ASSUMPTIONS,
+        speedByHighway: { ...ctx.loaded.speedByHighway },
+        capacityPerHour: { ...ASSUMPTIONS.capacityPerHour },
+      },
       // Copied all the way down. Spreading only the top level leaves `speedByHighway` and
       // `capacityPerHour` as the very objects the solver reads at context load, and the
       // response is memoised and re-served — so a consumer that normalised a table in place
