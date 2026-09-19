@@ -29,10 +29,11 @@ async function fetchJson<T>(path: string): Promise<T> {
   }
 }
 
+// Live fetches have no event timeline, so atSeconds is ignored.
 export class LiveProvider implements FireDataProvider {
   readonly mode = 'live' as const;
 
-  async getFires(): Promise<FiresResponse> {
+  async getFires(_atSeconds?: number): Promise<FiresResponse> {
     if (!API_KEY) {
       throw new Error('DEEPFIRE_API_KEY is not set');
     }

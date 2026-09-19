@@ -13,9 +13,14 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-app.get('/api/fires', async (_req, res) => {
+app.get('/api/fires', async (req, res) => {
   try {
-    res.json(await getFires());
+    // ?at=<seconds> scrubs a recorded event timeline. Absent or invalid
+    // values serve the latest state (live edge).
+    const atRaw = req.query.at;
+    const atParsed = atRaw === '' ? NaN : Number(atRaw);
+    const atSeconds = Number.isFinite(atParsed) ? Math.max(0, atParsed) : undefined;
+    res.json(await getFires(atSeconds));
   } catch (err) {
     console.error('[api] /api/fires failed:', err);
     res.status(502).json({ error: 'fire data unavailable' });
