@@ -19,6 +19,7 @@ export interface RawHotspot {
   longitude: number;
   frp: number; // fire radiative power in MW
   confidence: number | 'low' | 'nominal' | 'high';
+  satellite?: string;
   acq_datetime: string;
   cluster_id?: string | number | null;
 }
@@ -84,6 +85,7 @@ export function normalize(
     frpMw: h.frp,
     confidence: normalizeConfidence(h.confidence),
     detectedAt: h.acq_datetime,
+    satellite: h.satellite ?? 'UNKNOWN',
     clusterId: h.cluster_id != null ? String(h.cluster_id) : null,
   }));
 

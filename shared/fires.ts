@@ -13,6 +13,7 @@ export interface Hotspot {
   frpMw: number; // fire radiative power, drives marker size and color
   confidence: number; // 0..1
   detectedAt: string; // ISO timestamp
+  satellite: string; // source satellite, e.g. 'MTG-I1'
   clusterId: string | null;
 }
 

@@ -22,7 +22,7 @@ function formatCoordinate(deg: number, pos: string, neg: string): string {
   return `${Math.abs(deg).toFixed(4).padStart(7, '0')} ${hemi}`;
 }
 
-export function initHud(viewer: Viewer, root: HTMLElement): void {
+export function initHud(viewer: Viewer, root: HTMLElement): { setModeBadge: (provenance: 'live' | 'replay') => void } {
   for (const corner of ['tl', 'tr', 'bl', 'br']) {
     root.appendChild(el('div', `bracket bracket-${corner}`));
   }
@@ -32,15 +32,21 @@ export function initHud(viewer: Viewer, root: HTMLElement): void {
   title.appendChild(el('span', 'hud-title-main', 'OJO DE FUEGO'));
   title.appendChild(el('span', 'hud-title-sub', 'WILDFIRE INTELLIGENCE / IBERIA'));
   const status = el('div', 'hud-status');
-  // Display only, not simulated: hardcoded until a data-mode card reads the
-  // server's DATA_MODE.
-  const modeBadge = el('span', 'hud-badge', 'REPLAY');
+  const modeBadge = el('span', 'hud-badge hud-badge-replay', 'REPLAY');
   const clock = el('span', 'hud-clock');
   status.appendChild(modeBadge);
   status.appendChild(clock);
   header.appendChild(title);
   header.appendChild(status);
   root.appendChild(header);
+
+  // Provenance comes from the fire layer controller once the first fetch
+  // resolves. Until then the badge stays in its neutral "connecting" look.
+  const setModeBadge = (provenance: 'live' | 'replay') => {
+    modeBadge.textContent = provenance.toUpperCase();
+    modeBadge.classList.toggle('hud-badge-live', provenance === 'live');
+    modeBadge.classList.toggle('hud-badge-replay', provenance === 'replay');
+  };
 
   const telemetry = el('div', 'hud-telemetry');
   const cursorLine = el('div', '', 'CUR -------- / --------');
@@ -88,4 +94,6 @@ export function initHud(viewer: Viewer, root: HTMLElement): void {
     const lon = formatCoordinate(CesiumMath.toDegrees(carto.longitude), 'E', 'W');
     cursorLine.textContent = `CUR ${lat} / ${lon}`;
   }, ScreenSpaceEventType.MOUSE_MOVE);
+
+  return { setModeBadge };
 }

@@ -1,16 +1,16 @@
 {
   "scenario": "castelltallat-2025",
   "hotspots": [
-    { "id": "hs-001", "latitude": 41.802, "longitude": 1.618, "frp": 118.4, "confidence": 0.97, "acq_datetime": "2025-07-15T14:02:00Z", "cluster_id": "cl-01" },
-    { "id": "hs-002", "latitude": 41.798, "longitude": 1.625, "frp": 96.2, "confidence": 0.93, "acq_datetime": "2025-07-15T14:01:00Z", "cluster_id": "cl-01" },
-    { "id": "hs-003", "latitude": 41.806, "longitude": 1.612, "frp": 74.8, "confidence": 0.88, "acq_datetime": "2025-07-15T13:58:00Z", "cluster_id": "cl-01" },
-    { "id": "hs-004", "latitude": 41.794, "longitude": 1.630, "frp": 61.5, "confidence": 0.85, "acq_datetime": "2025-07-15T13:55:00Z", "cluster_id": "cl-01" },
-    { "id": "hs-005", "latitude": 41.800, "longitude": 1.633, "frp": 55.0, "confidence": "high", "acq_datetime": "2025-07-15T13:52:00Z", "cluster_id": "cl-01" },
-    { "id": "hs-006", "latitude": 41.809, "longitude": 1.622, "frp": 42.7, "confidence": 0.79, "acq_datetime": "2025-07-15T13:50:00Z", "cluster_id": "cl-01" },
-    { "id": "hs-007", "latitude": 41.791, "longitude": 1.614, "frp": 33.9, "confidence": 0.74, "acq_datetime": "2025-07-15T13:47:00Z", "cluster_id": "cl-01" },
-    { "id": "hs-008", "latitude": 41.795, "longitude": 1.606, "frp": 22.4, "confidence": 0.68, "acq_datetime": "2025-07-15T13:44:00Z", "cluster_id": "cl-01" },
-    { "id": "hs-009", "latitude": 41.811, "longitude": 1.630, "frp": 15.1, "confidence": 0.61, "acq_datetime": "2025-07-15T13:40:00Z", "cluster_id": "cl-01" },
-    { "id": "hs-010", "latitude": 41.788, "longitude": 1.624, "frp": 8.6, "confidence": "nominal", "acq_datetime": "2025-07-15T13:36:00Z", "cluster_id": "cl-01" }
+    { "id": "hs-001", "latitude": 41.802, "longitude": 1.618, "frp": 118.4, "confidence": 0.97, "acq_datetime": "2025-07-15T14:02:00Z", "satellite": "MTG-I1", "cluster_id": "cl-01" },
+    { "id": "hs-002", "latitude": 41.798, "longitude": 1.625, "frp": 96.2, "confidence": 0.93, "acq_datetime": "2025-07-15T14:01:00Z", "satellite": "MTG-I1", "cluster_id": "cl-01" },
+    { "id": "hs-003", "latitude": 41.806, "longitude": 1.612, "frp": 74.8, "confidence": 0.88, "acq_datetime": "2025-07-15T13:58:00Z", "satellite": "MTG-I1", "cluster_id": "cl-01" },
+    { "id": "hs-004", "latitude": 41.794, "longitude": 1.630, "frp": 61.5, "confidence": 0.85, "acq_datetime": "2025-07-15T13:55:00Z", "satellite": "MTG-I1", "cluster_id": "cl-01" },
+    { "id": "hs-005", "latitude": 41.800, "longitude": 1.633, "frp": 55.0, "confidence": "high", "acq_datetime": "2025-07-15T13:52:00Z", "satellite": "MTG-I1", "cluster_id": "cl-01" },
+    { "id": "hs-006", "latitude": 41.809, "longitude": 1.622, "frp": 42.7, "confidence": 0.79, "acq_datetime": "2025-07-15T13:50:00Z", "satellite": "MTG-I1", "cluster_id": "cl-01" },
+    { "id": "hs-007", "latitude": 41.791, "longitude": 1.614, "frp": 33.9, "confidence": 0.74, "acq_datetime": "2025-07-15T13:47:00Z", "satellite": "MTG-I1", "cluster_id": "cl-01" },
+    { "id": "hs-008", "latitude": 41.795, "longitude": 1.606, "frp": 22.4, "confidence": 0.68, "acq_datetime": "2025-07-15T13:44:00Z", "satellite": "MTG-I1", "cluster_id": "cl-01" },
+    { "id": "hs-009", "latitude": 41.811, "longitude": 1.630, "frp": 15.1, "confidence": 0.61, "acq_datetime": "2025-07-15T13:40:00Z", "satellite": "MTG-I1", "cluster_id": "cl-01" },
+    { "id": "hs-010", "latitude": 41.788, "longitude": 1.624, "frp": 8.6, "confidence": "nominal", "acq_datetime": "2025-07-15T13:36:00Z", "satellite": "MTG-I1", "cluster_id": "cl-01" }
   ],
   "clusters": [
     {
