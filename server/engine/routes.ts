@@ -17,22 +17,89 @@ import { buildEgress, loadContext } from './egress';
 import { buildAlerts } from './alerts';
 import { SWEEP_CONFIGS } from './sweep';
 
-export function engineRouter(): Router {
+export interface EngineRouterOptions {
+  /**
+   * How many memoised responses to keep. Configurable so the bound's behaviour is
+   * testable without walking 300 cursors through a full solve each.
+   */
+  cacheLimit?: number;
+}
+
+export function engineRouter(options: EngineRouterOptions = {}): Router {
   const router = Router();
 
+  /** Year 9999. Past this the CAP date pattern fails on the year's width. */
+  const MAX_AT_SECONDS = 253_402_300_799;
+
   /**
-   * Parse the cursor. Express hands `?at=1&at=2` through as an array, and
-   * `Number(['1','1'])` is NaN, so only a plain string is accepted.
+   * One error response shape for every engine route.
+   *
+   * A cursor the client got wrong is a client error and answers 400. It used to map to
+   * 400 on `/api/egress` only, because that route had its own branch; `/api/alerts` and
+   * `/api/cap` fell through to the generic catch and reported `at=-5` as a 502 with a
+   * stack trace, which says the server is broken when the request was.
+   */
+  const fail = (res: Response, err: unknown, fallback: string): void => {
+    if (err instanceof RangeError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    console.error(`[api] ${fallback}:`, err);
+    res.status(502).json({ error: fallback });
+  };
+
+  /**
+   * Parse the cursor: a canonical non-negative integer, or nothing at all.
+   *
+   * `undefined` means the client sent no `at` and gets the end of the window, which is
+   * the documented default. Every other shape is rejected rather than falling back,
+   * because the fallback is the most-informed state — the opposite of what a client
+   * asking for a malformed time intended.
    */
   const parseAt = (raw: unknown): number | undefined => {
-    if (typeof raw !== 'string' || raw === '') return undefined;
+    if (raw === undefined) return undefined;
+    if (typeof raw !== 'string') {
+      // Express hands `?at[]=1&at[]=2` through as an array. Silently falling back would
+      // serve the end of the window — the most-informed state — to a client that asked
+      // for something else, which is the opposite answer.
+      throw new RangeError('at must be a single value');
+    }
+    if (raw === '') return undefined;
+    // Canonical digits only: `Number()` also accepts '0x10', '1e5' and ' 42 ', so a
+    // cursor would silently mean something other than what the client wrote.
+    if (!/^\d+$/.test(raw)) throw new RangeError('at must be a non-negative integer number of seconds');
     const n = Number(raw);
-    if (!Number.isFinite(n)) return undefined;
-    // A negative cursor is rejected rather than quietly ignored. Falling back to the
-    // default would serve the most-informed state — the end of the window — to a client
-    // that asked for a time before the fire existed, which is the opposite answer.
-    if (n < 0) throw new RangeError('at must not be negative');
+    if (n > MAX_AT_SECONDS) throw new RangeError('at is beyond the representable range of a CAP timestamp');
     return n;
+  };
+
+  /**
+   * Memoised responses, because the build is deterministic.
+   *
+   * Every engine request runs the twelve-configuration sweep on the event loop — measured
+   * at 210-260 ms of CPU with no coalescing, so eight concurrent callers serialise to
+   * 1.8 s and one client at a few requests a second stalls `/api/fires` and `/api/health`
+   * with it. The routes are unauthenticated and the server binds every interface, so the
+   * cursor is the only thing that varies and it is a small integer space a scrubber
+   * revisits constantly.
+   *
+   * Bounded so a hostile cursor walk cannot use the cache as a memory amplifier: the
+   * scrubber's own path through the window is tens of entries, and a producer that
+   * exceeds the cap evicts oldest-first rather than growing.
+   */
+  const CACHE_LIMIT = options.cacheLimit ?? 256;
+  const egressCache = new Map<number | undefined, ReturnType<typeof buildEgress>>();
+  const alertsCache = new Map<number | undefined, ReturnType<typeof buildAlerts>>();
+  const memoise = <T>(cache: Map<number | undefined, T>, at: number | undefined, build: () => T): T => {
+    const hit = cache.get(at);
+    if (hit !== undefined) return hit;
+    const built = build();
+    if (cache.size >= CACHE_LIMIT) {
+      const oldest = cache.keys().next().value;
+      if (oldest !== undefined) cache.delete(oldest);
+    }
+    cache.set(at, built);
+    return built;
   };
 
   // Warm the context so the first scrub is not a twelve-second stall. The cold build
@@ -51,7 +118,9 @@ export function engineRouter(): Router {
   router.get('/api/egress', (req: Request, res: Response) => {
     try {
       const atSeconds = parseAt(req.query.at);
-      const built = buildEgress(atSeconds === undefined ? {} : { atSeconds });
+      const built = memoise(egressCache, atSeconds, () =>
+        buildEgress(atSeconds === undefined ? {} : { atSeconds }),
+      );
       // Only segments the fire reaches. A segment absent from this list was never cut
       // within the modelled window, which is a different statement from "not yet" and
       // is exactly the distinction the contract's nullable cutAt exists to make.
@@ -67,18 +136,13 @@ export function engineRouter(): Router {
         configurations: SWEEP_CONFIGS.map((c) => ({ id: c.id, label: c.label })),
       });
     } catch (err) {
-      if (err instanceof RangeError) {
-        res.status(400).json({ error: err.message });
-        return;
-      }
-      console.error('[api] /api/egress failed:', err);
-      res.status(502).json({ error: 'egress solve unavailable' });
+      fail(res, err, 'egress solve unavailable');
     }
   });
 
   router.get('/api/egress/field', (_req: Request, res: Response) => {
     try {
-      const built = buildEgress({});
+      const built = memoise(egressCache, undefined, () => buildEgress({}));
       res.json({
         provenance: built.response.provenance,
         origin: built.diagnostics.originIso,
@@ -89,23 +153,23 @@ export function engineRouter(): Router {
         totalSegments: built.response.segments.length,
       });
     } catch (err) {
-      console.error('[api] /api/egress/field failed:', err);
-      res.status(502).json({ error: 'cut field unavailable' });
+      fail(res, err, 'cut field unavailable');
     }
   });
 
   router.get('/api/alerts', (req: Request, res: Response) => {
     try {
       const atSeconds = parseAt(req.query.at);
-      const built = buildAlerts(atSeconds === undefined ? {} : { atSeconds });
+      const built = memoise(alertsCache, atSeconds, () =>
+        buildAlerts(atSeconds === undefined ? {} : { atSeconds }),
+      );
       res.json({
         ...built.response,
         ledger: built.ledger,
         diagnostics: built.diagnostics,
       });
     } catch (err) {
-      console.error('[api] /api/alerts failed:', err);
-      res.status(502).json({ error: 'alert package unavailable' });
+      fail(res, err, 'alert package unavailable');
     }
   });
 
@@ -120,7 +184,9 @@ export function engineRouter(): Router {
   router.get('/api/cap/:pocketId', (req: Request, res: Response) => {
     try {
       const atSeconds = parseAt(req.query.at);
-      const built = buildAlerts(atSeconds === undefined ? {} : { atSeconds });
+      const built = memoise(alertsCache, atSeconds, () =>
+        buildAlerts(atSeconds === undefined ? {} : { atSeconds }),
+      );
       const pocketId = String(req.params.pocketId);
       const xml = built.documents.get(pocketId);
       if (xml === undefined) {
@@ -144,8 +210,7 @@ export function engineRouter(): Router {
       res.type('application/xml; charset=utf-8');
       res.send(xml);
     } catch (err) {
-      console.error('[api] /api/cap failed:', err);
-      res.status(502).json({ error: 'CAP emission failed' });
+      fail(res, err, 'CAP emission failed');
     }
   });
 

@@ -111,6 +111,18 @@ export interface EgressRoute {
    * Band, not a point. Null when the route is already cut at this cursor.
    */
   lastSafeDeparture: TimeBand | null;
+  /**
+   * Whether this route survives the pessimistic gate at the cursor — the band's earliest
+   * end, minus the clearance at the bottleneck, minus the departure delay.
+   *
+   * Published so a consumer does not have to re-derive it. An earlier version left the
+   * message to recompute the gate with a weaker test than the pocket verdict used, which
+   * produced a window where the response said `no_verified_action` and the CAP sentence
+   * told people to leave.
+   */
+  usable: boolean;
+  /** Why not, in words, when `usable` is false. Null when it is true. */
+  unusableReason: string | null;
 }
 
 export interface PocketEgress {

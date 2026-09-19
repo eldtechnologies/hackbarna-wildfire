@@ -150,6 +150,21 @@ export function validateCapSemantics(input: CapAlertInput, xml: string): CapVali
   // Anything that survives escaping as a raw angle bracket means the escaper was bypassed.
   if (/<[a-zA-Z/]/.test(xml.replace(/<[^>]*>/g, ''))) problems.push('document contains unescaped markup outside tags');
 
+  // The schema's strictest rule, and the one the rest of this function was quietly
+  // missing: every date element must match its pattern exactly. An out-of-range cursor
+  // produces a five-digit year, which xmllint rejects with seven errors while this check
+  // returned ok — so the route that refuses to serve a document failing its own checks
+  // served one anyway. Schema validity is the thing being verified here; not checking
+  // the timestamps made the guard no guard at all.
+  const CAP_DATE = /^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d[-,+]\d\d:\d\d$/;
+  for (const tag of ['sent', 'effective', 'onset', 'expires']) {
+    for (const match of xml.matchAll(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'g'))) {
+      if (!CAP_DATE.test(match[1])) {
+        problems.push(`<${tag}> "${match[1]}" does not match the CAP date pattern`);
+      }
+    }
+  }
+
   const infos = (xml.match(/<info>/g) ?? []).length;
   if (infos !== input.packages.length) {
     problems.push(`${infos} <info> blocks for ${input.packages.length} language packages`);

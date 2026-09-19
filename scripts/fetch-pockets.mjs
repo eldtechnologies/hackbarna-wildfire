@@ -130,6 +130,9 @@ async function main() {
     const centre = utm30n(s.lat, s.lon);
     const seen = new Map();
     let boxes = 0;
+    // A failed box leaves buildings out of the hull and the count, so the pocket outline
+    // and the clearance figure both come from partial data. Counted, and the run fails.
+    const failedBoxes = [];
     const step = TILE_M;
     for (let dE = -HALF_SPAN_M; dE < HALF_SPAN_M; dE += step) {
       for (let dN = -HALF_SPAN_M; dN < HALF_SPAN_M; dN += step) {
@@ -142,6 +145,7 @@ async function main() {
           process.stdout.write(`\r  ${s.name.padEnd(15)} box ${String(boxes).padStart(2)}  ${String(seen.size).padStart(5)} buildings`);
         } catch (err) {
           console.warn(`\n  ${s.name}: box ${boxes} failed: ${err.message}`);
+          failedBoxes.push(err.message);
         }
         await sleep(DELAY_MS);
       }
@@ -163,10 +167,20 @@ async function main() {
       // Hull of the building centroids, in UTM30N. The engine converts on load, so the
       // fixture stays in the CRS the source speaks and no conversion error is baked in.
       hullUtm30n: hull,
+      failedBoxes: failedBoxes.length,
       centreUtm30n: [centre.E, centre.N],
       footprints: rings,
     });
     console.log(`  ${s.name.padEnd(15)} ${boxes} boxes -> ${rings.length} buildings, hull ${hull.length} points`);
+  }
+
+  const incomplete = out.settlements.filter((s) => s.failedBoxes > 0);
+  if (incomplete.length > 0) {
+    console.error(`[pockets] ${incomplete.length} settlement(s) had failed tiles; refusing to commit a partial fixture:`);
+    for (const s of incomplete) console.error(`  ${s.name}: ${s.failedBoxes} box(es) failed`);
+    console.error('[pockets] re-run when the service is available; the committed fixture is unchanged.');
+    process.exitCode = 1;
+    return;
   }
 
   mkdirSync(dirname(OUT), { recursive: true });

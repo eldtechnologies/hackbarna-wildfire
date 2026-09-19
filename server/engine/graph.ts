@@ -63,7 +63,21 @@ export function loadGraph(path: string = DEFAULT_GRAPH_PATH): LoadedGraph {
       dangling.push(row.id);
       continue;
     }
-    const shared = geometries[row.geometryIndex] ?? [];
+    const shared = geometries[row.geometryIndex];
+    if (!Array.isArray(shared) || shared.length < 2) {
+      // An out-of-range geometry index silently degraded to an empty polyline, which
+      // measures zero length and reports a drive across the county as instantaneous.
+      dangling.push(row.id);
+      continue;
+    }
+    if (!Number.isFinite(row.travelSeconds) || row.travelSeconds <= 0) {
+      // travelSeconds drives the solve's monotonicity argument, and a non-finite value
+      // slips through its relaxation as NaN — rejected by latestDeparture but accepted by
+      // routeTo, whose `arriveAt > deadline` test is false for NaN. The loader is where
+      // it is cheap to refuse.
+      dangling.push(row.id);
+      continue;
+    }
     const geometry = row.reversed ? [...shared].reverse() : shared;
     const index = edges.length;
     edges.push({
@@ -80,7 +94,7 @@ export function loadGraph(path: string = DEFAULT_GRAPH_PATH): LoadedGraph {
   }
 
   if (dangling.length > 0) {
-    console.warn(`[graph] skipped ${dangling.length} edges with out-of-range node ids: ${dangling.slice(0, 3).join(', ')}`);
+    console.warn(`[graph] skipped ${dangling.length} unusable edges (node ids, geometry or travel time): ${dangling.slice(0, 3).join(', ')}`);
   }
 
   return {

@@ -110,8 +110,12 @@ export function loadPocketGeometry(path: string = BUILDINGS_PATH): Map<string, P
   let raw: BuildingFixture;
   try {
     raw = JSON.parse(readFileSync(path, 'utf8')) as BuildingFixture;
-  } catch {
-    // No footprints yet. The caller falls back to a placeholder outline, and says so.
+  } catch (err) {
+    // The caller falls back to a placeholder outline. That fallback has to be audible:
+    // it ships a 400 m box as a pocket's extent in a CAP polygon, and the previous
+    // silent `catch { return new Map() }` made a missing fixture indistinguishable from
+    // a loaded-but-empty one.
+    console.warn(`[pockets] no building footprints at ${path}; CAP areas will be placeholder boxes:`, err);
     return new Map();
   }
   const out = new Map<string, PocketGeometry>();

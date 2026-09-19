@@ -174,7 +174,11 @@ test('element order matches the schema sequence', () => {
   const infoStart = xml.indexOf('<info>');
   assert.ok(xml.indexOf('<language>') < xml.indexOf('<category>'));
   assert.ok(xml.indexOf('<language>') > infoStart);
-  // areaDesc comes before polygon inside area.
+  // areaDesc comes before polygon inside area. Presence is asserted first:
+  // indexOf returns -1 for an absent element, and -1 < n passes, so the ordering
+  // check alone would succeed on a document with no areaDesc at all.
+  assert.ok(xml.includes('<areaDesc>'), 'the area needs a description');
+  assert.ok(xml.includes('<polygon>'), 'the area needs a polygon');
   assert.ok(xml.indexOf('<areaDesc>') < xml.indexOf('<polygon>'));
 });
 

@@ -61,7 +61,7 @@ export interface BuildAlertsResult {
  * that staying is survivable, so the honest output is "the operator must decide".
  */
 export function instructionFor(
-  route: { slowestHighway: string; lastSafeDeparture: { earliest: string } | null } | null,
+  route: { slowestHighway: string; lastSafeDeparture: { earliest: string } | null; usable?: boolean } | null,
   cursorMs: number,
   fireReachesPocket = true,
 ): InstructionId {
@@ -70,13 +70,14 @@ export function instructionFor(
   // this the only outputs were an evacuation or a failure, so a safe pocket would have
   // been told to evacuate or told nothing useful.
   if (!fireReachesPocket) return 'no_action';
-  if (route === null || route.lastSafeDeparture === null) return 'no_verified_action';
 
-  // If the pessimistic end of the band has already passed, there is no longer a
-  // verified action, and the sentence must say the same thing the pocket verdict does.
-  // Without this the two disagree: the verdict gates on the pessimistic end while the
-  // message looked only at whether a band existed, so the engine could report
-  // `no_verified_action` for the pocket and simultaneously tell people to drive out.
+  // The route's own gate decides, not a re-derivation here. Any second opinion is a
+  // chance for the message and the verdict to disagree.
+  if (route === null || route.lastSafeDeparture === null) return 'no_verified_action';
+  if (route.usable === false) return 'no_verified_action';
+
+  // Kept as a backstop for callers that pass a hand-built route without the flag: if the
+  // pessimistic end has passed, there is no verified action.
   const pessimistic = Date.parse(route.lastSafeDeparture.earliest);
   if (Number.isFinite(pessimistic) && pessimistic < cursorMs) return 'no_verified_action';
 
@@ -99,7 +100,7 @@ export function instructionFor(
  * observation of one, and the mask it is derived from is itself an inference from
  * satellite detections rather than a measurement of the fire's edge.
  */
-function certaintyFor(band: { earliest: string; latest: string | null } | null): AlertPackage['certainty'] {
+export function certaintyFor(band: { earliest: string; latest: string | null } | null): AlertPackage['certainty'] {
   if (band === null) return 'Possible';
   // No upper bound means the route is never cut inside the window, which is the
   // strongest thing the model can say about it.
@@ -122,7 +123,7 @@ function certaintyFor(band: { earliest: string; latest: string | null } | null):
  * does not is Severe. With no node field available the hazard is assumed real, because
  * under-reporting severity is the direction that gets people killed.
  */
-function severityFor(fireReaches: boolean): AlertPackage['severity'] {
+export function severityFor(fireReaches: boolean): AlertPackage['severity'] {
   return fireReaches ? 'Extreme' : 'Severe';
 }
 
@@ -159,11 +160,18 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
     if (!settlement) continue;
     byPocket.set(pocketEgress.pocketId, settlement);
 
-    // The route the message is about: the one with the latest pessimistic departure.
-    const usable = pocketEgress.routes
-      .filter((r) => r.lastSafeDeparture !== null)
+    // The route the message is about: among those the pocket verdict accepts, the one
+    // with the latest pessimistic departure.
+    //
+    // Filtering on the engine's own `usable` flag rather than re-deriving it here. The
+    // two used to be computed separately and disagreed: the verdict withdraws a route
+    // when its band, minus clearance and delay, has passed, while this file only checked
+    // the band — so for a window as long as the clearance there could be a CAP sentence
+    // telling people to leave for a pocket the same response marked `no_verified_action`.
+    const usableRoutes = pocketEgress.routes
+      .filter((r) => r.usable)
       .sort((a, b) => Date.parse(b.lastSafeDeparture!.earliest) - Date.parse(a.lastSafeDeparture!.earliest));
-    const chosen = usable[0] ?? null;
+    const chosen = usableRoutes[0] ?? null;
 
     // Read off the mask, once per pocket: does the fire reach this village within the
     // modelled window at all? It drives both the instruction and the severity.

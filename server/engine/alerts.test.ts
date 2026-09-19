@@ -5,7 +5,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildAlerts, instructionFor } from './alerts';
+import { buildAlerts, certaintyFor, instructionFor, severityFor } from './alerts';
 import { buildEgress, loadContext } from './egress';
 
 const XSD = fileURLToPath(new URL('../../data/cap/CAP-v1.2.xsd', import.meta.url));
@@ -66,13 +66,28 @@ test('a pocket the fire never reaches is told no action, not told to evacuate', 
 });
 
 test('certainty never claims more confidence than the band supports', () => {
-  // The null band is the situation where nothing could be verified, and it used to be
-  // reported as CAP's most confident value.
+  // Tested against the mapping directly. The previous version of this test drove the
+  // pipeline and asserted inside `if (pkg.departure === null)` — and at the cursor it
+  // used, no package had a null departure, so the assertion never ran and the
+  // regression it named was not guarded at all.
+  assert.notEqual(certaintyFor(null), 'Observed', 'no verified route is not an observation');
+  assert.equal(certaintyFor(null), 'Possible');
+
+  // A band with no upper bound is the strongest thing the model can say.
+  assert.equal(certaintyFor({ earliest: '2026-07-09T19:00:00Z', latest: null }), 'Likely');
+  // A narrow band is close to a point estimate; a wide one is not.
+  assert.equal(certaintyFor({ earliest: '2026-07-09T19:00:00Z', latest: '2026-07-09T20:00:00Z' }), 'Likely');
+  assert.equal(certaintyFor({ earliest: '2026-07-09T19:00:00Z', latest: '2026-07-10T01:00:00Z' }), 'Possible');
+});
+
+test('severity is read off the hazard, not off how hard the decision was', () => {
+  assert.equal(severityFor(true), 'Extreme');
+  assert.equal(severityFor(false), 'Severe');
+  // Without node information the hazard is assumed real: under-reporting it is the
+  // direction that gets people killed.
   const built = buildAlerts({ atSeconds: CURSOR });
   for (const pkg of built.response.packages) {
-    if (pkg.departure === null) {
-      assert.notEqual(pkg.certainty, 'Observed', 'no verified route is not an observation');
-    }
+    assert.ok(pkg.severity === 'Extreme' || pkg.severity === 'Severe');
   }
 });
 
@@ -283,10 +298,18 @@ test('emission is deterministic across calls at the same cursor', () => {
 test('an early cursor, before the fire is known, does not invent a package', () => {
   // 15:00 UTC on 9 July, an hour after ignition and before the evening's detections.
   const built = buildAlerts({ atSeconds: 15 * 3600 });
+
+  // An empty list would make every loop below vacuous, and the earlier version of this
+  // test accepted exactly that: `for (const pkg of [])` asserts nothing, and the
+  // instruction check had a fallback that passed when nothing was emitted.
+  assert.ok(built.response.packages.length > 0, 'the pipeline must say something at every cursor');
+
   for (const pkg of built.response.packages) {
-    assert.ok(pkg.text.length > 0);
+    assert.ok(pkg.text.trim().length > 0, 'a package must carry a sentence');
+    assert.ok(pkg.resolvedNames.every((n) => n.osm !== null), 'and every name in it must resolve');
+    assert.ok(['evacuate_primary', 'evacuate_alternate', 'no_verified_action', 'no_action'].includes(pkg.instruction));
+    // Every package carries a band, or explicitly has none. Neither may be undefined.
+    assert.ok(pkg.departure === null || typeof pkg.departure.earliest === 'string');
+    assert.ok(pkg.certainty !== 'Observed' || pkg.departure !== null, 'an unverified route is not an observation');
   }
-  // Whatever it decides, it must not crash and must not claim certainty it lacks.
-  assert.ok(['evacuate_primary', 'evacuate_alternate', 'no_verified_action', 'no_action']
-    .includes(built.response.packages[0]?.instruction ?? 'no_action'));
 });

@@ -118,6 +118,10 @@ test('the reproduction distance agrees with an independent implementation', () =
     p(37.1987682, -1.9963842),
   ];
   const d = polylineDistanceMetres(detection, way);
-  // The Python run placed this detection well within 200 m of the road.
+  // Two-sided: a one-sided `d <= 200` also passes for a distance of zero, so a
+  // regression collapsing every distance to 0 would satisfy it. Measured value is
+  // 7.4 m — this detection sits essentially on the carriageway — so the lower bound is
+  // deliberately small. The upper bound is what makes it the reproduction's detection.
+  assert.ok(d > 1, `expected a real distance to AL-6109, got ${d} m`);
   assert.ok(d <= 200, `expected within 200 m of AL-6109, got ${d} m`);
 });

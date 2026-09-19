@@ -284,10 +284,15 @@ function candidateIsBetter(candidate: Edge, incumbent: Edge, lengthOf: (e: Edge)
  */
 export const HIGHWAY_RANK: readonly string[] = [
   'motorway',
+  'motorway_link',
   'trunk',
+  'trunk_link',
   'primary',
+  'primary_link',
   'secondary',
+  'secondary_link',
   'tertiary',
+  'tertiary_link',
   'unclassified',
   'residential',
   'living_street',
@@ -375,6 +380,9 @@ export function routeTo(
       const w = edge.to;
       if (settled[w]) continue;
       const arriveAt = arrival[u] + edge.travelSeconds;
+      // `arriveAt > deadline` is false for NaN, so a non-finite arrival would pass the
+      // feasibility test and produce a route the vehicle cannot complete.
+      if (!Number.isFinite(arriveAt) && Number.isFinite(arrival[u])) continue;
       // Both constraints: clear the edge itself, and still be able to continue from w.
       const deadline = Math.min(cutAtSeconds[edgeIndex], solve.latestDeparture[w]);
       if (arriveAt > deadline) continue;

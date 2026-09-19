@@ -92,12 +92,30 @@ export function sweepField(
   detections: Detection[],
   configs: SweepConfig[] = SWEEP_CONFIGS,
   latencyOf: (source: string) => number = () => DEFAULT_LATENCY_SECONDS,
+  /**
+   * The detection set for a configuration that asks to keep persistent heat in the mask.
+   *
+   * Subtraction normally happens once, before the sweep, so a configuration carrying
+   * `includeStaticHeatSources: true` had nothing to act on and was bit-identical to the
+   * nominal one — the sweep advertised a sensitivity check that did not exist, and the
+   * configuration list published over the API claimed it. Where this is supplied, that
+   * configuration really does run against the unsubtracted set.
+   */
+  withStaticHeat?: Detection[],
 ): SweepResult {
   const total = segments.length + nodes.length;
   const nodePolylines: LatLon[][] = nodes.map((n) => [n]);
   const maxRadius = maxRadiusAcross(configs);
   const pairs = buildPairIndex([...segments, ...nodePolylines], detections, maxRadius);
+  // A configuration may run against a different detection set, so the pair index has to
+  // cover that set too. The two sets normally differ by nothing, and when they differ it
+  // is by the handful of detections that sit on known persistent heat.
+  const altPairs =
+    withStaticHeat !== undefined && withStaticHeat.length !== detections.length
+      ? buildPairIndex([...segments, ...nodePolylines], withStaticHeat, maxRadius)
+      : null;
   const sourceById = new Map(detections.map((d) => [d.id, d.source]));
+  for (const d of withStaticHeat ?? []) sourceById.set(d.id, d.source);
 
   const earliest = new Array<number>(segments.length).fill(Number.POSITIVE_INFINITY);
   const latest = new Array<number>(segments.length).fill(Number.NEGATIVE_INFINITY);
@@ -112,7 +130,13 @@ export function sweepField(
   let nominalEvidence: string[][] = Array.from({ length: segments.length }, () => []);
 
   for (const config of configs) {
-    const all = cutField(pairs, detections, total, config);
+    const useRaw = config.includeStaticHeatSources && altPairs !== null;
+    const all = cutField(
+      useRaw ? altPairs : pairs,
+      useRaw ? withStaticHeat! : detections,
+      total,
+      config,
+    );
     const cut = all.cutAtSeconds.slice(0, segments.length);
     cutByConfig.set(config.id, Float64Array.from(cut));
     nodeCutByConfig.set(config.id, Float64Array.from(all.cutAtSeconds.slice(segments.length)));

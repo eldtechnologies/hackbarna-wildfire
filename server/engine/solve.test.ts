@@ -96,8 +96,9 @@ function bruteForce(
   return best;
 }
 
-const same = (a: number, b: number): boolean =>
-  Number.isFinite(a) || Number.isFinite(b) ? a === b : a === b;
+// `===` is correct for the infinities this compares: Infinity === Infinity, and
+// -Infinity === -Infinity. A NaN would fail it, which is the right outcome.
+const same = (a: number, b: number): boolean => a === b;
 
 test('the worked case: the longer detour wins', () => {
   // 0->1->3 closes early at 1; 0->2->3 is longer but the road stays open.

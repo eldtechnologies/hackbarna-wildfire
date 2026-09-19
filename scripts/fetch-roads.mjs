@@ -120,6 +120,7 @@ async function collectRegion(latMin, lonMin, latMax, lonMax, ways) {
     const splittable = err.tooBig && spanLat > TILE.minLat && spanLon > TILE.minLon;
     if (!splittable) {
       console.log(`SKIPPED (${err.message})`);
+      skipped.push(`${latMin.toFixed(3)},${lonMin.toFixed(3)}: ${err.message}`);
       return 0;
     }
     console.log('too many nodes, splitting');
@@ -145,6 +146,10 @@ async function collectRegion(latMin, lonMin, latMax, lonMax, ways) {
 async function main() {
   const ways = new Map();
   let tiles = 0;
+  // A skipped tile leaves a hole in the routing graph — a region where no route exists
+  // and every pocket inside it reads `no_verified_action`. The run used to log SKIPPED,
+  // write the partial file and exit 0, so the summary read like a clean run.
+  const skipped = [];
   for (let lat = BBOX.latMin; lat < BBOX.latMax; lat += TILE.lat) {
     for (let lon = BBOX.lonMin; lon < BBOX.lonMax; lon += TILE.lon) {
       tiles += await collectRegion(
@@ -276,6 +281,17 @@ async function main() {
       reversed,
     };
   });
+
+  if (skipped.length > 0) {
+    // Refuse rather than commit a graph with holes in it. A partial network is not a
+    // smaller answer, it is a wrong one: a missing road is indistinguishable from a
+    // closed one, and the solve reads it as "no route".
+    console.error(`[roads] ${skipped.length} region(s) could not be fetched; refusing to write a partial graph:`);
+    for (const region of skipped) console.error(`  ${region}`);
+    console.error('[roads] re-run when the endpoint is available; the committed graph is unchanged.');
+    process.exitCode = 1;
+    return;
+  }
 
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(

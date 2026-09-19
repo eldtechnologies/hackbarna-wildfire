@@ -14,7 +14,7 @@
 //    that it could not demonstrate lead time partly because it conflated them. The
 //    physical cut time stays physical; a separate offset decides when it became known.
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type {
@@ -126,6 +126,8 @@ interface Context {
   /** Detections dropped for sitting on persistent industrial heat. */
   staticHeatRemoved: number;
   staticHeatPolygons: number;
+  /** False when the fixture is missing, which is different from a fixture with no polygons. */
+  heatFixtureLoaded: boolean;
   /** The cluster ids grouped into this fire. */
   fireClusterIds: string[];
 }
@@ -163,7 +165,26 @@ export function loadContext(graphPath: string = DEFAULT_GRAPH_PATH): Context {
   // the Bédar cut time, which is what decision 5 and decision 9 need in order not to
   // contradict each other.
   const heatRings = staticHeatRings(STATIC_HEAT_PATH);
+  // Zero polygons is either a loaded-but-empty fixture or a missing one, and the two
+  // mean different things, so the count alone does not settle it.
+  const heatFixtureLoaded = heatRings.length > 0 || existsSync(STATIC_HEAT_PATH);
   const { kept: detections, removed } = subtractStaticHeatSources(raw, heatRings);
+
+  // A fire event with no usable detections is a broken input, not a quiet fire.
+  //
+  // Without this the pipeline degrades exactly the wrong way: an empty mask gives every
+  // node an infinite cut time, `fireReaches` reads false, and the engine emits
+  // `no_action` — "No action is required in Bédar at this time" — from a mask that
+  // cannot see anything. Measured on the real capture: strip the UTC offset from every
+  // `observed_at` and 0 of 2,743 records survive, which is a valid-looking capture that
+  // produces a confident all-clear. The `originMs === null` guard below does not catch
+  // it, because the declared window still parses.
+  if (detections.length === 0) {
+    throw new Error(
+      `fire event ${fire.clusterIds.join(', ')} yielded no usable detections out of ` +
+        `${capture.hotspots.length} in the capture; refusing to compute a cut field from an empty mask`,
+    );
+  }
 
   // Building counts come from the Catastro fixture rather than being duplicated into
   // settlements.json, so the two cannot drift. When the fixture is absent the count stays
@@ -178,12 +199,21 @@ export function loadContext(graphPath: string = DEFAULT_GRAPH_PATH): Context {
 
   const edgeGeometries = loaded.graph.edges.map((e) => e.geometry);
   const latencyOf = (source: string): number => LATENCY_SECONDS[source] ?? DEFAULT_LATENCY_SECONDS;
-  const sweep = sweepField(edgeGeometries, loaded.graph.nodes, detections, undefined, latencyOf);
+  const sweep = sweepField(
+    edgeGeometries,
+    loaded.graph.nodes,
+    detections,
+    undefined,
+    latencyOf,
+    // So the `all-1x-withstatic` configuration actually runs against the unsubtracted
+    // set rather than being a second copy of the nominal one.
+    raw,
+  );
 
   cached = {
     loaded, graph: loaded.graph, detections, originMs,
     scenario: capture.scenario, settlements, sweep,
-    staticHeatRemoved: removed.length, staticHeatPolygons: heatRings.length,
+    staticHeatRemoved: removed.length, staticHeatPolygons: heatRings.length, heatFixtureLoaded,
     fireClusterIds: fire.clusterIds,
   };
   cachedPath = graphPath;
@@ -207,7 +237,7 @@ export interface BuiltEgress {
     detections: number;
     windowEnd: string;
     /** Persistent-heat polygons loaded, and detections dropped for sitting on one. */
-    staticHeat: { polygons: number; removed: number };
+    staticHeat: { polygons: number; removed: number; fixtureLoaded: boolean };
     /** Per configuration: how many detections it used, and the pocket's departure. */
     sweep: Array<{ id: string; label: string; detectionsUsed: number; departureSeconds: number | null }>;
   };
@@ -400,6 +430,10 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
         slowestHighway: acc.route.slowestHighway,
         clearanceMinutes,
         bottleneckSegmentId,
+        // Filled by the gate below; the object is pushed with the provisional values so
+        // the gate reads the same shape the response will.
+        usable: true,
+        unusableReason: null,
         // Null means the route is already cut at this cursor, which the contract
         // defines. An uncut route must never serialise as null via Infinity.
         lastSafeDeparture: maxValue >= cursor ? band : null,
@@ -418,16 +452,32 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
     //
     // Gating on the encouraging end of the band instead would be more permissive and
     // would make a better demo. That is the trap.
-    const usable = routes.map((r) => {
-      if (r.lastSafeDeparture === null) return { route: r, startBy: null as number | null, ok: false };
+    const gated = routes.map((r) => {
+      if (r.lastSafeDeparture === null) {
+        return { ...r, usable: false, unusableReason: 'route is already cut at this cursor' };
+      }
+      // Unknown clearance is not zero clearance. `clearanceMinutes` is null exactly when
+      // the pocket's population is unknown, and the contract is explicit that unknown is
+      // never zero-by-default — but `?? 0` made it free, which moved the deadline later
+      // and made a pocket with no population *more* likely to be cleared for evacuation
+      // than one whose population is known. Unverifiable is the honest reading.
+      if (r.clearanceMinutes === null) {
+        return { ...r, usable: false, unusableReason: 'pocket population is unknown, so clearance cannot be verified' };
+      }
       const departure = Date.parse(r.lastSafeDeparture.earliest) / 1000 - origin / 1000;
-      const startBy =
-        departure
-        - (r.clearanceMinutes ?? 0) * 60
-        - ASSUMPTIONS.departureDelayMinutes * 60;
-      return { route: r, startBy, ok: startBy >= cursor };
+      const startBy = departure - r.clearanceMinutes * 60 - ASSUMPTIONS.departureDelayMinutes * 60;
+      return {
+        ...r,
+        usable: startBy >= cursor,
+        unusableReason:
+          startBy >= cursor
+            ? null
+            : `the decision had to be made ${Math.round((cursor - startBy) / 60)} minutes ago to clear the bottleneck in time`,
+      };
     });
-    const usableRoutes = usable.filter((u) => u.ok).map((u) => u.route);
+    const usableRoutes = gated.filter((r) => r.usable);
+    routes.length = 0;
+    routes.push(...gated);
 
     const verdict: PocketEgress['verdict'] =
       usableRoutes.length > 0 ? 'routes_open' : 'no_verified_action';
@@ -451,7 +501,7 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
       scenario: ctx.scenario,
       detections: ctx.detections.length,
       windowEnd: fromEpochMs(origin + windowEndSeconds * 1000),
-      staticHeat: { polygons: ctx.staticHeatPolygons, removed: ctx.staticHeatRemoved },
+      staticHeat: { polygons: ctx.staticHeatPolygons, removed: ctx.staticHeatRemoved, fixtureLoaded: ctx.heatFixtureLoaded },
       sweep: sweepDiagnostics,
     },
   };

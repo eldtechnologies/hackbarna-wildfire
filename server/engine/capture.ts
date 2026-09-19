@@ -191,7 +191,11 @@ export function detectionsFromCapture(raw: RawCapture, opts: DetectionOptions): 
   const out: Detection[] = [];
   for (const f of raw.hotspots) {
     const p = f.properties;
-    const coords = f.geometry.coordinates as number[] | undefined;
+    // A record with no geometry at all is malformed in the same way as one with a bad
+    // coordinate array, and must be skipped the same way. Reading through a null
+    // `geometry` throws, which took down the whole engine for one bad record while
+    // every neighbouring shape was tolerated.
+    const coords = f.geometry?.coordinates as number[] | undefined;
     if (!Array.isArray(coords) || coords.length < 2) continue;
     const [lon, lat] = coords;
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
