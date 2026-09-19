@@ -400,6 +400,32 @@ interface ClearanceEntry {
 }
 
 /**
+ * The entries with the largest and smallest value, chosen by comparing values.
+ *
+ * Exported and pure because the profile labels cannot be trusted to encode direction, and
+ * on the shipped profiles that is currently unfalsifiable: measured over every road class,
+ * `cautious` is never faster than `optimistic` and never has a higher capacity, so it is
+ * dominated on every axis and always IS the pessimistic end. A "select by label"
+ * implementation would therefore be observationally identical on every input this system
+ * can generate — which is exactly why the selection has to be callable with a pair of its
+ * own, where the labels disagree with the values, or the row that names this case has no
+ * discriminating test at all.
+ *
+ * The band's ends are selected by `indexOf` over the value array for the same reason; there
+ * is no label involved in that path, so no equivalent seam is needed.
+ */
+export function extremesBy<T>(entries: readonly T[], value: (entry: T) => number): { max: T; min: T } {
+  if (entries.length === 0) throw new RangeError('extremesBy needs at least one entry');
+  let max = entries[0];
+  let min = entries[0];
+  for (const entry of entries) {
+    if (value(entry) > value(max)) max = entry;
+    if (value(entry) < value(min)) min = entry;
+  }
+  return { max, min };
+}
+
+/**
  * The clearance range's basis, naming the values behind each end rather than only the
  * profiles — the point of publishing a range is that the reader can see which assumption
  * moved it, and "cautious to optimistic" does not say which number did the moving.
@@ -678,16 +704,10 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
           if (bottleneck) perProfile.push({ profile, bottleneck });
         }
         if (perProfile.length > 0) {
-          // Selected by VALUE, never by the profile's name. "Cautious" is a label on a set
-          // of numbers, and a set that is slower on tracks but faster on primaries can be
-          // the optimistic one on a route that is all track — trusting the label would then
-          // publish the faster figure as the pessimistic end.
-          let worst = perProfile[0];
-          let best = perProfile[0];
-          for (const entry of perProfile) {
-            if (entry.bottleneck.clearMinutes > worst.bottleneck.clearMinutes) worst = entry;
-            if (entry.bottleneck.clearMinutes < best.bottleneck.clearMinutes) best = entry;
-          }
+          // Selected by VALUE, never by the profile's name. See `extremesBy` for why that
+          // distinction is currently unfalsifiable on the shipped profiles, and why the
+          // selection is therefore testable on its own.
+          const { max: worst, min: best } = extremesBy(perProfile, (e) => e.bottleneck.clearMinutes);
           clearanceMinutes = {
             pessimisticMinutes: Number(worst.bottleneck.clearMinutes.toFixed(1)),
             optimisticMinutes: Number(best.bottleneck.clearMinutes.toFixed(1)),

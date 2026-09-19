@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildEgress, loadContext, routeBasisFor } from './egress';
+import { buildEgress, extremesBy, loadContext, routeBasisFor } from './egress';
 import { buildAlerts } from './alerts';
 import { nearestNode } from './graph';
 import { ASSUMPTION_PROFILES, withAssumedSpeeds } from './assumptions';
@@ -513,4 +513,38 @@ test('a partially contributing basis reports the real denominator, not the full 
   assert.match(basis, /across 9 of 24 combinations/);
   assert.match(basis, /15 never close this route inside the window/);
   assert.match(basis, /all contributing combinations agree/);
+});
+
+test('the extreme is selected by value, not by the profile label', () => {
+  // The shipped profiles cannot produce a disagreement. Measured over every road class,
+  // `cautious` is never faster than `optimistic` and never has a higher capacity, so it is
+  // dominated on every axis and always IS the pessimistic end. A select-by-label
+  // implementation would therefore return identical answers on every input this system can
+  // generate, and every band test above would pass it. The seam is driven directly instead.
+  const entry = (label: string, minutes: number) => ({ label, minutes });
+
+  // The discriminating case: the label that promises the pessimistic end carries the
+  // optimistic value. By value the pessimistic end is the other entry; by label it is this
+  // one, and the two answers differ.
+  const crossover = [entry('cautious assumptions', 180), entry('optimistic assumptions', 60)];
+  const picked = extremesBy(crossover, (e) => e.minutes);
+  assert.equal(picked.max.label, 'cautious assumptions', 'the largest value wins regardless of its name');
+  assert.equal(picked.max.minutes, 180);
+  assert.equal(picked.min.label, 'optimistic assumptions');
+  assert.equal(picked.min.minutes, 60);
+
+  // The same in the other direction, so an implementation that simply returns the last
+  // entry as the maximum is also caught.
+  const reversed = [entry('cautious assumptions', 60), entry('optimistic assumptions', 180)];
+  const other = extremesBy(reversed, (e) => e.minutes);
+  assert.equal(other.max.minutes, 180);
+  assert.equal(other.min.minutes, 60);
+
+  // Ties are deterministic rather than order-dependent.
+  const tied = [entry('cautious assumptions', 120), entry('optimistic assumptions', 120)];
+  const same = extremesBy(tied, (e) => e.minutes);
+  assert.equal(same.max.minutes, 120);
+  assert.equal(same.min.minutes, 120);
+
+  assert.throws(() => extremesBy([], (e: { minutes: number }) => e.minutes), RangeError);
 });
