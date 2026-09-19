@@ -39,6 +39,7 @@ export interface FireSelectionChange {
 export class FireSelectionLayer {
   private handler: ScreenSpaceEventHandler;
   private selectedId: string | null = null;
+  private markerIds: string[] = [];
 
   constructor(
     private viewer: Viewer,
@@ -73,8 +74,9 @@ export class FireSelectionLayer {
       return;
     }
     for (const cluster of fires.clusters) {
+      const id = `fire:${cluster.id}`;
       this.viewer.entities.add({
-        id: `fire:${cluster.id}`,
+        id,
         position: Cartesian3.fromDegrees(cluster.centroid.lon, cluster.centroid.lat),
         point: {
           pixelSize: 9,
@@ -93,6 +95,7 @@ export class FireSelectionLayer {
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
       });
+      this.markerIds.push(id);
     }
   }
 
@@ -187,6 +190,11 @@ export class FireSelectionLayer {
 
   destroy(): void {
     this.handler.destroy();
-    this.viewer.entities.removeAll();
+    // Only this layer's own markers; viewer.entities is shared with the
+    // hotspot and cluster controllers.
+    for (const id of this.markerIds) {
+      this.viewer.entities.removeById(id);
+    }
+    this.markerIds = [];
   }
 }

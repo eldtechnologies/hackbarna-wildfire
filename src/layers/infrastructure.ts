@@ -16,7 +16,7 @@ import type { InfrastructureAsset, InfrastructureResponse } from '../../shared/t
 import {
   INFRA_CATEGORY_LAYERS,
   isLayerVisible,
-  onLayerVisibilityChanged,
+  onVisibilityChanged,
 } from './registry';
 
 const CYAN = Color.fromCssColorString('#4fd8e8');
@@ -49,7 +49,7 @@ export class InfrastructureLayer {
     scene.primitives.add(this.lines);
 
     this.disposers.push(
-      onLayerVisibilityChanged(() => this.refreshVisibility()),
+      onVisibilityChanged(() => this.refreshVisibility()),
     );
 
     this.wirePicking();

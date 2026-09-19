@@ -1,5 +1,5 @@
 import express from 'express';
-import { SERVER_PORT } from './config';
+import { SERVER_HOST, SERVER_PORT } from './config';
 import { getFires } from './providers';
 import { getInfrastructure } from './infrastructure';
 import { getThreats } from './threats';
@@ -52,6 +52,6 @@ app.get('/api/threats', async (req, res) => {
   }
 });
 
-app.listen(SERVER_PORT, () => {
-  console.log(`[server] ojo-de-fuego server listening on http://localhost:${SERVER_PORT}`);
+app.listen(SERVER_PORT, SERVER_HOST, () => {
+  console.log(`[server] ojo-de-fuego server listening on http://${SERVER_HOST}:${SERVER_PORT}`);
 });
