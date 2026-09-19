@@ -68,8 +68,12 @@ export interface BuildAlertsResult {
       unreadable: number;
       /** Pockets whose recommendation this request computed but could not record. */
       writeFailures: string[];
+      /** Pockets with nothing to record: their only candidate was rejected before composition. */
+      skipped: string[];
       /** True once the store has reached its cap and stopped accepting entries. */
       full: boolean;
+      /** Why the store could not be read, or null. The response still serves when this is set. */
+      unavailable: string | null;
     };
   };
 }
@@ -192,20 +196,42 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
     windowEnd: built.diagnostics.windowEnd,
     detections: built.diagnostics.detections,
     scenario: built.diagnostics.scenario,
-    // The road data, by content. It is an input like any other: a re-imported extract changes
-    // which roads exist and how long they take, so an entry computed on the old geometry must
-    // not answer for the new one — and the path stays the same across a re-import, so the path
-    // is what cannot be the key.
+    // Every source the answer is computed from, by content rather than by path or by count. A
+    // path survives the re-import that changes the file and a count survives a re-export that
+    // changes the geometry, so neither identifies the input it is standing in for.
     graph: context.graphHash,
+    capture: context.captureHash,
+    heatFixture: context.heatFixtureHash,
     profiles: built.response.profiles.map((profile) => [profile.id, profile.assumptions]),
-    pockets: context.settlements.map((s) => [s.id, s.population, s.buildings]),
+    // Name and coordinates, not just the id. The coordinates pick the pocket's node in the graph
+    // and every destination node, and the name is the village the sentence says — so a corrected
+    // settlement fixture changes the answer while leaving an id-keyed tuple exactly where it was.
+    pockets: context.settlements.map((s) => [s.id, s.name, s.lat, s.lon, s.population, s.buildings]),
   });
-  const ledgerStore: LedgerStore = openLedger(options.ledgerPath ?? LEDGER_PATH);
-  // Read once for the whole request. The lookup runs per settlement, and going back to the
-  // store for each would re-read and re-parse the file once per village. `unreadable` is taken
-  // here too: this request's own appends write well-formed lines, so it cannot have changed by
-  // the time the diagnostics are assembled.
-  const history = ledgerStore.history();
+  const ledgerPath = options.ledgerPath ?? LEDGER_PATH;
+  // A store that cannot be read must not take these routes down with it. The write path was built
+  // on that contract — the request still serves, and the failure is reported rather than thrown —
+  // and the read side owes the same: the response goes out without its history and says so, rather
+  // than answering 502 on the two endpoints that exist to tell people to leave. Measured before
+  // this: a store at mode 000, and a symlinked path, each turned `/api/alerts` and `/api/cap/:id`
+  // into a generic 502 with the actual reason only in the server log.
+  //
+  // `server/index.ts` opens the store at startup as well, so a misconfigured `LEDGER_PATH` refuses
+  // the boot with the path named. This catches a store that becomes unusable while the server runs.
+  let ledgerStore: LedgerStore | null = null;
+  let history: { entries: StoredEntry[]; unreadable: number } = { entries: [], unreadable: 0 };
+  let ledgerUnavailable: string | null = null;
+  try {
+    ledgerStore = openLedger(ledgerPath);
+    // Read once for the whole request. The lookup runs per settlement, and going back to the store
+    // for each would re-read and re-parse the file once per village. `unreadable` is taken here
+    // too: this request's own appends write well-formed lines, so it cannot have changed by the
+    // time the diagnostics are assembled.
+    history = ledgerStore.history();
+  } catch (err) {
+    ledgerUnavailable = err instanceof Error ? err.message : String(err);
+    console.error(`[api] the recommendation ledger is unusable; serving without its history: ${ledgerUnavailable}`);
+  }
   // Settlements are the places a sentence may name as a destination. They resolve
   // outside the road graph because a village is not a road.
   const places: Place[] = context.settlements.map((s) => ({
@@ -219,6 +245,18 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
   let appended = 0;
   let reused = 0;
   const writeFailures: string[] = [];
+  /**
+   * Pockets this request had nothing to record for, because its only candidate was rejected
+   * before a sentence could be composed.
+   *
+   * Its own list rather than a `writeFailures` entry, because the two are different facts and a
+   * reader acts on them differently: a failed write is a fault, and no candidate surviving
+   * verification is the pipeline working. It also has to be visible at all — the rejected candidate
+   * `continue`s past the ledger block, so without this the pocket appears in `response.pockets`
+   * and nowhere in the ledger's diagnostics, and `appended + reused` cannot be reconciled against
+   * the pockets the response was computed for.
+   */
+  const skipped: string[] = [];
   let ledgerFull = false;
   const byPocket = new Map<string, Settlement>();
 
@@ -282,6 +320,9 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
         reason: 'unresolved_name',
         detail: 'the recommended route carries no named road, so the sentence would name nothing',
       });
+      // This `continue` leaves the pocket loop, not the language loop below, so the ledger block
+      // is skipped: no entry is written for this pocket. Marked, so the omission is legible.
+      skipped.push(settlement.id);
       continue;
     }
 
@@ -445,16 +486,22 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
       reused += 1;
       continue;
     }
-    const written = ledgerStore.append(fresh);
-    if (written.ok) {
-      appended += 1;
-    } else if (written.reason === 'full') {
-      // A full store is the record working as designed and saying so; a failed write is a
-      // fault. Reporting them as one number would let a reader dismiss a lost record as a
-      // cap having been reached.
-      ledgerFull = true;
-    } else {
+    if (ledgerStore === null) {
+      // No store at all. Counted per pocket rather than left implicit, so the diagnostics name
+      // what was lost and not merely that the store was missing — `unavailable` carries the why.
       writeFailures.push(settlement.id);
+    } else {
+      const written = ledgerStore.append(fresh);
+      if (written.ok) {
+        appended += 1;
+      } else if (written.reason === 'full') {
+        // A full store is the record working as designed and saying so; a failed write is a
+        // fault. Reporting them as one number would let a reader dismiss a lost record as a
+        // cap having been reached.
+        ledgerFull = true;
+      } else {
+        writeFailures.push(settlement.id);
+      }
     }
     // Served either way: the recommendation was computed for this request and belongs in the
     // response whether or not its bytes reached the file. `appended` counts writes and not
@@ -500,12 +547,15 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
       ledger: {
         // The store's name, not its path: `/api/alerts` is reachable without credentials and the
         // configured path is the absolute one a real deployment uses. See `ledgerName`.
-        store: ledgerName(options.ledgerPath ?? LEDGER_PATH),
+        store: ledgerName(ledgerPath),
         appended,
         reused,
         unreadable: history.unreadable,
         writeFailures,
-        full: ledgerFull || ledgerStore.isFull(),
+        skipped,
+        full: ledgerFull || (ledgerStore?.isFull() ?? false),
+        /** Set when the store could not be read; the response is served without its history. */
+        unavailable: ledgerUnavailable,
       },
       emitter: {
         identifierSeed: built.response.fireId ?? 'unknown',

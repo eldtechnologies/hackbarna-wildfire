@@ -307,18 +307,23 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
    */
   router.get('/api/ledger', (req: Request, res: Response) => {
     try {
+      // Parsed before the store is read, so a malformed limit is answered as the client error it
+      // is instead of costing a full parse of a store that may be at its cap.
+      const limit = parseLimit(req.query.limit);
       const path = resolveLedgerPath(options);
       const { entries, unreadable } = openLedger(path).history();
-      const limit = parseLimit(req.query.limit);
-      // `count` is what the store holds and `entries` is what this response carries, so a
-      // limited read is never mistaken for a short history. The limit bounds the RESPONSE, not
-      // the read — the file is parsed whole either way, and the store's byte cap is what bounds
-      // that. A full store serialised to 15.5 MiB, which is not a page anyone can open.
+      // `total` is what the store holds and `limit` is what this response applied, so a page
+      // cannot be mistaken for the history. `{total: 5, limit: 0, entries: []}` says "nothing was
+      // asked for"; a bare count beside an empty array says "there is nothing", which is the
+      // opposite reading and the one a consumer would persist. The limit bounds the RESPONSE, not
+      // the read — the file is parsed whole either way, and the store's byte cap bounds that. A
+      // full store serialised to 15.5 MiB, which is not a page anyone opens.
       res.json({
         // The name rather than the path: this route needs no credentials, and the configured
         // path is the absolute one a real deployment uses. See `ledgerName`.
         store: ledgerName(path),
-        count: entries.length,
+        total: entries.length,
+        limit: limit ?? null,
         unreadable,
         entries: selectEntries(entries, limit),
       });

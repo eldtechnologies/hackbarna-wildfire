@@ -7,8 +7,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildAlerts, certaintyFor, instructionFor, severityFor } from './alerts';
-import { openLedger, type StoredEntry } from './ledger';
-import { buildEgress, loadContext } from './egress';
+import { fingerprintInputs, openLedger, type StoredEntry } from './ledger';
+import { CAPTURE_PATH, STATIC_HEAT_PATH, buildEgress, loadContext } from './egress';
 import { DEFAULT_GRAPH_PATH } from './graph';
 import { SWEEP_CONFIGS } from './sweep';
 import { ASSUMPTION_PROFILES } from './assumptions';
@@ -415,17 +415,139 @@ test('the ledger records what the file holds, and a changed input set does not r
   assert.deepEqual(entries[entries.length - 1], served, 'the persisted line is the entry that was served');
 });
 
-test('the ledger key covers the road data by content, not by path', () => {
-  // A re-imported OSM extract changes which roads exist, how long they take and which ones the
-  // fire cuts, while leaving the path alone — so the path cannot be the key. Without this the
-  // fingerprint has the same hole the assumption values had, one level further out: an entry
-  // computed on the old geometry answers for the new one, and `reused` counts it as a normal
-  // reuse. The digest has to be of the bytes actually on disk, and not a constant that would
-  // make the input a silent no-op.
+test('the ledger key covers every source by content, not by path or by count', () => {
+  // Three sources, three ways of almost-identifying them, all of which survive the change they
+  // stand in for. The road data went in by PATH and a re-imported extract keeps the path while
+  // changing every road in it. The capture went in by its detection COUNT: a re-fetched capture
+  // with the same number of detections is a different mask and the same key. The persistent-heat
+  // fixture went in as two counts — polygons and removals — so a re-export with different geometry
+  // and the same totals is invisible too. Each is the "digest blind to the axis it exists for"
+  // defect, one level out from the assumption values that were fixed the same way.
   const context = loadContext();
-  assert.match(context.graphHash, /^[0-9a-f]{16}$/, 'the graph is identified by a content digest');
-  const onDisk = createHash('sha256').update(readFileSync(DEFAULT_GRAPH_PATH)).digest('hex').slice(0, 16);
-  assert.equal(context.graphHash, onDisk, 'and it is the digest of the committed file the context was built from');
+  const digest = (p: string): string => createHash('sha256').update(readFileSync(p)).digest('hex').slice(0, 16);
+
+  assert.equal(context.graphHash, digest(DEFAULT_GRAPH_PATH), 'the graph is the digest of the committed file');
+  assert.equal(context.captureHash, digest(CAPTURE_PATH), 'so is the capture');
+  assert.equal(context.heatFixtureHash, digest(STATIC_HEAT_PATH), 'and so is the heat fixture');
+  assert.equal(
+    new Set([context.graphHash, context.captureHash, context.heatFixtureHash]).size,
+    3,
+    'and none is standing in for another',
+  );
+
+  // And the key a request actually uses is deterministic, so a restart — which rebuilds the context
+  // and re-reads all three files — lands on the same one. If it did not, every recorded entry would
+  // miss on the next process and the store would be write-only.
+  //
+  // That each digest REACHES the key is not asserted here and cannot be cheaply: the fixture paths
+  // are module constants, so varying one means a modified fixture and a full context rebuild. It is
+  // three adjacent lines at the single call site in `buildAlerts`, and the mutation to check it is
+  // deleting one of them.
+  const [first] = buildAlerts({ atSeconds: CURSOR, ledgerPath: tmpLedger() }).ledger as StoredEntry[];
+  const [second] = buildAlerts({ atSeconds: CURSOR, ledgerPath: tmpLedger() }).ledger as StoredEntry[];
+  assert.ok(first && second, 'both builds recorded an entry');
+  assert.equal(second.inputFingerprint, first.inputFingerprint, 'the same inputs key the same');
+});
+
+test('a settlement move changes the ledger key, not only a capture change', () => {
+  // The pocket tuple carried the id, the population and the building count, and dropped the name
+  // and the coordinates — both of which decide the answer. `nearestNode` snaps the pocket and every
+  // destination to a graph node FROM the coordinates, and the name is the village the sentence
+  // says, so a corrected settlement fixture (the coordinates are geocoder-derived) moves the answer
+  // while an id-keyed tuple stays exactly where it was.
+  const context = loadContext();
+  const base = context.settlements.map((s) => [s.id, s.name, s.lat, s.lon, s.population, s.buildings]);
+  const moved = context.settlements.map((s) => [s.id, s.name, s.lat + 0.01, s.lon, s.population, s.buildings]);
+  const renamed = context.settlements.map((s) => [s.id, `${s.name} (nuevo)`, s.lat, s.lon, s.population, s.buildings]);
+
+  assert.notEqual(fingerprintInputs({ pockets: base }), fingerprintInputs({ pockets: moved }), 'a moved settlement');
+  assert.notEqual(fingerprintInputs({ pockets: base }), fingerprintInputs({ pockets: renamed }), 'and a renamed one');
+});
+
+test('an entry records the wall-clock time it was made, not the cursor it is about', () => {
+  // Criterion 5 asks for both, and only the cursor was pinned. Measured by mutation: writing
+  // `recordedAt: built.response.at` — the cursor in the recording-time field — passed the entire
+  // suite, because every assertion either echoed a fixture constant or checked the string was
+  // non-empty. The two fields exist precisely to be different: one names the moment the
+  // recommendation is about, the other the moment the system said it.
+  const before = Date.now();
+  const built = buildAlerts({ atSeconds: CURSOR, ledgerPath: tmpLedger() });
+  const after = Date.now();
+
+  for (const entry of built.ledger as StoredEntry[]) {
+    assert.notEqual(entry.recordedAt, entry.at, 'the recording time is not the cursor time');
+    const recorded = Date.parse(entry.recordedAt);
+    assert.ok(Number.isFinite(recorded), 'it parses as a timestamp');
+    assert.ok(
+      recorded >= before - 1000 && recorded <= after + 1000,
+      `it is when the request ran, not a fixed instant: ${entry.recordedAt}`,
+    );
+    assert.ok(recorded > Date.parse(entry.at), 'and the record was made after the moment it is about');
+  }
+});
+
+test('an unusable ledger does not take the alert routes down with it', () => {
+  // Both alert endpoints answered a generic 502 — with the reason only in the server log — when the
+  // store could not be read, while the write path was built on the opposite contract: "the request
+  // must still serve". A store that cannot be read is the same class of problem as one that cannot
+  // be written, and the endpoints that exist to tell people to leave are the last two that should
+  // go dark over an audit log. Measured before the fix, with a store at mode 000 and with a
+  // symlinked path: `/api/alerts` and `/api/cap/:id` both 502.
+  const dir = mkdtempSync(join(tmpdir(), 'unusable-ledger-'));
+  const path = join(dir, 'recommendations.jsonl');
+  writeFileSync(path, '');
+  chmodSync(path, 0o000);
+  try {
+    const built = buildAlerts({ atSeconds: CURSOR, ledgerPath: path });
+    assert.ok(built.response.packages.length > 0, 'the recommendation is still computed and served');
+    assert.ok(built.ledger.length > 0, 'and the response still carries its ledger');
+    assert.equal(built.diagnostics.ledger.appended, 0, 'nothing was recorded');
+    assert.deepEqual(
+      built.diagnostics.ledger.writeFailures,
+      ['bedar'],
+      'the pocket whose record was lost is named, not merely the store',
+    );
+    assert.ok(built.diagnostics.ledger.unavailable, 'and the reason the store was unusable is published');
+  } finally {
+    chmodSync(path, 0o644);
+  }
+});
+
+test('the same inputs yield the same recommendation for a cursor as when it was first recorded', () => {
+  // The criterion is determinism AND agreement with the record, and the store-level test that used
+  // to be this gate's only match checked neither: it stored a string and asserted it came back
+  // different from 'RECOMPUTED', a string no code path in this repository emits. So the comparison
+  // could not fail, and the engine was never asked to compute anything.
+  //
+  // This computes the recommendation three times: twice against one store (a record and a reuse of
+  // it) and once against a store that has never seen the cursor, which forces a real recomputation
+  // rather than a reuse of the first. All three must agree.
+  const path = tmpLedger();
+  const recorded = buildAlerts({ atSeconds: CURSOR, ledgerPath: path });
+  const reused = buildAlerts({ atSeconds: CURSOR, ledgerPath: path });
+  const recomputed = buildAlerts({ atSeconds: CURSOR, ledgerPath: tmpLedger() });
+
+  assert.equal(reused.diagnostics.ledger.reused, 1, 'the second call served the record');
+  assert.equal(
+    recomputed.diagnostics.ledger.reused,
+    0,
+    'a fresh store has nothing to reuse, so the third really recomputed',
+  );
+
+  const a = recorded.ledger as StoredEntry[];
+  const b = reused.ledger as StoredEntry[];
+  const c = recomputed.ledger as StoredEntry[];
+  assert.ok(a.length > 0, 'the request recorded something to compare');
+  assert.equal(b.length, a.length);
+  assert.equal(c.length, a.length);
+  for (let i = 0; i < a.length; i++) {
+    assert.equal(b[i].recommendation, a[i].recommendation, 'the served record is the recorded recommendation');
+    assert.equal(c[i].recommendation, a[i].recommendation, 'and so is a fresh computation of the same cursor');
+    assert.equal(c[i].pocketId, a[i].pocketId);
+    assert.deepEqual(c[i].evidence, a[i].evidence, 'the recomputation reached the same evidence');
+    assert.equal(c[i].inputFingerprint, a[i].inputFingerprint, 'because the inputs are the same');
+    assert.deepEqual(recomputed.response.packages, recorded.response.packages, 'and the same packages');
+  }
 });
 
 test('a recommendation that could not be recorded is served but not reported as recorded', () => {

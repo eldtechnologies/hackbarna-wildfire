@@ -8,6 +8,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { appendFileSync, chmodSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -76,16 +77,49 @@ test('a cursor served before returns the entry recorded for it, not a fresh one'
 });
 
 test('the record survives a restart', () => {
-  const path = storePath();
-  openLedger(path).append(entry());
+  // A real process boundary, not a second `openLedger` in this process. The weaker version passed
+  // against a module-level cache of open stores — a plausible optimisation, and one that would make
+  // every other test in this file pass too — so the criterion "the record survives a process
+  // restart" was verified by a test that never restarted anything. Measured: deleting the file
+  // between the two writes leaves the old test green and this one red.
+  const dir = mkdtempSync(join(tmpdir(), 'ledger-restart-'));
+  const path = join(dir, 'recommendations.jsonl');
+  const script = join(dir, 'child.mts');
 
-  // A second open is what a restarted process does. Nothing is shared between the two
-  // stores but the file.
-  const reopened = openLedger(path);
-  const found = lookup(reopened, 61200, FINGERPRINT_A, 'bedar');
-  assert.ok(found, 'the entry is still there after reopening the store');
-  assert.equal(found.recommendation, 'evacuate_alternate');
-  assert.deepEqual(found.evidence, ['recommended Los Gallardos', 'clearance at the tightest point: 185 min']);
+  // The child opens the store, does one thing, and exits; nothing but the file crosses between
+  // the two runs.
+  writeFileSync(
+    script,
+    [
+      `import { openLedger } from ${JSON.stringify(join(process.cwd(), 'server/engine/ledger.ts'))};`,
+      `const store = openLedger(${JSON.stringify(path)});`,
+      "if (process.argv[2] === 'write') {",
+      `  console.log(JSON.stringify(store.append(${JSON.stringify(entry())})));`,
+      '} else {',
+      '  const { entries, unreadable } = store.history();',
+      '  console.log(JSON.stringify({ entries, unreadable }));',
+      '}',
+    ].join('\n'),
+  );
+  const run = (action: string): string =>
+    execFileSync(process.execPath, ['--import', 'tsx', script, action], { encoding: 'utf8' }).trim();
+
+  assert.equal(run('write'), JSON.stringify({ ok: true }), 'the first process recorded an entry');
+
+  const readBack = JSON.parse(run('read')) as {
+    entries: Array<{ recommendation: string; evidence: string[]; recordedAt: string }>;
+    unreadable: number;
+  };
+  assert.equal(readBack.unreadable, 0, 'nothing in the file is unreadable');
+  assert.equal(readBack.entries.length, 1, 'the entry written by the first process is still there');
+  assert.equal(readBack.entries[0].recommendation, 'evacuate_alternate');
+  assert.deepEqual(readBack.entries[0].evidence, [
+    'recommended Los Gallardos',
+    'clearance at the tightest point: 185 min',
+  ]);
+  // The recording time is the one the WRITING process stamped, so the second process is reading
+  // the record and not recomputing one.
+  assert.equal(readBack.entries[0].recordedAt, '2026-07-09T17:00:01.000Z');
 });
 
 test('entries are appended, never rewritten', () => {
@@ -151,6 +185,119 @@ test('an unparsable line is skipped and counted rather than failing the whole re
 
   // And the same for a lookup: a corrupt line elsewhere must not break serving a good one.
   assert.ok(lookup(store, 61200, FINGERPRINT_A, 'bedar'), 'a lookup still works around a corrupt line');
+});
+
+test('a record written after a torn tail stays readable, and the torn line stays counted', () => {
+  // The corruption the read path was built to tolerate, on the write side. A crash mid-append
+  // leaves a partial line with NO trailing newline, and writing straight onto it welds the two
+  // together: one unparsable line, the new record gone, while `append` returns `{ok: true}` and the
+  // caller counts it as recorded. Measured before the fix — `/api/alerts` reported
+  // `appended: 1, writeFailures: []` while `/api/ledger` returned a single entry, the new record's
+  // bytes sitting inside the unreadable line. The store's own short-write path leaves the same
+  // fragment, so a detected failure was producing an undetected loss of the NEXT record.
+  //
+  // The fixture is the point. The truncated-line test above appends its fragment WITH a newline,
+  // which is not the state a crash leaves, so it never exercised the merge.
+  const path = storePath();
+  const store = openLedger(path);
+  store.append(entry({ id: 'before' }));
+  appendFileSync(path, '{"id":"torn","evide');
+
+  assert.deepEqual(
+    store.append(entry({ id: 'after-the-crash', cursorSeconds: 70000 })),
+    { ok: true },
+    'the append reports success',
+  );
+
+  const { entries, unreadable } = store.history();
+  assert.deepEqual(entries.map((e) => e.id), ['before', 'after-the-crash'], 'and the new record is readable');
+  assert.equal(unreadable, 1, 'the torn fragment is still exactly one counted line, not two merged into one');
+});
+
+test('two pockets recorded at one cursor are told apart by their entry', () => {
+  // The pocket term is load-bearing and was untested: deleting it left the whole suite green,
+  // because every fixture in this repo has one settlement. Two entries sharing the cursor and the
+  // fingerprint are what it exists for — a multi-pocket deployment records several at one cursor,
+  // and without the term whichever was written first answers for all of them.
+  const path = storePath();
+  const store = openLedger(path);
+  store.append(entry({ id: 'for-bedar', pocketId: 'bedar', recommendation: 'evacuate_alternate' }));
+  store.append(entry({ id: 'for-gallardos', pocketId: 'los-gallardos', recommendation: 'no_action' }));
+
+  assert.equal(lookup(store, 61200, FINGERPRINT_A, 'bedar')?.id, 'for-bedar');
+  assert.equal(lookup(store, 61200, FINGERPRINT_A, 'los-gallardos')?.id, 'for-gallardos');
+  assert.equal(lookup(store, 61200, FINGERPRINT_A, 'not-a-pocket'), undefined, 'and an unknown pocket matches nothing');
+});
+
+test('a line whose rejections are the wrong shape counts as unreadable', () => {
+  // `rejected` was checked for array-ness alone, so a seeded line carrying `[null, {"pocketId":42}]`
+  // passed the entry check and `/api/ledger` published it verbatim — while `evidence` elements and
+  // `inputs` values were already checked field by field. Element shape is shape.
+  const path = storePath();
+  const store = openLedger(path);
+  const wellFormed = {
+    at: '2026-07-09T17:00:00.000Z',
+    pocketId: 'bedar',
+    instruction: 'evacuate_alternate',
+    language: 'es',
+    text: 'Evacúe por la AL-6109',
+    reason: 'unresolved_name',
+    detail: 'the road named in the sentence has no matching way',
+  };
+  store.append(entry({ id: 'good' }));
+  const bad = [
+    [null],
+    [42],
+    ['not an object'],
+    [{ pocketId: 'bedar' }],
+    [{ ...wellFormed, reason: 'nonsense' }],
+    [wellFormed, null],
+  ];
+  for (const rejected of bad) {
+    appendFileSync(path, `${JSON.stringify({ ...entry({ id: 'bad' }), rejected })}\n`);
+  }
+  // A non-integer cursor is not a cursor: `1e999` parses to Infinity, which no lookup can match.
+  appendFileSync(path, `${JSON.stringify({ ...entry({ id: 'bad' }), cursorSeconds: 1e999 })}\n`);
+
+  const { entries, unreadable } = store.history();
+  assert.deepEqual(entries.map((e) => e.id), ['good'], 'only the well-formed entry is handed back');
+  assert.equal(unreadable, bad.length + 1, 'every malformed line is counted');
+
+  // And a well-formed rejection still passes, so the check is not simply rejecting the field.
+  appendFileSync(path, `${JSON.stringify({ ...entry({ id: 'good-again' }), rejected: [wellFormed] })}\n`);
+  assert.deepEqual(store.history().entries.map((e) => e.id), ['good', 'good-again']);
+});
+
+test('a ledger path that is not a regular file is refused, so nothing can block on it', () => {
+  // A FIFO used to be accepted — the guard tested only `isSymbolicLink` — and the blocking open
+  // that followed never returned. One unauthenticated `GET /api/ledger` against a path someone with
+  // write access to the ledger directory had replaced stopped the event loop, taking every route on
+  // the server with it, which is worse than the write-through the link check defends against.
+  // Reproduced against the old code with `timeout 8`: exit 124, no response.
+  const dir = mkdtempSync(join(tmpdir(), 'ledger-fifo-'));
+  const fifo = join(dir, 'recommendations.jsonl');
+  execFileSync('mkfifo', [fifo]);
+
+  assert.throws(
+    () => openLedger(fifo),
+    (err: unknown) => err instanceof Error && err.message.includes(fifo),
+    'the refusal names the path so an operator knows which setting to change',
+  );
+});
+
+test('the fingerprint refuses a value it cannot digest rather than colliding', () => {
+  // `JSON.stringify` calls `toJSON`, so a Date becomes a string there and `{}` here; a Map, a Set
+  // and a boxed primitive have no enumerable own keys and become `{}` here too. Each of those is
+  // two different inputs digesting identically — the exact defect this function exists to prevent,
+  // and the one it was already fixed for once. Not reachable from the sole call site today, which
+  // is why it needs pinning: the next call site is the one that would find out.
+  for (const undigestible of [new Date(0), new Map([['a', 1]]), new Set([1]), new Number(5)]) {
+    assert.throws(() => fingerprintInputs({ x: undigestible }), TypeError, `${undigestible.constructor.name} is refused`);
+  }
+  assert.throws(() => fingerprintInputs({ x: () => 1 }), TypeError, 'a function is refused');
+
+  // The plain data the call site passes still digests, so the refusal has not eaten the real path.
+  assert.equal(fingerprintInputs({ a: [1, 'two', null], b: { c: 3 }, d: true }).length, 16);
 });
 
 test('a line whose fields are the wrong types counts as unreadable, not as an entry', () => {
@@ -221,7 +368,7 @@ test('a ledger path that is a symbolic link is refused, naming the path', () => 
   assert.deepEqual(openLedger(real).append(entry()), { ok: true });
 });
 
-test('the same inputs yield the same recommendation for a cursor as when it was first recorded', () => {
+test('a recorded entry is served back unaltered, and the fingerprint is stable for the same inputs', () => {
   // The property is that a recorded entry and a later computation of the same cursor agree.
   // The discriminating input is the evidence string, which a recomputation would produce
   // from the solve rather than read: writing an entry whose evidence says otherwise proves
