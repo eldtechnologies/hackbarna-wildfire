@@ -209,6 +209,20 @@ test('a missing value leaves the placeholder visible rather than silently deleti
   assert.deepEqual(unresolvedPlaceholders(text).sort(), ['destination', 'road']);
 });
 
+test('a value containing a placeholder is not substituted again', () => {
+  // Substituting one key at a time with split/join re-enters the text it just wrote. OSM
+  // way names are free to contain braces, so a road called "…{destination}" was replaced
+  // on the next pass: the sentence named a road that does not exist, while the evidence
+  // the contract defines as "the name exactly as it appears in the sentence" still held
+  // the real one. One pass over the template is the fix.
+  const values = { pocket: 'Bédar', road: 'Camino {destination}', destination: 'Mojácar' };
+  const text = fillTemplate(templateFor('evacuate_primary'), 'es', values);
+
+  assert.ok(text.includes('Camino {destination}'), `the road name was substituted again: ${text}`);
+  assert.deepEqual(unresolvedPlaceholders(text), ['destination'], 'only the road name’s braces survive');
+  assert.ok(!text.includes('Camino Mojácar'), 'the inner placeholder must survive verbatim');
+});
+
 test('languages are per settlement, and Catalan is never assumed for Almería', () => {
   assert.deepEqual(languagesFor({ languages: ['es', 'en'] }), ['es', 'en']);
   assert.deepEqual(languagesFor({ languages: ['es', 'ca'] }), ['es', 'ca']);

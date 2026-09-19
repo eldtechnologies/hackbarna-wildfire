@@ -243,6 +243,21 @@ export interface BuiltEgress {
   };
 }
 
+/**
+ * A departure as the diagnostics publish it.
+ *
+ * Two unbounded cases that the raw value does not distinguish: `+Infinity` means no
+ * configuration closes any route inside the window, so the honest reading is the end of
+ * the modelled window — the same clamp the route bands use for their pessimistic end.
+ * `-Infinity` means no route exists at all, which is the only true "no departure", and
+ * `null` is reserved for it. Publishing `+Infinity` as `null` inverted the meaning, the
+ * same way serialising an infinite departure would have.
+ */
+function departureFor(value: number, windowEndSeconds: number): number | null {
+  if (value === Number.NEGATIVE_INFINITY) return null;
+  return Math.min(value, windowEndSeconds);
+}
+
 export function buildEgress(options: EgressOptions = {}): BuiltEgress {
   const ctx = loadContext(options.graphPath);
   const graph = ctx.graph;
@@ -266,6 +281,29 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
       // two disagree on a large share of cut edges, by up to hours where a polar
       // detection replaces a geostationary one.
       const wait = latency ? latency[i] : DEFAULT_LATENCY_SECONDS;
+      if (cut + wait <= cursor) out[i] = cut;
+    }
+    return out;
+  };
+
+  // The node field is masked to the cursor exactly like the edge field above, and for
+  // the same reason. The cursor models what the coordinator knew, not what the fire did.
+  // Left raw, a destination's own burn time — a 10 July arrival that no sensor had
+  // reported at cursor 0 — was enforced as a deadline, so the band at early cursors was
+  // bounded by evidence the replay itself says was not yet in hand.
+  //
+  // `latencyByConfig` covers nodes as well as edges: it is sized segments + nodes, with
+  // node j at segments + j, matching how `nodeCutByConfig` is sliced.
+  const knownNodeCut = (configId: string): number[] => {
+    const raw = ctx.sweep.nodeCutByConfig.get(configId);
+    const latency = ctx.sweep.latencyByConfig.get(configId);
+    const offset = graph.edges.length;
+    const out = allNodesSafe(graph.nodes.length);
+    if (!raw) return out;
+    for (let i = 0; i < out.length; i++) {
+      const cut = raw[i];
+      if (!Number.isFinite(cut)) continue;
+      const wait = latency ? latency[offset + i] : DEFAULT_LATENCY_SECONDS;
       if (cut + wait <= cursor) out[i] = cut;
     }
     return out;
@@ -334,19 +372,22 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
 
     for (const config of SWEEP_CONFIGS) {
       const cuts = knownCut(config.id);
-      const nodeCut = Array.from(
-        ctx.sweep.nodeCutByConfig.get(config.id) ?? allNodesSafe(graph.nodes.length),
-      );
+      const nodeCut = knownNodeCut(config.id);
 
-      // Primary number: the latest departure to any safe destination.
-      const primary = latestDeparture(graph, cuts, destinations, { nodeCutSeconds: nodeCut });
+      // The pocket is not a destination for its own residents. Including it does not
+      // merely add a zero-length route: with the node deadline in place the solve's value
+      // at the pocket is at least the pocket's own burn time, so the number published as
+      // this configuration's departure was the moment the fire reaches the village — 134 s
+      // later than every route the same response publishes, in the permissive direction.
+      const escapeNodes = new Set([...destinations].filter((n) => n !== pocketNode));
+
+      // Primary number: the latest departure to any destination that is not the pocket.
+      const primary = latestDeparture(graph, cuts, escapeNodes, { nodeCutSeconds: nodeCut });
       sweepDiagnostics.push({
         id: config.id,
         label: config.label,
         detectionsUsed: ctx.sweep.usedByConfig.get(config.id) ?? 0,
-        departureSeconds: Number.isFinite(primary.latestDeparture[pocketNode])
-          ? primary.latestDeparture[pocketNode]
-          : null,
+        departureSeconds: departureFor(primary.latestDeparture[pocketNode], windowEndSeconds),
       });
 
       // Per-destination detail, so each route can report its own band. The destination

@@ -105,13 +105,16 @@ export function fillTemplate(
   language: LanguageCode,
   values: Partial<Record<Placeholder, string>>,
 ): string {
-  let text = template.text[language];
-  for (const key of PLACEHOLDERS) {
-    const value = values[key];
-    if (value === undefined) continue;
-    text = text.split(`{${key}}`).join(value);
-  }
-  return text;
+  // One pass over the template, never one pass per key. Substituting key by key with
+  // split/join re-enters the text it just wrote: a road name that itself contains
+  // `{destination}` — which OSM way names are free to do — would be replaced again on
+  // the next iteration, so the sentence names a road that does not exist while
+  // `resolvedNames` records the one that does. The sentence and the evidence field the
+  // contract defines as "the name exactly as it appears in the sentence" would disagree.
+  return template.text[language].replace(/\{(\w+)\}/g, (whole, key: string) => {
+    const value = (values as Record<string, string | undefined>)[key];
+    return value === undefined ? whole : value;
+  });
 }
 
 /** Placeholders a filled sentence still contains, which means a value was missing. */
