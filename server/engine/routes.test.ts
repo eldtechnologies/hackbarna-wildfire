@@ -3,7 +3,24 @@ import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import express from 'express';
 import { engineRouter } from './routes';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { loadContext } from './egress';
+
+/** A ledger path in a temporary directory, so the suite never appends to the real one. */
+const testLedgerPath = (): string =>
+  join(mkdtempSync(join(tmpdir(), 'routes-ledger-')), 'recommendations.jsonl');
+
+/**
+ * The store the main router was given, held so a test can go and read that exact file.
+ *
+ * The endpoint reports the store's NAME and not its path — it is reachable without credentials,
+ * and the configured path is the absolute one a real deployment uses. So the test cannot tell
+ * the configured store from the default one by reading the response, and checks the file instead,
+ * which is the stronger assertion anyway.
+ */
+const routerLedgerPath = testLedgerPath();
 
 // The router had no automated coverage at all: its status codes, its cursor parsing and
 // the CAP refusal path were exercised only by hand. Both of the defects found in it —
@@ -19,7 +36,7 @@ before(async () => {
   // means the first assertion is not competing with a twelve-second parse.
   loadContext();
   const app = express();
-  app.use(engineRouter());
+  app.use(engineRouter({ ledgerPath: routerLedgerPath }));
   server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -109,7 +126,7 @@ test('an absent cursor is the documented default, and an empty one is the same t
   assert.equal(a.at, e.at, 'omitted and empty both mean "no cursor given"');
 });
 
-test('the served CAP document is schema-valid for every cursor inside the window', async () => {
+test('the served CAP document carries a well-formed <sent> at every cursor inside the window', async () => {
   // The route refuses to serve a document that fails its own semantic checks; this
   // asserts the checks agree with the schema on the cursors the demo actually uses.
   for (const at of [0, 3600, AT, 63417, 70560, 90000]) {
@@ -141,7 +158,7 @@ test('the cache cannot be turned into a memory amplifier by walking the cursor',
   // rather than growing the process. Driven through a router with a tiny limit rather
   // than 300 cursors at a full solve each.
   const app = express();
-  app.use(engineRouter({ cacheLimit: 4 }));
+  app.use(engineRouter({ cacheLimit: 4, ledgerPath: testLedgerPath() }));
   const small = createServer(app);
   await new Promise<void>((resolve) => small.listen(0, '127.0.0.1', resolve));
   const address = small.address();
@@ -166,4 +183,137 @@ test('the engine routes are reachable without the fire routes being disturbed', 
   // boundary holds, so an engine route cannot shadow or break the console's own route.
   const health = await get('/api/health');
   assert.equal(health.status, 404, 'the engine router does not own /api/health, and does not answer for it');
+});
+
+test('the ledger endpoint serves the store the router was given, in recording order', async () => {
+  // The wiring this pins was found by running the server, not by reading: the router built
+  // its responses with the default ledger path, so a test that exercised it appended to the
+  // deployment's real ledger — and those entries then answered later requests in place of a
+  // computation, the suite silently changing the behaviour of the thing it was testing.
+  const first = await get('/api/alerts?at=64800');
+  assert.equal(first.status, 200);
+
+  const history = await get('/api/ledger');
+  assert.equal(history.status, 200);
+  const body = JSON.parse(history.body) as {
+    store: string;
+    total: number;
+    limit: number | null;
+    unreadable: number;
+    entries: Array<{ at: string; pocketId: string; recordedAt: string; evidence: string[] }>;
+  };
+
+  assert.equal(body.store, 'recommendations.jsonl', 'the store is named, not its directory');
+  assert.ok(body.total > 0, 'a served recommendation was recorded');
+  assert.equal(body.limit, null, 'no limit was asked for, and the response says so rather than implying one');
+  // The endpoint read the file the router was configured with: this is that file, and the
+  // response is a rendering of it rather than of some other store it happened to reach.
+  const lines = readFileSync(routerLedgerPath, 'utf8').split('\n').filter((line) => line.trim() !== '');
+  assert.equal(lines.length, body.total, 'the response carries exactly the lines of the configured store');
+  assert.equal(body.unreadable, 0);
+  for (const entry of body.entries) {
+    assert.ok(entry.at.length > 0, 'the cursor it applies to');
+    assert.ok(entry.recordedAt.length > 0, 'the wall-clock time it was recorded');
+    assert.ok(entry.pocketId.length > 0, 'the pocket it is about');
+    assert.ok(Array.isArray(entry.evidence) && entry.evidence.length > 0, 'the evidence behind it');
+  }
+});
+
+/** A router with its own store, so a count does not depend on what earlier tests recorded. */
+async function ownRouter(): Promise<{ base: string; close: () => Promise<void> }> {
+  const app = express();
+  app.use(engineRouter({ ledgerPath: testLedgerPath() }));
+  const server = createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (address === null || typeof address === 'string') throw new Error('no port bound');
+  return {
+    base: `http://127.0.0.1:${address.port}`,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
+}
+
+test('a history limit bounds the response, and the response says it is a page', async () => {
+  // `?limit=` had no test anywhere: `parseLimit` and `selectEntries` were referenced by nothing in
+  // the suite, including the `limit=0` case the previous round fixed — where `slice(-0)` is
+  // `slice(0)`, so a request for none returned the entire store.
+  const { base, close } = await ownRouter();
+  const ledger = async (query = ''): Promise<{
+    status: number;
+    body: { total: number; limit: number | null; entries: Array<{ at: string }> };
+  }> => {
+    const res = await fetch(`${base}/api/ledger${query}`);
+    return { status: res.status, body: JSON.parse(await res.text()) as never };
+  };
+  try {
+    for (const at of [64800, 68400]) {
+      assert.equal((await fetch(`${base}/api/alerts?at=${at}`)).status, 200);
+    }
+    const all = await ledger();
+    assert.equal(all.body.total, 2, 'two cursors, two recorded recommendations');
+    assert.equal(all.body.entries.length, 2);
+    assert.equal(all.body.limit, null, 'no limit asked for');
+
+    const one = await ledger('?limit=1');
+    assert.equal(one.body.total, 2, 'total is what the store holds, not what this page carries');
+    assert.equal(one.body.limit, 1);
+    assert.deepEqual(
+      one.body.entries.map((e) => e.at),
+      [all.body.entries[1].at],
+      'and the page is the most recent entry, not the first',
+    );
+
+    const none = await ledger('?limit=0');
+    assert.deepEqual(none.body.entries, [], 'a limit of zero returns nothing, not everything');
+    assert.equal(none.body.total, 2, 'while still reporting what the store holds');
+    assert.equal(none.body.limit, 0, 'and which page was asked for');
+
+    const over = await ledger('?limit=99');
+    assert.equal(over.body.entries.length, 2, 'a limit past the end is the whole store, not an error');
+
+    for (const raw of ['-1', 'abc', '1.5', '1e3', '99999999999999999999']) {
+      const res = await ledger(`?limit=${encodeURIComponent(raw)}`);
+      assert.equal(res.status, 400, `limit=${JSON.stringify(raw)} is a client error, not a fallback to everything`);
+    }
+    assert.equal((await ledger('?limit[]=1&limit[]=2')).status, 400, 'a repeated limit is a client error too');
+  } finally {
+    await close();
+  }
+});
+
+test('the history reads in recording order, which is not cursor order', async () => {
+  // The endpoint's reason for taking no cursor. The assertion above covers "serves the store it was
+  // given" and, despite its name, said nothing about order: the cursors it recorded arrived
+  // ascending, so a response sorted by cursor passed it identically.
+  const { base, close } = await ownRouter();
+  try {
+    // Recorded later-moment-FIRST, so cursor order and recording order disagree.
+    const recorded: string[] = [];
+    for (const at of [68400, 64800]) {
+      const res = await fetch(`${base}/api/alerts?at=${at}`);
+      assert.equal(res.status, 200);
+      recorded.push((JSON.parse(await res.text()) as { at: string }).at);
+    }
+    assert.ok(recorded[1] < recorded[0], 'the fixture is discriminating: the first cursor recorded is the later moment');
+
+    const body = JSON.parse(await (await fetch(`${base}/api/ledger`)).text()) as { entries: Array<{ at: string }> };
+    assert.deepEqual(
+      body.entries.map((e) => e.at),
+      recorded,
+      'the order the entries were written, not the order of the cursors they are about',
+    );
+  } finally {
+    await close();
+  }
+});
+
+test('the history carries no cursor parameter, and a bad one does not matter', async () => {
+  // The point of the record is reading the incident without already knowing which moments
+  // to ask for, so the endpoint takes no cursor. A query string it does not read must not
+  // turn a working read into a 400.
+  const plain = await get('/api/ledger');
+  const withJunk = await get('/api/ledger?at=-5&cursorId[]=x');
+  assert.equal(plain.status, 200);
+  assert.equal(withJunk.status, 200);
+  assert.deepEqual(JSON.parse(withJunk.body), JSON.parse(plain.body));
 });

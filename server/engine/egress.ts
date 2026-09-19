@@ -14,6 +14,7 @@
 //    that it could not demonstrate lead time partly because it conflated them. The
 //    physical cut time stays physical; a separate offset decides when it became known.
 
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -52,9 +53,20 @@ import { SWEEP_CONFIGS, basisFor, configLabel, sweepField } from './sweep';
 import { DEFAULT_LATENCY_SECONDS, LATENCY_SECONDS, fromEpochMs, resolveTimelineOrigin } from './time';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const CAPTURE_PATH = resolve(HERE, '../../data/snapshots/los-gallardos-2026-07-09.json');
+export const CAPTURE_PATH = resolve(HERE, '../../data/snapshots/los-gallardos-2026-07-09.json');
 const SETTLEMENTS_PATH = resolve(HERE, '../../data/pockets/settlements.json');
-const STATIC_HEAT_PATH = resolve(HERE, '../../data/fixtures/static-heat-sources.json');
+export const STATIC_HEAT_PATH = resolve(HERE, '../../data/fixtures/static-heat-sources.json');
+
+/**
+ * A short content digest of a file.
+ *
+ * Used to key the recommendation ledger on the inputs a recommendation was computed from. A path
+ * cannot serve: a re-import leaves the path exactly where it was while changing everything the
+ * file describes, which is the case the key has to catch.
+ */
+function digestOf(path: string): string {
+  return createHash('sha256').update(readFileSync(path)).digest('hex').slice(0, 16);
+}
 
 interface StaticHeatFile {
   source: string;
@@ -165,6 +177,28 @@ interface Context {
   segments: CutTime[];
   detections: Detection[];
   originMs: number;
+  /**
+   * A digest of the road data this context was built from.
+   *
+   * The recommendation ledger keys entries on the inputs they were computed from, and the graph
+   * is one of them: a re-imported OSM extract changes the routes, the distances and the travel
+   * times, so an entry computed on the old geometry must not answer for the new one. A content
+   * digest rather than the path, because the path is precisely what stays the same across a
+   * re-import.
+   */
+  graphHash: string;
+  /**
+   * A digest of the detection capture, and of the persistent-heat fixture.
+   *
+   * Both were previously represented in the ledger's key by a count — the number of detections,
+   * the number of heat polygons and removals — and a count is not an input. A re-fetched capture
+   * with the same number of detections, or a re-exported heat fixture with the same geometry
+   * count and different geometry, changes the mask and therefore the answer while leaving the key
+   * where it was, so a recorded entry answers for inputs it never saw. Same reasoning as
+   * `graphHash`: a digest of the bytes, because the path survives the change.
+   */
+  captureHash: string;
+  heatFixtureHash: string;
   scenario: string;
   settlements: Settlement[];
   sweep: ReturnType<typeof sweepField>;
@@ -244,6 +278,15 @@ export function loadContext(graphPath: string = DEFAULT_GRAPH_PATH): Context {
   if (cached && cachedPath === graphPath) return cached;
 
   const loaded = loadGraph(graphPath);
+
+  // Read a second time to digest them, rather than threading the raw bytes through the loaders.
+  // Paid once per process, against a cold build already measured in seconds. The heat fixture is
+  // digested only if it is there; a missing fixture is itself an input, and 'absent' says so
+  // without pretending to be a digest.
+  const graphHash = digestOf(graphPath);
+  const captureHash = digestOf(CAPTURE_PATH);
+  const heatFixtureHash = existsSync(STATIC_HEAT_PATH) ? digestOf(STATIC_HEAT_PATH) : 'absent';
+
   const capture = loadCapture(JSON.parse(readFileSync(CAPTURE_PATH, 'utf8')));
   const originMs = resolveTimelineOrigin(
     capture.hotspots.map((h) => h.properties.observed_at ?? null),
@@ -325,7 +368,7 @@ export function loadContext(graphPath: string = DEFAULT_GRAPH_PATH): Context {
 
   cached = {
     loaded, graph: loaded.graph, graphsByProfile, segments: buildSegments(loaded.graph, sweep, originMs),
-    detections, originMs,
+    detections, originMs, graphHash, captureHash, heatFixtureHash,
     scenario: capture.scenario, settlements, sweep,
     staticHeatRemoved: removed.length, staticHeatPolygons: heatRings.length, heatFixtureLoaded,
     fireClusterIds: fire.clusterIds,

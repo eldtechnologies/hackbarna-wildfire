@@ -16,6 +16,8 @@ import { Router, type Request, type Response } from 'express';
 import { buildEgress, loadContext } from './egress';
 import { buildAlerts } from './alerts';
 import { SWEEP_CONFIGS } from './sweep';
+import { ledgerName, openLedger, type StoredEntry } from './ledger';
+import { LEDGER_PATH } from '../config';
 
 export interface EngineRouterOptions {
   /**
@@ -23,17 +25,29 @@ export interface EngineRouterOptions {
    * testable without walking 300 cursors through a full solve each.
    */
   cacheLimit?: number;
+  /**
+   * Where the recommendation ledger lives. Defaults to the configured path.
+   *
+   * An option for the same reason `cacheLimit` is one: without it a test that exercises
+   * the router appends to the deployment's real ledger, and those entries then answer
+   * later requests in place of a computation — the suite silently changing the behaviour
+   * of the thing it is testing.
+   */
+  ledgerPath?: string;
 }
 
+/** The ledger path this router uses, resolved once so every route agrees. */
+const resolveLedgerPath = (options: EngineRouterOptions): string => options.ledgerPath ?? LEDGER_PATH;
+
 /**
- * A cursor the client got wrong.
+ * A request parameter the client got wrong — the cursor, or the history limit.
  *
  * Distinct from the engine's own RangeErrors — the profile scaling refuses an unusable
  * speed, the mask refuses a lattice it cannot cover — so `fail` can answer 400 for the one
  * and 502 for the other. Both were RangeErrors, and catching the class rather than the
  * meaning turned an engine fault into a client error.
  */
-class CursorError extends RangeError {}
+class RequestError extends RangeError {}
 
 export function engineRouter(options: EngineRouterOptions = {}): Router {
   const router = Router();
@@ -55,7 +69,7 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
     // refuses a lattice it cannot cover — so a corrupt committed graph was answered as
     // "your request was invalid" with the engine's internal message echoed to the caller,
     // on every request, forever. Engine failures are ours and belong in the log.
-    if (err instanceof CursorError) {
+    if (err instanceof RequestError) {
       res.status(400).json({ error: err.message });
       return;
     }
@@ -77,15 +91,46 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
       // Express hands `?at[]=1&at[]=2` through as an array. Silently falling back would
       // serve the end of the window — the most-informed state — to a client that asked
       // for something else, which is the opposite answer.
-      throw new CursorError('at must be a single value');
+      throw new RequestError('at must be a single value');
     }
     if (raw === '') return undefined;
     // Canonical digits only: `Number()` also accepts '0x10', '1e5' and ' 42 ', so a
     // cursor would silently mean something other than what the client wrote.
-    if (!/^\d+$/.test(raw)) throw new CursorError('at must be a non-negative integer number of seconds');
+    if (!/^\d+$/.test(raw)) throw new RequestError('at must be a non-negative integer number of seconds');
     const n = Number(raw);
-    if (n > MAX_AT_SECONDS) throw new CursorError('at is beyond the representable range of a CAP timestamp');
+    if (n > MAX_AT_SECONDS) throw new RequestError('at is beyond the representable range of a CAP timestamp');
     return n;
+  };
+
+  /**
+   * Parse `?limit=`: how many of the most recent entries to return.
+   *
+   * Absent means all of them, which is what the endpoint returned before a limit existed and
+   * what a small history wants. Rejected rather than falling back when malformed, for the same
+   * reason the cursor is: the fallback is the least bounded answer, so a client that asked for
+   * a bounded one and got the whole file has the opposite of what it asked for.
+   */
+  const parseLimit = (raw: unknown): number | undefined => {
+    if (raw === undefined || raw === '') return undefined;
+    if (typeof raw !== 'string') throw new RequestError('limit must be a single value');
+    if (!/^\d+$/.test(raw)) throw new RequestError('limit must be a non-negative integer');
+    const n = Number(raw);
+    // A digit string long enough to overflow is not a count of anything.
+    if (!Number.isSafeInteger(n)) throw new RequestError('limit is too large to be a number of entries');
+    return n;
+  };
+
+  /**
+   * The tail of the history that a limit asks for.
+   *
+   * Spelled out rather than written `entries.slice(-limit)`, because `-0` is `0` to `slice`:
+   * a limit of zero would return `slice(0)` — the entire store — which is the exact inversion
+   * of the request, in the direction that costs the most.
+   */
+  const selectEntries = (entries: StoredEntry[], limit: number | undefined): StoredEntry[] => {
+    if (limit === undefined || limit >= entries.length) return entries;
+    if (limit === 0) return [];
+    return entries.slice(-limit);
   };
 
   /**
@@ -190,7 +235,10 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
     try {
       const atSeconds = parseAt(req.query.at);
       const built = memoise(alertsCache, atSeconds, () =>
-        buildAlerts(atSeconds === undefined ? {} : { atSeconds }),
+        buildAlerts({
+          ...(atSeconds === undefined ? {} : { atSeconds }),
+          ledgerPath: resolveLedgerPath(options),
+        }),
       );
       res.json({
         ...built.response,
@@ -214,7 +262,10 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
     try {
       const atSeconds = parseAt(req.query.at);
       const built = memoise(alertsCache, atSeconds, () =>
-        buildAlerts(atSeconds === undefined ? {} : { atSeconds }),
+        buildAlerts({
+          ...(atSeconds === undefined ? {} : { atSeconds }),
+          ledgerPath: resolveLedgerPath(options),
+        }),
       );
       const pocketId = String(req.params.pocketId);
       const xml = built.documents.get(pocketId);
@@ -240,6 +291,44 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
       res.send(xml);
     } catch (err) {
       fail(res, err, 'CAP emission failed');
+    }
+  });
+
+  /**
+   * The whole recommendation history, in recording order.
+   *
+   * No cursor is supplied: the point of the record is that a reviewer can read the incident
+   * without already knowing which moments to ask for. Recording order rather than cursor
+   * order, because the engine is asked for cursors by a scrubber rather than in sequence and
+   * sorting would present a later moment before an earlier one.
+   *
+   * `unreadable` travels with the entries so a short history cannot be read as a complete
+   * one — a truncated line from a crash mid-append is skipped, not hidden.
+   */
+  router.get('/api/ledger', (req: Request, res: Response) => {
+    try {
+      // Parsed before the store is read, so a malformed limit is answered as the client error it
+      // is instead of costing a full parse of a store that may be at its cap.
+      const limit = parseLimit(req.query.limit);
+      const path = resolveLedgerPath(options);
+      const { entries, unreadable } = openLedger(path).history();
+      // `total` is what the store holds and `limit` is what this response applied, so a page
+      // cannot be mistaken for the history. `{total: 5, limit: 0, entries: []}` says "nothing was
+      // asked for"; a bare count beside an empty array says "there is nothing", which is the
+      // opposite reading and the one a consumer would persist. The limit bounds the RESPONSE, not
+      // the read — the file is parsed whole either way, and the store's byte cap bounds that. A
+      // full store serialised to 15.5 MiB, which is not a page anyone opens.
+      res.json({
+        // The name rather than the path: this route needs no credentials, and the configured
+        // path is the absolute one a real deployment uses. See `ledgerName`.
+        store: ledgerName(path),
+        total: entries.length,
+        limit: limit ?? null,
+        unreadable,
+        entries: selectEntries(entries, limit),
+      });
+    } catch (err) {
+      fail(res, err, 'recommendation history unavailable');
     }
   });
 
