@@ -1,9 +1,7 @@
 import express from 'express';
-
-const PORT = 3001;
+import { SERVER_PORT } from './config';
 
 const app = express();
-app.use(express.json());
 
 // Placeholder until the data provider card lands the real endpoints.
 app.get('/api/health', (_req, res) => {
@@ -15,6 +13,6 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`[server] ojo-de-fuego proxy listening on http://localhost:${PORT}`);
+app.listen(SERVER_PORT, () => {
+  console.log(`[server] ojo-de-fuego server listening on http://localhost:${SERVER_PORT}`);
 });

@@ -1,3 +1,7 @@
+// Placeholder layer registry. The visibility flags below are display only,
+// not simulated: no globe layer consumes them yet, so toggling a checkbox
+// changes nothing on the globe until the layers card wires real data sources.
+
 export type LayerId =
   | 'hotspots'
   | 'clusters'
@@ -14,7 +18,6 @@ export const LAYERS: { id: LayerId; label: string }[] = [
 ];
 
 const visibility = new Map<LayerId, boolean>(LAYERS.map((l) => [l.id, true]));
-const listeners = new Set<(id: LayerId, visible: boolean) => void>();
 
 export function isLayerVisible(id: LayerId): boolean {
   return visibility.get(id) ?? true;
@@ -22,12 +25,4 @@ export function isLayerVisible(id: LayerId): boolean {
 
 export function setLayerVisible(id: LayerId, visible: boolean): void {
   visibility.set(id, visible);
-  for (const fn of listeners) fn(id, visible);
-}
-
-export function onLayerChange(
-  fn: (id: LayerId, visible: boolean) => void,
-): () => void {
-  listeners.add(fn);
-  return () => listeners.delete(fn);
 }

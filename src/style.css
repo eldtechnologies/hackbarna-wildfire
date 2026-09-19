@@ -145,6 +145,6 @@ body,
 /* Keep imagery attribution visible but unobtrusive */
 .cesium-widget-credits {
   font-size: 9px;
-  opacity: 0.45;
+  opacity: 0.7;
   font-family: var(--font);
 }
