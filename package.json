@@ -10,7 +10,8 @@
     "server": "tsx watch --env-file-if-exists=.env server/index.ts",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.server.json"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.server.json",
+    "test": "node --test --import tsx \"server/**/*.test.ts\""
   },
   "dependencies": {
     "cesium": "1.145.0",

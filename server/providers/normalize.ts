@@ -140,6 +140,15 @@ function num(value: number | string | null | undefined): number {
   return typeof n === 'number' && Number.isFinite(n) ? n : 0;
 }
 
+// FRP is nullable, and null is not 0. A missing value stays null. An
+// unparseable value is also missing, so it stays null rather than becoming a
+// fake measurement. A real 0.0 is kept: the sensor reported zero power.
+function parseFrp(value: number | string | null | undefined): number | null {
+  if (value == null) return null;
+  const n = typeof value === 'string' ? Number(value) : value;
+  return typeof n === 'number' && Number.isFinite(n) ? n : null;
+}
+
 export function normalize(
   raw: RawFiresPayload,
   provenance: 'live' | 'replay',
@@ -148,12 +157,10 @@ export function normalize(
   const hotspots: Hotspot[] = (raw.hotspots ?? []).map((f) => {
     const p = f.properties;
     const [lon, lat] = f.geometry.coordinates;
-    const frp = num(p.fire_radiative_power);
     return {
       id: String(p.id ?? f.id ?? ''),
       position: { lat, lon },
-      // Missing FRP stays null. A null is "not measured"; a 0 is "measured zero".
-      frpMw: p.fire_radiative_power == null || frp === 0 ? null : frp,
+      frpMw: parseFrp(p.fire_radiative_power),
       confidence: normalizeConfidence(p.confidence),
       detectedAt: p.observed_at,
       clusterId: p.cluster_id != null ? String(p.cluster_id) : null,

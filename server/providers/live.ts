@@ -90,7 +90,9 @@ function itemPath(collection: string, from: Date, to: Date): string {
   const params = new URLSearchParams({
     bbox: BBOX,
     'filter-lang': 'cql2-text',
-    filter: `observed_at >= '${from.toISOString()}' AND observed_at <= '${to.toISOString()}'`
+    // Half-open interval. An inclusive upper bound makes adjacent day chunks
+    // both match a detection exactly on the boundary, so it arrives twice.
+    filter: `observed_at >= '${from.toISOString()}' AND observed_at < '${to.toISOString()}'`
       + (ACTIVE_ONLY ? ' AND active = true' : ''),
     f: 'application/geo+json',
   });
