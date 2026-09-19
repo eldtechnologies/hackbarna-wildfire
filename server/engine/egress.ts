@@ -354,7 +354,16 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
         ? {
             earliest: fromEpochMs(origin + earliest * 1000),
             latest: fromEpochMs(origin + latest * 1000),
-            basis: basisFor(ctx.sweep.field.earliestConfigId[i], ctx.sweep.field.latestConfigId[i]),
+            // `contributorCount` is passed here for the same reason the route band below
+            // passes its own: a configuration that never closes this segment contributes
+            // nothing to its band, and a basis line claiming all twelve while most of
+            // them stood down overstates the evidence behind the number. Measured on the
+            // committed capture, fewer than twelve configurations cut most segments.
+            basis: basisFor(
+              ctx.sweep.field.earliestConfigId[i],
+              ctx.sweep.field.latestConfigId[i],
+              ctx.sweep.field.contributorCount[i],
+            ),
           }
         : null,
       evidenceHotspotIds: ctx.sweep.field.nominalEvidence[i] ?? [],
@@ -505,6 +514,18 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
     // Gating on the encouraging end of the band instead would be more permissive and
     // would make a better demo. That is the trap.
     const gated = routes.map((r) => {
+      // Nothing has been observed yet, so nothing about this route can be assessed. Its
+      // band is unbounded precisely because the mask is empty, so left alone it passes
+      // every gate below and the response publishes `usable: true` — four routes that
+      // survived scrutiny, beside a verdict saying none could be assessed. The verdict is
+      // the pocket-level statement of this, and the per-route flag has to agree with it.
+      if (!anyObserved) {
+        return {
+          ...r,
+          usable: false,
+          unusableReason: 'no detection has arrived at this cursor, so the route cannot be assessed',
+        };
+      }
       if (r.lastSafeDeparture === null) {
         return { ...r, usable: false, unusableReason: 'route is already cut at this cursor' };
       }

@@ -59,6 +59,16 @@ export interface BandedField {
   /** Which configuration produced each extreme, for the basis string. */
   earliestConfigId: string[];
   latestConfigId: string[];
+  /**
+   * Per segment, how many configurations produced a finite cut inside the window.
+   *
+   * The basis string has to report this, for the same reason the route band does: a
+   * configuration that never closes a segment contributes nothing to its band, and
+   * claiming all twelve while a third of them stood down overstates the evidence behind
+   * the number. Measured on the committed capture, fewer than twelve configurations cut
+   * most segments.
+   */
+  contributorCount: number[];
 }
 
 /**
@@ -121,6 +131,8 @@ export function sweepField(
   const latest = new Array<number>(segments.length).fill(Number.NEGATIVE_INFINITY);
   const earliestConfig = new Array<string>(segments.length).fill('');
   const latestConfig = new Array<string>(segments.length).fill('');
+  // How many configurations produced a finite cut for each segment.
+  const contributors = new Array<number>(segments.length).fill(0);
   const cutByConfig = new Map<string, Float64Array>();
   const nodeCutByConfig = new Map<string, Float64Array>();
   const latencyByConfig = new Map<string, Float64Array>();
@@ -158,6 +170,7 @@ export function sweepField(
     for (let i = 0; i < segments.length; i++) {
       const c = cut[i];
       if (c === Number.POSITIVE_INFINITY) continue;
+      contributors[i] += 1;
       if (c < earliest[i]) {
         earliest[i] = c;
         earliestConfig[i] = config.id;
@@ -177,6 +190,7 @@ export function sweepField(
       latestCutAtSeconds: latest,
       earliestConfigId: earliestConfig,
       latestConfigId: latestConfig,
+      contributorCount: contributors,
     },
     cutByConfig,
     nodeCutByConfig,

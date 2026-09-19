@@ -184,7 +184,15 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
     const fireReaches =
       pocketNode === null || nodeCut === undefined ? true : Number.isFinite(nodeCut[pocketNode]);
 
-    const instruction = instructionFor(chosen, atMs, fireReaches);
+    // `fireReaches` is a whole-window fact about the fire, not about what was known at
+    // the cursor. So a pocket the fire never reaches would otherwise be told "no action is
+    // required" at a cursor where nothing has been reported at all — the same all-clear
+    // from absent data that the verdict exists to prevent, arriving through a second
+    // branch. Where nothing has been observed, nothing can be declared safe.
+    const instruction =
+      pocketEgress.verdict === 'not_yet_observed'
+        ? 'no_verified_action'
+        : instructionFor(chosen, atMs, fireReaches);
     const template = templateFor(instruction);
 
     const values = {
@@ -273,8 +281,14 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
       evidence: [
         instruction === 'no_action'
           ? 'the fire does not reach this pocket within the modelled window'
-          : chosen === null
-            ? 'no route survived the sweep from this pocket'
+          : pocketEgress.verdict === 'not_yet_observed'
+            ? // Distinguishing this from the line below matters: "no route survived the
+              // sweep" asserts a search that came up empty, and auditing it against a
+              // response that lists four routes would read as the ledger contradicting
+              // itself. Nothing was searched, because nothing had been reported.
+              'no detection had arrived at this cursor, so no route could be assessed'
+            : chosen === null
+              ? 'no route survived the sweep from this pocket'
             : instruction === 'no_verified_action'
               ? `a route exists to ${chosen.destination} (${chosen.distanceKm} km, ${chosen.travelMinutes} min, worst road ${chosen.slowestHighway}) but its pessimistic departure has passed`
               : `recommended ${chosen.destination}: ${chosen.distanceKm} km, ${chosen.travelMinutes} min, worst road ${chosen.slowestHighway}`,
