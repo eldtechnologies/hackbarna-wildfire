@@ -13,6 +13,12 @@ const XSD = fileURLToPath(new URL('../../data/cap/CAP-v1.2.xsd', import.meta.url
 /** 21:36 CEST on 9 July — two hours before the first deaths, road already cut. */
 const CURSOR = 19 * 3600 + 36 * 60;
 
+/**
+ * 19:00 CEST on 9 July, before the pessimistic departure. At this cursor an evacuation
+ * is still a verified action; at CURSOR it is not, and the message has to say so.
+ */
+const EARLY_CURSOR = 17 * 3600;
+
 const hasXmllint = ((): boolean => {
   try {
     execFileSync('xmllint', ['--version'], { stdio: 'ignore' });
@@ -49,6 +55,37 @@ test('the instruction follows the route, and a track is never called the primary
   );
 });
 
+test('a band whose pessimistic end has passed is no longer a verified action', () => {
+  // The sentence and the pocket verdict must agree. Gating the verdict on the
+  // pessimistic end while the message only checked that a band existed let the engine
+  // report `no_verified_action` for the pocket and tell people to drive out in the same
+  // response — the encouraging reading winning in the one place it must not.
+  const cursor = Date.UTC(2026, 6, 9, 21, 36);
+  const route = { slowestHighway: 'tertiary', lastSafeDeparture: { earliest: '2026-07-09T19:36:57.000Z' } };
+  assert.equal(instructionFor(route, cursor), 'no_verified_action');
+
+  // And a band still in the future remains an evacuation instruction.
+  const future = { slowestHighway: 'tertiary', lastSafeDeparture: { earliest: '2026-07-09T22:00:00.000Z' } };
+  assert.equal(instructionFor(future, cursor), 'evacuate_primary');
+});
+
+test('the package and the pocket verdict never disagree', () => {
+  const built = buildAlerts({ atSeconds: CURSOR });
+  const egress = buildEgress({ atSeconds: CURSOR });
+  for (const pocket of egress.response.pockets) {
+    const packages = built.response.packages.filter((p) => p.pocketId === pocket.pocketId);
+    if (pocket.verdict === 'no_verified_action') {
+      for (const pkg of packages) {
+        assert.equal(
+          pkg.instruction,
+          'no_verified_action',
+          `pocket ${pocket.pocketId} says no verified action but the message says ${pkg.instruction}`,
+        );
+      }
+    }
+  }
+});
+
 test('the pipeline emits packages for the real fire rather than rejecting everything', () => {
   // Regression. Destination names were once resolved against the road graph, so every
   // candidate was rejected as "not a name in the road data" and the endpoint returned an
@@ -60,8 +97,9 @@ test('the pipeline emits packages for the real fire rather than rejecting everyt
 });
 
 test('a destination resolves as a place, and the road as a way', () => {
-  const built = buildAlerts({ atSeconds: CURSOR });
+  const built = buildAlerts({ atSeconds: EARLY_CURSOR });
   const pkg = built.response.packages[0];
+  assert.ok(pkg.resolvedNames.length > 0, 'an evacuation sentence names things');
   const kinds = new Map(pkg.resolvedNames.map((n) => [n.osm?.type, n.text]));
   assert.ok(kinds.has('node'), 'the destination must resolve as a place, not a road');
   assert.ok(kinds.has('way'), 'the road must resolve as an OSM way');
@@ -72,8 +110,8 @@ test('a destination resolves as a place, and the road as a way', () => {
 });
 
 test('the sentence names the road the route actually uses', () => {
-  const built = buildAlerts({ atSeconds: CURSOR });
-  const egress = buildEgress({ atSeconds: CURSOR });
+  const built = buildAlerts({ atSeconds: EARLY_CURSOR });
+  const egress = buildEgress({ atSeconds: EARLY_CURSOR });
   const pkg = built.response.packages[0];
 
   const destinationName = pkg.resolvedNames.find((n) => n.osm?.type === 'node')?.text;

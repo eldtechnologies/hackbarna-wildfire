@@ -62,13 +62,21 @@ export function instructionFor(
   cursorMs: number,
 ): InstructionId {
   if (route === null || route.lastSafeDeparture === null) return 'no_verified_action';
+
+  // If the pessimistic end of the band has already passed, there is no longer a
+  // verified action, and the sentence must say the same thing the pocket verdict does.
+  // Without this the two disagree: the verdict gates on the pessimistic end while the
+  // message looked only at whether a band existed, so the engine could report
+  // `no_verified_action` for the pocket and simultaneously tell people to drive out.
+  const pessimistic = Date.parse(route.lastSafeDeparture.earliest);
+  if (Number.isFinite(pessimistic) && pessimistic < cursorMs) return 'no_verified_action';
+
   // A route that only exists because a track is in the graph is the case the spike
   // describes: the main road is not safe and the way out is a track. Naming that route
   // as the primary one would repeat the failure the product exists to prevent.
   if (route.slowestHighway === 'track' || route.slowestHighway === 'service') {
     return 'evacuate_alternate';
   }
-  void cursorMs;
   return 'evacuate_primary';
 }
 

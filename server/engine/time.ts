@@ -103,10 +103,6 @@ export function secondsSince(originMs: number, ms: number): number {
   return Math.floor((ms - originMs) / 1000);
 }
 
-export function addSeconds(ms: number, seconds: number): number {
-  return ms + seconds * 1000;
-}
-
 /**
  * The scenario origin a `?at=<seconds>` cursor counts from.
  *

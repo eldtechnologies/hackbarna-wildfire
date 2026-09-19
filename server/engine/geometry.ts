@@ -29,11 +29,6 @@ function metresPerDegLon(lat: number): number {
   return 111412.84 * Math.cos(p) - 93.5 * Math.cos(3 * p) + 0.118 * Math.cos(5 * p);
 }
 
-export interface MetrePoint {
-  x: number;
-  y: number;
-}
-
 /**
  * Distance in metres from a point to a segment, using a local frame centred on the
  * query point. Accuracy is worst at the far end of the segment, where the latitude
@@ -126,20 +121,12 @@ export function pointInRing(p: LatLon, ring: LatLon[]): boolean {
   return inside;
 }
 
-export function bboxUnion(a: Bbox, b: Bbox): Bbox {
-  return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
-}
-
 /** Pad a bbox by `metres` on every side. */
 export function bboxPad(box: Bbox, metres: number): Bbox {
   const midLat = (box[1] + box[3]) / 2;
   const dLat = metres / metresPerDegLat(midLat);
   const dLon = metres / metresPerDegLon(midLat);
   return [box[0] - dLon, box[1] - dLat, box[2] + dLon, box[3] + dLat];
-}
-
-export function bboxContains(box: Bbox, p: LatLon): boolean {
-  return p.lon >= box[0] && p.lon <= box[2] && p.lat >= box[1] && p.lat <= box[3];
 }
 
 /** CAP requires a closed ring of at least four positions; anything less is not a polygon. */

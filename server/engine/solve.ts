@@ -272,10 +272,15 @@ function candidateIsBetter(candidate: Edge, incumbent: Edge, lengthOf: (e: Edge)
   return candidate.id < incumbent.id;
 }
 
+
 /**
  * Road classes worst-first. A route that only exists because a forest track is in the
- * graph should say so on its face rather than inside a free-text basis string — the
- * spike's own warning is that people died on tracks that looked like roads.
+ * graph has to say so on its face — the spike's own account of the deaths includes
+ * people who left by a track that led nowhere.
+ *
+ * Every class the fetcher keeps is one a car can use; footways, paths and steps never
+ * enter the graph, so there is no separate "is this drivable" filter to apply. What the
+ * rank answers is quality, which is a different question.
  */
 export const HIGHWAY_RANK: readonly string[] = [
   'motorway',
@@ -290,9 +295,6 @@ export const HIGHWAY_RANK: readonly string[] = [
   'track',
   'road',
 ];
-
-/** Classes a passenger car can reasonably use for evacuation. */
-export const DRIVABLE_HIGHWAYS = new Set<string>(HIGHWAY_RANK);
 
 export interface Route {
   segmentIds: string[];

@@ -20,7 +20,6 @@
 
 import type { LatLon } from '../../shared/fires';
 import { bboxOf, pointInRing, pointToSegmentMetres } from './geometry';
-import type { Bbox } from './geometry';
 
 /**
  * Nominal detection footprint radius in metres — how far the fire could be from the
@@ -271,36 +270,4 @@ export function subtractStaticHeatSources(
   return { kept, removed };
 }
 
-export function bboxOfDetections(detections: Detection[]): Bbox | null {
-  return bboxOf(detections.map((d) => ({ lat: d.lat, lon: d.lon })));
-}
 
-/**
- * Cut times for the road segments and for the graph's nodes, in one pass.
- *
- * Nodes are appended after the segments and measured as zero-length polylines, so a
- * node is "cut" only when a detection disc actually contains it. That is deliberately
- * different from the earliest cut among its incident edges — a disc over the far end of
- * a long access road cuts the road without the village being touched, and conflating
- * the two closes settlements the fire never reaches.
- */
-export function cutFieldWithNodes(
-  segments: LatLon[][],
-  nodes: LatLon[],
-  detections: Detection[],
-  config: SweepConfig,
-): { segments: CutField; nodeCutSeconds: number[] } {
-  const nodePolylines = nodes.map((n) => [n]);
-  const all = [...segments, ...nodePolylines];
-  const maxRadius = config.fixedRadiusM ?? 2000 * config.radiusScale;
-  const pairs = buildPairIndex(all, detections, maxRadius);
-  const field = cutField(pairs, detections, all.length, config);
-  return {
-    segments: {
-      ...field,
-      cutAtSeconds: field.cutAtSeconds.slice(0, segments.length),
-      evidenceDetectionIds: field.evidenceDetectionIds.slice(0, segments.length),
-    },
-    nodeCutSeconds: field.cutAtSeconds.slice(segments.length),
-  };
-}
