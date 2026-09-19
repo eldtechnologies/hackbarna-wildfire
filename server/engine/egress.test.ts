@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildEgress, loadContext } from './egress';
+import { buildAlerts } from './alerts';
 import { nearestNode } from './graph';
 
 const ctx = loadContext();
@@ -73,13 +74,33 @@ test('the cursor masks the destination deadline as well as the road cut', () => 
   }
 });
 
-test('a cursor before the fire is observed reports the routes open, and changes once it is', () => {
-  // The whole timeline is two states with one transition. It is asserted because the
-  // transition is the demo's most consequential number, and because it moved when the
-  // node field started being masked.
-  const before = buildEgress({ atSeconds: 17 * 3600 }).response.pockets[0];
-  assert.equal(before.verdict, 'routes_open', 'at 17:00 CEST nothing is known and the road is open');
+test('nothing observed is its own verdict, not an all-clear', () => {
+  // Before the first detection arrives the cut field is empty, so every band is unbounded
+  // and every route survives the gate trivially. A two-valued verdict reported
+  // `routes_open` on that, which is the most consequential sentence this response can
+  // publish, produced by no data at all.
+  const nothing = buildEgress({ atSeconds: 0 }).response.pockets[0];
+  assert.equal(nothing.verdict, 'not_yet_observed');
 
-  const after = buildEgress({ atSeconds: 19 * 3600 }).response.pockets[0];
-  assert.equal(after.verdict, 'no_verified_action', 'by 19:00 CEST the decision is already late');
+  // And the alert layer must not compose an evacuation out of it. At 17:00 a real route
+  // is known and the sentence names a real road; at 00:00 there is no route to name.
+  const silent = buildAlerts({ atSeconds: 0 });
+  for (const pkg of silent.response.packages) {
+    assert.equal(pkg.instruction, 'no_verified_action', 'no evacuation is composed before anything is observed');
+  }
+});
+
+test('the timeline is three states with two transitions', () => {
+  // The whole replay, asserted because the transitions are the demo's most
+  // consequential numbers and both moved when the node field started being masked.
+  const verdictAt = (h: number): string => buildEgress({ atSeconds: h * 3600 }).response.pockets[0].verdict;
+
+  assert.equal(verdictAt(0), 'not_yet_observed', 'nothing has arrived yet');
+  assert.equal(verdictAt(17), 'routes_open', 'at 17:00 CEST a route is known and still open');
+  assert.equal(verdictAt(19), 'no_verified_action', 'by 19:00 CEST the decision is already late');
+
+  // The verdict is not decoration: it is what the message layer gates on, so each state
+  // has to carry a different instruction or the third state would buy nothing.
+  assert.equal(buildAlerts({ atSeconds: 17 * 3600 }).response.packages[0]?.instruction, 'evacuate_alternate');
+  assert.equal(buildAlerts({ atSeconds: 19 * 3600 }).response.packages[0]?.instruction, 'no_verified_action');
 });

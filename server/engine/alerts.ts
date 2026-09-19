@@ -168,7 +168,12 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
     // when its band, minus clearance and delay, has passed, while this file only checked
     // the band — so for a window as long as the clearance there could be a CAP sentence
     // telling people to leave for a pocket the same response marked `no_verified_action`.
-    const usableRoutes = pocketEgress.routes
+    // A pocket the engine has no observation for has no route to recommend, whatever its
+    // bands say. Before anything had arrived the bands were unbounded and every route
+    // passed the gate, so this used to compose an evacuation sentence naming a real road,
+    // out of no data at all. The verdict is the engine's statement about that, and it is
+    // read here rather than re-derived.
+    const usableRoutes = (pocketEgress.verdict === 'not_yet_observed' ? [] : pocketEgress.routes)
       .filter((r) => r.usable)
       .sort((a, b) => Date.parse(b.lastSafeDeparture!.earliest) - Date.parse(a.lastSafeDeparture!.earliest));
     const chosen = usableRoutes[0] ?? null;

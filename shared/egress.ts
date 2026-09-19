@@ -131,8 +131,17 @@ export interface PocketEgress {
   /**
    * 'no_verified_action' is not shelter-in-place. Failing to find a route does
    * not show the building is survivable, so the default is operator assessment.
+   *
+   * 'not_yet_observed' is a third state, and it exists because the other two cannot
+   * express it. Before any detection has arrived the cut field is empty, every band is
+   * unbounded, and every route trivially survives the gate — so `routes_open` was
+   * produced by absence of information rather than by evidence of safety. A clean
+   * all-clear is the most consequential thing this response can say, and it must not be
+   * something the engine says when it has seen nothing. This is not a stronger
+   * `no_verified_action`: that one means a route was sought and withdrawn, this one means
+   * none could be assessed.
    */
-  verdict: 'routes_open' | 'no_verified_action';
+  verdict: 'routes_open' | 'no_verified_action' | 'not_yet_observed';
 }
 
 export interface EgressResponse {

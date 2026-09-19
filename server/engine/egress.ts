@@ -286,6 +286,15 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
     return out;
   };
 
+  // Has the engine been told anything at all by this cursor? A detection is in hand once
+  // it has been observed and its delivery latency has elapsed, which is the same rule the
+  // two masks above apply — asked here as a question about the data rather than about the
+  // road, because "no road is cut" and "nothing has been reported" are different states
+  // and only one of them is evidence that the road is open.
+  const anyObserved = ctx.detections.some(
+    (d) => d.atSeconds + (LATENCY_SECONDS[d.source] ?? DEFAULT_LATENCY_SECONDS) <= cursor,
+  );
+
   // The node field is masked to the cursor exactly like the edge field above, and for
   // the same reason. The cursor models what the coordinator knew, not what the fire did.
   // Left raw, a destination's own burn time — a 10 July arrival that no sensor had
@@ -522,8 +531,15 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
     routes.length = 0;
     routes.push(...gated);
 
-    const verdict: PocketEgress['verdict'] =
-      usableRoutes.length > 0 ? 'routes_open' : 'no_verified_action';
+    // Whether any detection has reached the engine by this cursor at all, which is a
+    // different question from whether any route survives the gate. Before the first one
+    // arrives the cut field is empty and every band is unbounded, so every route passes
+    // trivially and the old two-valued verdict reported `routes_open` on no data.
+    const verdict: PocketEgress['verdict'] = !anyObserved
+      ? 'not_yet_observed'
+      : usableRoutes.length > 0
+        ? 'routes_open'
+        : 'no_verified_action';
     pocketResults.push({ pocketId: pocket.id, routes, verdict });
   }
 
