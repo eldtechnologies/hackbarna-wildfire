@@ -8,7 +8,7 @@ import { buildAlerts } from './alerts';
 import { nearestNode } from './graph';
 import { ASSUMPTION_PROFILES, withAssumedSpeeds } from './assumptions';
 import { allNodesSafe, bottleneckOf, latestDeparture } from './solve';
-import { SWEEP_CONFIGS } from './sweep';
+import { NOMINAL_ID, SWEEP_CONFIGS } from './sweep';
 import { DEFAULT_LATENCY_SECONDS } from './time';
 
 /**
@@ -644,11 +644,13 @@ test('the engine names exactly the settlements the fire reaches', () => {
 });
 
 test('the response reports what each sensor family contributed to the cut field', () => {
-  // Source of expected: the committed capture, read through the mask. The counts are post
-  // static-heat subtraction, so they are lower than the raw series the issue quotes (MTG-I1 2,010,
-  // VIIRS 570, Sentinel-3 108, MODIS 55 -> 2,743), which is the same data minus the industrial
-  // cells; the sum below is asserted against the response's own detection count rather than a
-  // literal, so the two cannot drift apart.
+  // Source of expected: the committed capture, read through the mask. The counts are lower than the
+  // raw series the issue quotes (MTG-I1 2,010, VIIRS 570, Sentinel-3 108, MODIS 55 -> 2,743)
+  // because of the FIRE EVENT GROUPING, not heat subtraction: the capture holds five clusters and
+  // the fire is two of them, so the other 83 detections are excluded before the mask sees anything.
+  // Static-heat subtraction removes nothing at all on this capture — `diagnostics.staticHeat` is
+  // `{polygons: 65, removed: 0}`, and an earlier version of this comment blamed it, which is the
+  // same unmeasured-cause mistake this issue is about.
   const built = buildEgress({ atSeconds: 61200 });
   const rows = built.response.sensorFamilies;
   const by = new Map(rows.map((r) => [r.family, r]));
@@ -663,6 +665,17 @@ test('the response reports what each sensor family contributed to the cut field'
     rows.reduce((sum, r) => sum + r.detections, 0),
     built.diagnostics.detections,
     'every detection in the capture belongs to exactly one family',
+  );
+  // And the used counts are a partition of the nominal configuration's own used set, not a number
+  // that merely looks plausible. `used <= detections` follows from counting ids drawn from the same
+  // list and cannot fail for any implementation; this can, and it is what ties the published rows
+  // back to the sweep that produced them.
+  const nominalUsed = built.diagnostics.sweep.find((s) => s.configId === NOMINAL_ID)?.detectionsUsed;
+  assert.ok(nominalUsed !== undefined && nominalUsed > 0, 'the nominal configuration used detections');
+  assert.equal(
+    rows.reduce((sum, r) => sum + r.usedDetections, 0),
+    nominalUsed,
+    'and every one of them belongs to exactly one family',
   );
 
   // The reading the field exists for: reaching a road is not the same as setting a cut time. VIIRS
