@@ -305,11 +305,15 @@ body,
 }
 
 .hud-swatch {
-  display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 1px;
   flex: none;
+}
+
+/* Invisible placeholder, same footprint as a swatch, keeps row labels in one column. */
+.hud-swatch-empty {
+  visibility: hidden;
 }
 
 /* Hotspot metadata panel */

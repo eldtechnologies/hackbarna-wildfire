@@ -66,8 +66,12 @@ export function initHud(viewer: Viewer, root: HTMLElement): HudHandle {
     const color = LAYER_COLORS[layer.id];
     if (color) {
       const swatch = el('span', 'hud-swatch');
-      swatch.style.background = color;
+      swatch.style.backgroundColor = color;
       row.appendChild(swatch);
+    } else {
+      // Placeholder keeps labels aligned in one column for layers without a
+      // color (hotspots, clusters, perimeters, spread sim).
+      row.appendChild(el('span', 'hud-swatch hud-swatch-empty'));
     }
     row.appendChild(el('span', '', layer.label));
     layersPanel.appendChild(row);
