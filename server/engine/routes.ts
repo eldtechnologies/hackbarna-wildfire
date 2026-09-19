@@ -148,6 +148,11 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
         origin: built.diagnostics.originIso,
         scenario: built.diagnostics.scenario,
         assumptions: built.response.assumptions,
+        // The swept set travels with the field as well as with each cursor answer. This is
+        // the payload a client fetches once, and a band basis naming a profile it has no
+        // way to resolve is a dead reference — the reader cannot see the values behind the
+        // label without asking a second endpoint for them.
+        profiles: built.response.profiles,
         // Cursor-independent: the same field answers every `at`.
         segments: built.response.segments.filter((s) => s.cutAt !== null),
         totalSegments: built.response.segments.length,
