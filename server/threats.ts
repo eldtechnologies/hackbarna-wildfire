@@ -113,7 +113,12 @@ export async function getThreats(fireId: string): Promise<ThreatsResponse | null
   const cluster = fires.clusters.find((c) => c.id === fireId);
   if (!cluster) return null;
 
-  const perimeter = fires.perimeters.find((p) => p.clusterId === fireId);
+  // Latest observed perimeter, matching what the map renders. The replay
+  // snapshot carries several per cluster, so a bare find() would anchor the
+  // rings to a stale outline.
+  const perimeter = fires.perimeters
+    .filter((p) => p.clusterId === fireId)
+    .sort((a, b) => (b.observedAt ?? '').localeCompare(a.observedAt ?? ''))[0];
   const hasPerimeter = perimeter != null;
   const center = perimeter ? perimeterPolygon(perimeter.polygon) : pointDisc(cluster.centroid);
   const centerLine = perimeter ? perimeterLine(perimeter.polygon) : null;

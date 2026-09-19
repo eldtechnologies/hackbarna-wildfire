@@ -31,6 +31,18 @@ export function fetchInfrastructure(): Promise<InfrastructureResponse> {
   return getJson<InfrastructureResponse>('/api/infrastructure');
 }
 
-export function fetchThreats(fireId: string): Promise<ThreatsResponse> {
-  return getJson<ThreatsResponse>(`/api/threats?fireId=${encodeURIComponent(fireId)}`);
+export async function fetchThreats(fireId: string): Promise<ThreatsResponse> {
+  const data = await getJson<Partial<ThreatsResponse>>(
+    `/api/threats?fireId=${encodeURIComponent(fireId)}`,
+  );
+  // Same boundary guard as fetchFires: partial payloads default to empty
+  // lists instead of throwing inside the panel render.
+  return {
+    fireId: typeof data.fireId === 'string' ? data.fireId : fireId,
+    hasPerimeter: data.hasPerimeter === true,
+    rings: Array.isArray(data.rings) ? data.rings : [],
+    threatened: Array.isArray(data.threatened) ? data.threatened : [],
+    corridorCount: typeof data.corridorCount === 'number' ? data.corridorCount : 0,
+    computedAt: typeof data.computedAt === 'string' ? data.computedAt : new Date().toISOString(),
+  };
 }

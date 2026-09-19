@@ -1,5 +1,6 @@
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import './style.css';
+import { Cartesian3 } from 'cesium';
 import { createGlobeViewer } from './globe/viewer';
 import { initHud } from './hud/hud';
 import { initFirePanels } from './hud/firePanels';
@@ -30,11 +31,24 @@ threatPanel.className = 'threat-panel';
 hudRoot.appendChild(threatPanel);
 
 new InfrastructureLayer(viewer.scene, (asset) => {
-  console.log('[infrastructure] asset clicked:', asset.id, asset.name);
+  viewer.camera.flyTo({
+    destination: Cartesian3.fromDegrees(
+      asset.position.lon,
+      asset.position.lat,
+      15_000,
+    ),
+    duration: 1.2,
+  });
 });
 
+// Selecting a fire's pick marker also selects it in the perimeter layer, so
+// the spread ghost and scrubber follow the threat analysis.
 new FireSelectionLayer(viewer, threatPanel, (fireId) => {
-  if (fireId) console.log('[fire-selection] selected fire:', fireId);
+  if (fireId) {
+    fireLayer.select(fireId, { flyTo: true });
+  } else {
+    fireLayer.deselect();
+  }
 });
 
 async function loadFires(): Promise<void> {

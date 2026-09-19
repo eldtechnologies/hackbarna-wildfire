@@ -47,7 +47,6 @@ function toAsset(f: RawPointFeature): InfrastructureAsset | null {
     position: { lat, lon },
     municipality: f.properties.municipality ?? null,
     county: f.properties.county ?? null,
-    population: null,
     voltageKv: null,
     operator: null,
   };
@@ -66,7 +65,6 @@ function lineToAsset(f: RawLineFeature): { asset: InfrastructureAsset; path: Lat
       position: mid,
       municipality: null,
       county: null,
-      population: null,
       voltageKv: f.properties.voltageKv ?? null,
       operator: f.properties.operator ?? null,
     },

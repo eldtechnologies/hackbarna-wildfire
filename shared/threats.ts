@@ -11,7 +11,6 @@ export interface InfrastructureAsset {
   position: LatLon;
   municipality: string | null;
   county: string | null;
-  population: number | null; // towns only, display only (not simulated)
   voltageKv: number | null; // power lines only
   operator: string | null; // power lines only
 }

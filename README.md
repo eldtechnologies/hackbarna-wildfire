@@ -29,7 +29,6 @@ API endpoints:
 - `GET /api/infrastructure`: all bundled infrastructure assets (point assets + power line paths).
 - `GET /api/threats?fireId=<clusterId>`: server-side turf.js analysis. For the fire's perimeter, lists every asset inside the perimeter, inside the 5/10/20 km buffer rings, or inside the projected spread corridor, with per-asset distance and category.
 
-
 ## Data modes
 
 The server has two data sources, selected with `DATA_MODE`:
