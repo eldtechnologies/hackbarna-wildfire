@@ -43,36 +43,47 @@ trick — without it, stream 1 waits on stream 2 and two-thirds of the team idle
 ## Stream 1 — Console and integration
 
 **1. Unify the seams, then merge.** This lands on `main` before anything else and before the open
-PRs go in, because the three PRs currently collide: three incompatible visibility-listener APIs,
+PRs go in. Four PRs are in flight and they collide: three incompatible visibility-listener APIs,
 two `initHud` return contracts, three overlapping fire visualisations, four click handlers on one
 canvas, and up to three concurrent `/api/fires` fetches.
 
 - One visibility-listener API in the layer registry — `(id, visible) => disposer` from PR #10,
   which generalises what #8 and #9 each invented.
 - One `HudHandle` with a single badge setter. Drop the hardcoded `REPLAY` badge.
-- One `fires` store and one `cursor` (an ISO time) owned by the entry module, subscribed to by
-  every layer and panel. This kills the triple-fetch and makes the replay clock a property of the
-  app rather than of one layer.
+- One `fires` store and one `cursor` owned by the entry module, subscribed to by every layer and
+  panel. This kills the triple-fetch and makes the replay clock a property of the app rather than
+  of one layer.
 - One pick router dispatching by id prefix, replacing four independent handlers that all fire on
   the same click.
-- Merge order **#10 → #8 → #9**, keeping #9's cluster rectangles over #10's duplicate cluster
-  markers.
+- Merge order **#11 → #10 → #8 → #9**, keeping #9's cluster rectangles over #10's duplicate
+  cluster markers. #11 goes first because it sets the time convention everything else adopts.
 
-**2. Replay with a clock.** The cursor drives every fetch. Scrub forward over the July hotspots
-and watch the road cut move.
+**2. Lock the time convention: `?at=<seconds>`.** PR #11 adds `GET /api/fires?at=<seconds>` and a
+`ReplayTimeline` to the shared types — event-timeline seconds from the start of a recording, not
+an ISO timestamp. Adopt that exact convention for the engine routes (`/api/egress?at=`,
+`/api/alerts?at=`) rather than inventing a second one. One cursor, one unit, everywhere.
 
-**3. Layers and panels.** Cut-time field over the road network; pocket report showing departure
+**3. Replay with a clock.** The server half exists in PR #11; the work here is the scrubber UI and
+propagating the cursor to the engine endpoints, so scrubbing moves the road cut and the alert
+package together with the fire. Its recording tooling also lets us capture a real session into a
+multi-frame snapshot and rehearse against it.
+
+**4. Layers and panels.** Cut-time field over the road network; pocket report showing departure
 time per route with its band; alert package panel with the CAP download.
 
-**4. Live panel.** The ensemble path on a currently active Iberian cluster — `clusterId` with
+**5. Live panel.** The ensemble path on a currently active Iberian cluster — `clusterId` with
 `ensembleMembers`. Max two simulations concurrent, so pre-warm and cache.
 
-**5. Demo.** Rehearse timed. Record the video at H32.
+**6. Demo.** Rehearse timed. Record the video at H32.
 
 ## Stream 2 — Egress engine
 
 Everything lives in `server/engine/`, and consumes `getFires()` from the existing provider layer
 so `DATA_MODE` and the live→replay fallback are inherited rather than rebuilt.
+
+Every engine route takes the same `?at=<seconds>` cursor as `/api/fires`, so one scrubber drives
+the fire, the road cut and the alert package together. Endpoints return the cursor time they
+actually answered for, since frame selection is "at or before".
 
 **1. Graph.** Directed road graph from the local Overpass instance, **cached to disk as JSON** so
 the demo never depends on the container being up.
