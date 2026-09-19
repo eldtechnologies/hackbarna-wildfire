@@ -35,14 +35,20 @@ progression record was Deepfire's perimeter layer starting June 2026. That was t
 we had looked at and false overall. Two labelled progression datasets were already downloaded and
 parsed:
 
-| Dataset | Content | Size |
-| --- | --- | --- |
-| **PT-FireSprd** | 80 Portuguese fires, 2015–2021; 34 events / 237 dated intervals parsed | 33 MB (Zenodo 7495506) |
-| **FireSpread_MedEU** | 103 events, 2017–2023 | 2.8 MB (Zenodo 18200075) |
+| Dataset | Content | Projection | Size |
+| --- | --- | --- | --- |
+| **PT-FireSprd** | 80 Portuguese fires, 2015–2021; 1,070 L1 progression steps; 34 events / 237 dated intervals parsed | EPSG:32629 | 33 MB (Zenodo 7495506) |
+| **FireSpread_MedEU** | 103 events, 2017–2023; 320 positive progression steps | EPSG:3035 | 2.8 MB (Zenodo 18200075) |
+
+Observed rate of spread across the parsed events: **median 53.4 ha/h, p90 1,155 ha/h**.
 
 Validation by fire is possible on real events today. The 600-day Deepfire hotspot pull that the
 original proposal treated as the long pole existed only to manufacture labels that already exist,
 so **it is dropped**.
+
+**One trap, recorded before somebody loses an afternoon to it.** PT-FireSprd's L1 `p` polygons are
+*increments*, not cumulative perimeters. Sorting them by polygon size produces negative spread
+rates. Cumulate by time — order by `burn_perio`, then `date_hour` — or the dataset lies.
 
 ## What the harness tests
 
@@ -70,6 +76,11 @@ unless something beats them.
 **Split by fire, never by time.** Holding out hours inside one fire leaks the answer — the model has
 seen how that fire behaves. Every number reported here and later is leave-one-event-out.
 
+Corroborating evidence, from a separate experiment: a fire-pixel classifier trained on the MTG
+archive under spatial-block cross-validation scored **AUC 0.80 ± 0.15, with folds running 0.58 to
+0.99**. Same lesson from a different direction — when the held-out set shares geography with the
+training set, the number is optimistic. The split decides the honesty of everything above it.
+
 **Features.** Recent detections (FRP-weighted centroid, spatial spread, age), wind speed, direction
 and gust, DEM slope and aspect, land-cover class, hour of day, time since last detection, and sensor
 mix. The last two matter more than they look: a detection gap is not evidence the fire stopped, and
@@ -92,7 +103,9 @@ as a positive one when the question is "how do you know?"
 ## Non-goals
 
 - **Not a spread simulator.** Deepfire's, and its own validation measures the ceiling — median
-  Jaccard 0.133 over 561 real fires.
+  Jaccard 0.133 over 561 real fires. Worth stating plainly: Deepfire exposes no spread *collection*.
+  Its perimeters are observed only, and the simulation is a separate async API, so wherever this
+  document says "the perimeter" it means an observed one.
 - **Not a detector.** That is the Early detection track, and Deepfire's fusion already does it.
 - **Not the cut-time mask.** Detection accumulation for the cut mask is Stream 2's, though the two
   share the detection-drift caveat.
