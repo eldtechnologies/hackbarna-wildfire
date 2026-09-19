@@ -21,6 +21,9 @@ import { buildEgress, loadContext, type EgressOptions, type Settlement } from '.
 import { capIdentifier, emitCap, groupByPocket, validateCapSemantics } from './cap/emit';
 import { fillTemplate, languagesFor, templateFor, unresolvedPlaceholders } from './cap/templates';
 import { verifySentence, type Place } from './cap/verify';
+import { loadPocketGeometry } from './pockets';
+import { NOMINAL_ID } from './sweep';
+import { nearestNode } from './graph';
 import type { RoadGraph } from './solve';
 
 /**
@@ -80,13 +83,30 @@ export function instructionFor(
   return 'evacuate_primary';
 }
 
-/** How long out of the band, and how sure the message can be. */
+/** How wide the out-of-band is, and therefore how sure the message can be. */
 function certaintyFor(band: { earliest: string; latest: string | null } | null): AlertPackage['certainty'] {
   if (band === null) return 'Observed';
   if (band.latest === null) return 'Possible';
   const widthHours = (Date.parse(band.latest) - Date.parse(band.earliest)) / 3_600_000;
   if (widthHours <= 2) return 'Likely';
   return 'Possible';
+}
+
+/**
+ * CAP severity describes the HAZARD, not our confidence and not how hard the decision was.
+ *
+ * Mapping it off the instruction instead — "we could not route them, so Extreme" — reads
+ * plausibly and gets the semantics wrong: it reports our own uncertainty as the fire's
+ * severity, and it inflates the hazard exactly when the fire may be least threatening to
+ * that particular pocket. Certainty is the field for how sure we are, and it is set from
+ * the band above.
+ *
+ * Measured off the mask: a pocket the fire reaches within the window is Extreme, one it
+ * does not is Severe. With no node field available the hazard is assumed real, because
+ * under-reporting severity is the direction that gets people killed.
+ */
+function severityFor(fireReaches: boolean): AlertPackage['severity'] {
+  return fireReaches ? 'Extreme' : 'Severe';
 }
 
 export interface AlertsOptions extends EgressOptions {
@@ -110,6 +130,7 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
   const places: Place[] = context.settlements.map((s) => ({
     id: s.id, name: s.name, lat: s.lat, lon: s.lon,
   }));
+  const nodeCut = context.sweep.nodeCutByConfig.get(NOMINAL_ID);
 
   const packages: AlertPackage[] = [];
   const rejected: RejectedCandidate[] = [];
@@ -134,6 +155,12 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
       road: roadNameOf(chosen, graph),
       destination: chosen?.destination ?? '',
     };
+
+    // Severity is read off the mask, once per pocket: does the fire reach this village
+    // within the modelled window at all?
+    const pocketNode = nearestNode(graph, { lat: settlement.lat, lon: settlement.lon });
+    const fireReaches =
+      pocketNode === null || nodeCut === undefined ? true : Number.isFinite(nodeCut[pocketNode]);
 
     for (const language of languagesFor(settlement)) {
       const text = fillTemplate(template, language, values);
@@ -177,7 +204,7 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
         text,
         resolvedNames: outcome.resolved,
         urgency: template.urgency,
-        severity: instruction === 'no_verified_action' ? 'Extreme' : 'Severe',
+        severity: severityFor(fireReaches),
         certainty: certaintyFor(chosen?.lastSafeDeparture ?? null),
         area: settlementArea(settlement),
         departure: chosen?.lastSafeDeparture ?? null,
@@ -289,9 +316,18 @@ function roadNameOf(route: { segmentIds: string[] } | null, graph: RoadGraph): s
   return best;
 }
 
-/** The pocket outline. A hull of the buildings once Catastro lands; the village point until then. */
+/**
+ * The pocket outline.
+ *
+ * The hull of the settlement's buildings when the Catastro fixture is present, which is
+ * what defines where the pocket actually is. Failing that, a 400 m box about the village
+ * point — a placeholder that will draw a square over whatever happens to be nearby, and
+ * which is reported as a placeholder rather than passed off as the pocket's extent.
+ */
 function settlementArea(settlement: Settlement): LatLon[] {
-  const d = 0.004; // ~400 m, a village-sized box, until real footprints define the extent
+  const geometry = loadPocketGeometry().get(settlement.id);
+  if (geometry && geometry.outline.length >= 4) return geometry.outline;
+  const d = 0.004;
   return [
     { lat: settlement.lat - d, lon: settlement.lon - d },
     { lat: settlement.lat - d, lon: settlement.lon + d },
