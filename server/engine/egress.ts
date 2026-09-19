@@ -25,16 +25,53 @@ import type {
   PocketEgress,
   TimeBand,
 } from '../../shared/egress';
+import type { LatLon } from '../../shared/fires';
 import { detectionsFromCapture, groupClustersIntoEvents, loadCapture, pickEventForWindow } from './capture';
 import { DEFAULT_GRAPH_PATH, loadGraph, nearestNode, type LoadedGraph } from './graph';
-import type { Detection } from './mask';
-import { allNodesSafe, latestDeparture, routeTo, type RoadGraph } from './solve';
-import { NOMINAL_ID, SWEEP_CONFIGS, basisFor, sweepField } from './sweep';
+import { subtractStaticHeatSources, type Detection } from './mask';
+import { allNodesSafe, bottleneckOf, latestDeparture, routeTo, type RoadGraph, type Route } from './solve';
+import { SWEEP_CONFIGS, basisFor, sweepField } from './sweep';
 import { DEFAULT_LATENCY_SECONDS, LATENCY_SECONDS, fromEpochMs, resolveTimelineOrigin } from './time';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CAPTURE_PATH = resolve(HERE, '../../data/snapshots/los-gallardos-2026-07-09.json');
 const SETTLEMENTS_PATH = resolve(HERE, '../../data/pockets/settlements.json');
+const STATIC_HEAT_PATH = resolve(HERE, '../../data/fixtures/static-heat-sources.json');
+
+interface StaticHeatFile {
+  source: string;
+  count: number;
+  features: Array<{ geometry: { type: string; coordinates: unknown } | null }>;
+}
+
+/** Outer rings of the persistent-heat polygons, as LatLon. */
+function staticHeatRings(path: string): LatLon[][] {
+  let raw: StaticHeatFile;
+  try {
+    raw = JSON.parse(readFileSync(path, 'utf8')) as StaticHeatFile;
+  } catch (err) {
+    // A missing fixture must not silently leave the flares in the mask.
+    console.warn(`[engine] no static heat source fixture at ${path}; the mask will include them:`, err);
+    return [];
+  }
+  const rings: LatLon[][] = [];
+  for (const feature of raw.features ?? []) {
+    const geom = feature.geometry;
+    if (!geom) continue;
+    const coords = geom.coordinates as number[][][] | number[][][][];
+    if (!Array.isArray(coords)) continue;
+    const outer = geom.type === 'Polygon'
+      ? (coords as number[][][])[0]
+      : (coords as number[][][][])[0]?.[0];
+    if (!Array.isArray(outer)) continue;
+    const ring = outer
+      .filter((c) => Array.isArray(c) && c.length >= 2)
+      .map(([lon, lat]) => ({ lat: Number(lat), lon: Number(lon) }))
+      .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon));
+    if (ring.length >= 3) rings.push(ring);
+  }
+  return rings;
+}
 
 export interface Settlement {
   id: string;
@@ -44,6 +81,12 @@ export interface Settlement {
   lon: number;
   population: number | null;
   buildings: number;
+  /**
+   * Languages to broadcast in, derived per settlement rather than fixed. Bédar is in
+   * Andalucía — Spanish and English, not Catalan — and `ca` belongs to the Castelltallat
+   * scenario.
+   */
+  languages?: string[];
 }
 
 /**
@@ -56,7 +99,19 @@ export const ASSUMPTIONS: Omit<EgressAssumptions, 'speedByHighway'> = {
   mobileFraction: 0.8,
   departureDelayMinutes: 15,
   vehicleOccupancy: 1.4,
+  /**
+   * Vehicles per hour by road class. There is no measurement behind any of these — they
+   * are order-of-magnitude figures for a single carriageway, and the clearance number
+   * they produce is therefore an assumption, not a finding. Stated here so it is printed
+   * beside every clearance figure rather than buried.
+   */
+  capacityPerHour: {
+    motorway: 3600, trunk: 2400, primary: 1800, secondary: 1500, tertiary: 1200,
+    unclassified: 900, residential: 600, living_street: 400, service: 300, track: 300, road: 600,
+  },
 };
+
+const DEFAULT_CAPACITY_PER_HOUR = 600;
 
 interface Context {
   loaded: LoadedGraph;
@@ -68,6 +123,11 @@ interface Context {
   /** Per-edge latency of the detection that set the nominal cut, seconds. */
   nominalLatency: number[];
   sweep: ReturnType<typeof sweepField>;
+  /** Detections dropped for sitting on persistent industrial heat. */
+  staticHeatRemoved: number;
+  staticHeatPolygons: number;
+  /** The cluster ids grouped into this fire. */
+  fireClusterIds: string[];
 }
 
 let cached: Context | null = null;
@@ -90,7 +150,16 @@ export function loadContext(graphPath: string = DEFAULT_GRAPH_PATH): Context {
   const events = groupClustersIntoEvents(capture.clusters, capture.hotspots);
   const fire = pickEventForWindow(events, capture.window?.from ?? '', capture.window?.to ?? '');
   if (!fire) throw new Error('no fire event found in the capture');
-  const detections = detectionsFromCapture(capture, { clusterIds: new Set(fire.clusterIds), originMs });
+  const raw = detectionsFromCapture(capture, { clusterIds: new Set(fire.clusterIds), originMs });
+
+  // Persistent industrial heat is not fire. The archive carries cells around 18 MW
+  // within about 20 km of Gallardos, and a mask built from raw detections would cut a
+  // road on a gas flare. Measured on this capture the subtraction removes nothing —
+  // none of the 2,660 fire detections falls inside a known source — so it does not move
+  // the Bédar cut time, which is what decision 5 and decision 9 need in order not to
+  // contradict each other.
+  const heatRings = staticHeatRings(STATIC_HEAT_PATH);
+  const { kept: detections, removed } = subtractStaticHeatSources(raw, heatRings);
 
   const settlements = (
     JSON.parse(readFileSync(SETTLEMENTS_PATH, 'utf8')) as { settlements: Settlement[] }
@@ -111,6 +180,8 @@ export function loadContext(graphPath: string = DEFAULT_GRAPH_PATH): Context {
   cached = {
     loaded, graph: loaded.graph, detections, originMs,
     scenario: capture.scenario, settlements, nominalLatency, sweep,
+    staticHeatRemoved: removed.length, staticHeatPolygons: heatRings.length,
+    fireClusterIds: fire.clusterIds,
   };
   return cached;
 }
@@ -131,6 +202,8 @@ export interface BuiltEgress {
     scenario: string;
     detections: number;
     windowEnd: string;
+    /** Persistent-heat polygons loaded, and detections dropped for sitting on one. */
+    staticHeat: { polygons: number; removed: number };
     /** Per configuration: how many detections it used, and the pocket's departure. */
     sweep: Array<{ id: string; label: string; detectionsUsed: number; departureSeconds: number | null }>;
   };
@@ -160,20 +233,23 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
     return out;
   };
 
-  const nominalNodeCut = ctx.sweep.nodeCutByConfig.get(NOMINAL_ID) ?? allNodesSafe(graph.nodes.length);
   const settlementNodes = ctx.settlements.map((s) => ({
     settlement: s,
     node: nearestNode(graph, { lat: s.lat, lon: s.lon }),
   }));
 
-  // A settlement the fire reaches is not a destination, however convenient.
-  const safe = settlementNodes.filter(
-    (s) => s.node !== null && nominalNodeCut[s.node] === Number.POSITIVE_INFINITY,
-  );
+  // Every settlement is a candidate destination, and safety is enforced by the solve's
+  // own node deadline rather than by filtering the list here.
+  //
+  // Pre-filtering to "settlements the fire never reaches in the window" looks tidier and
+  // is wrong for this fire: it spreads over 10 July, so Los Gallardos and Lubrín are
+  // both reached within 48 hours and both drop out — leaving Bédar able to evacuate only
+  // east to Turre and Mojácar, which is not what happened and not what the model should
+  // say. With the deadline in place the answer is right by construction: arriving at
+  // Los Gallardos before the fire gets there on the 10th is fine, arriving after it is
+  // refused, and neither needs a hand-maintained list.
   const destinations = new Set(
-    (safe.length > 0 ? safe : settlementNodes)
-      .map((s) => s.node)
-      .filter((n): n is number => n !== null),
+    settlementNodes.map((s) => s.node).filter((n): n is number => n !== null),
   );
 
   const pocketIds = options.pocketIds ?? ['bedar'];
@@ -213,7 +289,8 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
     interface RouteAccumulator {
       departures: number[];
       configIds: string[];
-      route: Omit<EgressRoute, 'lastSafeDeparture'> | null;
+      /** The raw solve route, so the clearance calculation can reuse its segment list. */
+      route: Route | null;
     }
     const byDestination = new Map<string, RouteAccumulator>();
 
@@ -246,16 +323,8 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
         acc.departures.push(value);
         acc.configIds.push(config.id);
         if (acc.route === null) {
-          const r = routeTo(solo, graph, cuts, pocketNode);
-          if (r) {
-            acc.route = {
-              id: `${pocket.id}-${settlement.id}`,
-              destination: settlement.name,
-              segmentIds: r.segmentIds,
-              distanceKm: Number(r.distanceKm.toFixed(2)),
-              travelMinutes: Math.round(r.travelSeconds / 60),
-            };
-          }
+          const r = routeTo(solo, graph, cuts, pocketNode, [node]);
+          if (r) acc.route = r;
         }
         byDestination.set(settlement.id, acc);
       }
@@ -274,9 +343,35 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
         basis: basisFor(acc.configIds[minIndex], acc.configIds[maxIndex]),
       };
       const settlement = ctx.settlements.find((s) => s.id === settlementId);
+      // The bypass gate: vehicles divided by the tightest road's throughput. It is what
+      // turns a departure time into a question of whether the convoy can physically be
+      // gone in time, and it is the acceptance number in docs/work-plan.md.
+      const population = settlement?.population ?? null;
+      let clearanceMinutes: number | null = null;
+      let bottleneckSegmentId: string | null = null;
+      if (population !== null && population > 0) {
+        const vehicles = (population * ASSUMPTIONS.mobileFraction) / ASSUMPTIONS.vehicleOccupancy;
+        const bottleneck = bottleneckOf(
+          acc.route,
+          graph,
+          vehicles,
+          ASSUMPTIONS.capacityPerHour,
+          DEFAULT_CAPACITY_PER_HOUR,
+        );
+        if (bottleneck) {
+          clearanceMinutes = Number(bottleneck.clearMinutes.toFixed(1));
+          bottleneckSegmentId = bottleneck.segmentId;
+        }
+      }
       routes.push({
-        ...acc.route,
-        destination: settlement?.name ?? acc.route.destination,
+        id: `${pocket.id}-${settlementId}`,
+        destination: settlement?.name ?? settlementId,
+        segmentIds: acc.route.segmentIds,
+        distanceKm: Number(acc.route.distanceKm.toFixed(2)),
+        travelMinutes: Math.round(acc.route.travelSeconds / 60),
+        slowestHighway: acc.route.slowestHighway,
+        clearanceMinutes,
+        bottleneckSegmentId,
         // Null means the route is already cut at this cursor, which the contract
         // defines. An uncut route must never serialise as null via Infinity.
         lastSafeDeparture: maxValue >= cursor ? band : null,
@@ -304,6 +399,9 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
       provenance: 'replay',
       at: fromEpochMs(origin + cursor * 1000),
       assumptions: { ...ASSUMPTIONS, speedByHighway: ctx.loaded.speedByHighway },
+      fireId: ctx.scenario,
+      clusterIds: ctx.fireClusterIds,
+      origin: fromEpochMs(origin),
       segments,
       pockets: pocketResults,
       fetchedAt: new Date().toISOString(),
@@ -313,6 +411,7 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
       scenario: ctx.scenario,
       detections: ctx.detections.length,
       windowEnd: fromEpochMs(origin + windowEndSeconds * 1000),
+      staticHeat: { polygons: ctx.staticHeatPolygons, removed: ctx.staticHeatRemoved },
       sweep: sweepDiagnostics,
     },
   };

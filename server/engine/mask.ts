@@ -19,7 +19,7 @@
 // configuration will use, and each configuration is then a filter over that pair list.
 
 import type { LatLon } from '../../shared/fires';
-import { bboxOf, pointToSegmentMetres } from './geometry';
+import { bboxOf, pointInRing, pointToSegmentMetres } from './geometry';
 import type { Bbox } from './geometry';
 
 /**
@@ -238,25 +238,29 @@ export function cutField(
 }
 
 /**
- * Drop detections sitting on known persistent heat — gas flares, industry, volcanoes.
- * Without this a road is cut by a flare that has been burning for years.
+ * Drop detections sitting on known persistent heat — gas flares, industry, quarries.
+ * Without this a road is cut by a flare that has been burning for years: the archive
+ * carries cells around 18 MW within about 20 km of Gallardos.
  *
- * Returns the surviving detections and the count removed, because "we discarded 12
- * detections" is a number the reader is entitled to.
+ * Deepfire publishes these as polygons, so membership is a point-in-ring test rather
+ * than a radius. A detection is dropped when it falls inside any polygon.
+ *
+ * Returns the surviving detections and the ones removed, because "we discarded 4
+ * detections" is a number the reader is entitled to see.
  */
 export function subtractStaticHeatSources(
   detections: Detection[],
-  sources: LatLon[],
-  radiusM: number,
+  sources: LatLon[][],
 ): { kept: Detection[]; removed: Detection[] } {
-  if (sources.length === 0) return { kept: detections, removed: [] };
+  const rings = sources.filter((r) => r.length >= 3);
+  if (rings.length === 0) return { kept: detections, removed: [] };
   const kept: Detection[] = [];
   const removed: Detection[] = [];
   for (const det of detections) {
     const point: LatLon = { lat: det.lat, lon: det.lon };
     let onSource = false;
-    for (const s of sources) {
-      if (pointToSegmentMetres(point, s, s) <= radiusM) {
+    for (const ring of rings) {
+      if (pointInRing(point, ring)) {
         onSource = true;
         break;
       }

@@ -31,6 +31,13 @@ export interface CapSenderConfig {
   sender: string;
   senderName: string;
   status: 'Actual' | 'Exercise' | 'System' | 'Test' | 'Draft';
+  /**
+   * Defaults to 'Public', because ES-Alert is a public cell broadcast and that is what
+   * the message describes; `status: 'Test'` carries the "this is not a real alert" flag
+   * instead. `'Restricted'` and `'Private'` both additionally require an `<addresses>`
+   * element under the CAP 1.2 prose spec — the XSD alone does not enforce it, so a
+   * profile that chooses one of those must add it and test for it.
+   */
   scope: 'Public' | 'Restricted' | 'Private';
 }
 

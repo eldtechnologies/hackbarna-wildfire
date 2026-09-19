@@ -117,7 +117,7 @@ test('the worked case: the longer detour wins', () => {
   assert.equal(solve.latestDeparture[3], NEVER);
 
   // The optimum goes via node 2, which is the slow road.
-  const route = routeTo(solve, graph, cuts, 0)!;
+  const route = routeTo(solve, graph, cuts, 0, [3])!;
   assert.deepEqual(route.segmentIds, ['e2', 'e3']);
   assert.equal(bruteForce(graph, cuts, new Set([3]), 0), 55);
 });
@@ -194,7 +194,7 @@ test('an unreachable destination is null-like, never a plausible finite number',
 
   assert.equal(solve.latestDeparture[0], Number.NEGATIVE_INFINITY);
   assert.equal(solve.reachable[0], false);
-  assert.equal(routeTo(solve, graph, cuts, 0), null, 'no route is a first-class answer');
+  assert.equal(routeTo(solve, graph, cuts, 0, [3]), null, 'no route is a first-class answer');
   assert.equal(bruteForce(graph, cuts, new Set([3]), 0), Number.NEGATIVE_INFINITY);
 });
 
@@ -209,7 +209,7 @@ test('a pocket with no outgoing edge is unreachable, not infinite', () => {
   const cuts = cutsOf(spec);
   const solve = latestDeparture(graph, cuts, [3]);
   assert.equal(solve.latestDeparture[0], Number.NEGATIVE_INFINITY);
-  assert.equal(routeTo(solve, graph, cuts, 0), null);
+  assert.equal(routeTo(solve, graph, cuts, 0, [3]), null);
 });
 
 test('a never-cut network allows an unbounded departure, which must be clamped before serialising', () => {
@@ -238,8 +238,74 @@ test('self-loops cannot improve a label and cannot hang the walk', () => {
   const withLoop = latestDeparture(loopGraph, cutsOf(looped), [2]);
 
   assert.deepEqual(withLoop.latestDeparture, plain.latestDeparture, 'a self-loop changes nothing');
-  const route = routeTo(withLoop, loopGraph, cutsOf(looped), 0)!;
+  const route = routeTo(withLoop, loopGraph, cutsOf(looped), 0, [2])!;
   assert.ok(!route.segmentIds.includes('BB'));
+});
+
+test('the route is the shortest feasible one, not the departure-maximizing chain', () => {
+  // Two routes to the destination: 'a' is far shorter and 'b' is a long detour, both
+  // open. The departure time is identical either way, so only the route extraction
+  // decides. Following the max-departure predecessor chain instead of running a
+  // distance search produced an arbitrary path here, and on the real graph it reported
+  // Bédar to Turre as 41.7 km where the road is 11.1 km.
+  const spec: Spec[] = [
+    { from: 0, to: 1, seconds: 600, cut: NEVER, id: 'a1', lonSpan: 1e-4 },
+    { from: 1, to: 3, seconds: 600, cut: NEVER, id: 'a2', lonSpan: 1e-4 },
+    { from: 0, to: 2, seconds: 600, cut: NEVER, id: 'b1', lonSpan: 9e-4 },
+    { from: 2, to: 3, seconds: 600, cut: NEVER, id: 'b2', lonSpan: 9e-4 },
+  ];
+  const graph = makeGraph(4, spec);
+  const cuts = cutsOf(spec);
+  const solve = latestDeparture(graph, cuts, [3]);
+  const route = routeTo(solve, graph, cuts, 0, [3])!;
+  assert.deepEqual(route.segmentIds, ['a1', 'a2'], 'the short route must win the tie');
+  assert.ok(route.distanceKm < 15, `expected the short route, got ${route.distanceKm} km`);
+});
+
+test('but a cut short route is abandoned for the open long one', () => {
+  const spec: Spec[] = [
+    { from: 0, to: 1, seconds: 600, cut: 700, id: 'a1', lonSpan: 1e-4 },
+    { from: 1, to: 3, seconds: 600, cut: NEVER, id: 'a2', lonSpan: 1e-4 },
+    { from: 0, to: 2, seconds: 600, cut: NEVER, id: 'b1', lonSpan: 9e-4 },
+    { from: 2, to: 3, seconds: 600, cut: NEVER, id: 'b2', lonSpan: 9e-4 },
+  ];
+  const graph = makeGraph(4, spec);
+  const cuts = cutsOf(spec);
+  const solve = latestDeparture(graph, cuts, [3]);
+  const route = routeTo(solve, graph, cuts, 0, [3])!;
+  assert.deepEqual(route.segmentIds, ['b1', 'b2'], 'a closed short route is not a route');
+});
+
+test('with nothing cut, the route is a plain shortest path', () => {
+  // The degenerate case that exposed the bug: every departure is Infinity, so there is
+  // no departure gradient to follow and the extraction must stand on distance alone.
+  const spec: Spec[] = [
+    { from: 0, to: 1, seconds: 600, cut: NEVER, id: 'direct1', lonSpan: 2e-4 },
+    { from: 1, to: 2, seconds: 600, cut: NEVER, id: 'direct2', lonSpan: 2e-4 },
+    { from: 0, to: 3, seconds: 600, cut: NEVER, id: 'detour1', lonSpan: 8e-4 },
+    { from: 3, to: 2, seconds: 600, cut: NEVER, id: 'detour2', lonSpan: 8e-4 },
+  ];
+  const graph = makeGraph(4, spec);
+  const cuts = cutsOf(spec);
+  const route = routeTo(latestDeparture(graph, cuts, [2]), graph, cuts, 0, [2])!;
+  assert.deepEqual(route.segmentIds, ['direct1', 'direct2']);
+});
+
+test('the travel time reported is the drive, and the slack is the margin', () => {
+  const spec: Spec[] = [
+    { from: 0, to: 1, seconds: 600, cut: 3000, id: 'x' },
+    { from: 1, to: 2, seconds: 600, cut: 3000, id: 'y' },
+  ];
+  const graph = makeGraph(3, spec);
+  const cuts = cutsOf(spec);
+  const solve = latestDeparture(graph, cuts, [2]);
+  const route = routeTo(solve, graph, cuts, 0, [2])!;
+  assert.equal(solve.latestDeparture[0], 1800);
+  assert.equal(route.travelSeconds, 1200);
+  // Departing at 1800 the vehicle reaches the second edge's head at 3000, exactly its
+  // cut time — the optimum always has zero slack somewhere.
+  assert.equal(route.tightestSlackSeconds, 0);
+  assert.equal(route.tightestEdgeId, 'y');
 });
 
 test('a route reports the worst road class it needs', () => {
@@ -250,7 +316,7 @@ test('a route reports the worst road class it needs', () => {
   ];
   const graph = makeGraph(4, spec);
   const cuts = cutsOf(spec);
-  const route = routeTo(latestDeparture(graph, cuts, [3]), graph, cuts, 0)!;
+  const route = routeTo(latestDeparture(graph, cuts, [3]), graph, cuts, 0, [3])!;
   assert.equal(route.slowestHighway, 'track', 'a route that needs a track must say so');
 });
 
@@ -261,7 +327,7 @@ test('the bottleneck is the slowest-to-clear segment, in minutes', () => {
   ];
   const graph = makeGraph(3, spec);
   const cuts = cutsOf(spec);
-  const route = routeTo(latestDeparture(graph, cuts, [2]), graph, cuts, 0)!;
+  const route = routeTo(latestDeparture(graph, cuts, [2]), graph, cuts, 0, [2])!;
   // 545 vehicles at 1200/h on the primary is 27.25 min; at 300/h on the track, 109 min.
   const bottleneck = bottleneckOf(route, graph, 545, { primary: 1200, track: 300 }, 600)!;
   assert.equal(bottleneck.segmentId, 'b');
@@ -281,14 +347,14 @@ test('the tie-break is total: two identical calls pick the same road', () => {
   ];
   const graph = makeGraph(4, spec);
   const cuts = cutsOf(spec);
-  const first = routeTo(latestDeparture(graph, cuts, [3]), graph, cuts, 0)!;
-  const second = routeTo(latestDeparture(graph, cuts, [3]), graph, cuts, 0)!;
+  const first = routeTo(latestDeparture(graph, cuts, [3]), graph, cuts, 0, [3])!;
+  const second = routeTo(latestDeparture(graph, cuts, [3]), graph, cuts, 0, [3])!;
   assert.deepEqual(first.segmentIds, second.segmentIds);
   // Edge order in the input must not change the answer either.
   const reversed: Spec[] = [...spec].reverse();
   const rGraph = makeGraph(4, reversed);
   const rCuts = cutsOf(reversed);
-  const rRoute = routeTo(latestDeparture(rGraph, rCuts, [3]), rGraph, rCuts, 0)!;
+  const rRoute = routeTo(latestDeparture(rGraph, rCuts, [3]), rGraph, rCuts, 0, [3])!;
   assert.deepEqual(rRoute.segmentIds, first.segmentIds);
 });
 

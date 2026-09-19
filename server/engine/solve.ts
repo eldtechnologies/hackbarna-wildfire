@@ -134,6 +134,61 @@ class MaxHeap {
   }
 }
 
+/** Minimal binary min-heap ordered by value, then by node index for determinism. */
+class MinHeap {
+  private readonly values: number[] = [];
+  private readonly nodes: number[] = [];
+
+  get size(): number {
+    return this.nodes.length;
+  }
+
+  push(value: number, node: number): void {
+    this.values.push(value);
+    this.nodes.push(node);
+    let i = this.values.length - 1;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (!this.before(i, parent)) break;
+      this.swap(i, parent);
+      i = parent;
+    }
+  }
+
+  pop(): { value: number; node: number } {
+    const value = this.values[0];
+    const node = this.nodes[0];
+    const lastValue = this.values.pop()!;
+    const lastNode = this.nodes.pop()!;
+    if (this.nodes.length > 0) {
+      this.values[0] = lastValue;
+      this.nodes[0] = lastNode;
+      let i = 0;
+      for (;;) {
+        const left = 2 * i + 1;
+        const right = left + 1;
+        let best = i;
+        if (left < this.values.length && this.before(left, best)) best = left;
+        if (right < this.values.length && this.before(right, best)) best = right;
+        if (best === i) break;
+        this.swap(i, best);
+        i = best;
+      }
+    }
+    return { value, node };
+  }
+
+  private before(a: number, b: number): boolean {
+    if (this.values[a] !== this.values[b]) return this.values[a] < this.values[b];
+    return this.nodes[a] < this.nodes[b];
+  }
+
+  private swap(a: number, b: number): void {
+    [this.values[a], this.values[b]] = [this.values[b], this.values[a]];
+    [this.nodes[a], this.nodes[b]] = [this.nodes[b], this.nodes[a]];
+  }
+}
+
 export interface SolveOptions {
   /**
    * Prefer a route by these keys when two yield the same departure time. Without a
@@ -253,19 +308,84 @@ export interface Route {
 }
 
 /**
- * Walk the predecessor chain from `source` to a destination.
+ * The shortest route that is still feasible at the latest departure.
  *
- * Returns null when the node has no safe route, which is a first-class answer, not an
- * error: the caller reports `no_verified_action` rather than inventing a departure.
+ * This is deliberately NOT the predecessor chain from `latestDeparture`. That chain
+ * maximizes the departure time, which is a different objective, and following it
+ * produced absurd routes: with no fire at all every node's departure is Infinity, the
+ * search has no gradient, and the greedy per-edge tie-break picked an essentially
+ * arbitrary path — Bédar to Turre came out at 41.7 km where the shortest road is 11.1 km.
+ * The same arbitrariness applies whenever two paths share a departure time, which is
+ * exactly when the road named in an alert must not be a coin toss.
+ *
+ * So the two questions are answered separately. `latestDeparture` says when the vehicle
+ * may go; this says which way, by minimizing distance subject to being able to complete
+ * the whole drive from that departure time:
+ *
+ *     leaving at t, you are at u at a(u), and may take e=(u->w) iff
+ *     a(u) + tau(e) <= min(cut(e), g(w))
+ *
+ * Returns null when the node has no safe route, which is a first-class answer rather
+ * than an error: the caller reports `no_verified_action` instead of inventing one.
  */
 export function routeTo(
   solve: SolveResult,
   graph: RoadGraph,
   cutAtSeconds: number[],
   source: number,
+  destinations: Iterable<number>,
+  options: SolveOptions = {},
 ): Route | null {
   if (source < 0 || source >= graph.nodes.length) return null;
   if (!solve.reachable[source]) return null;
+  const departure = solve.latestDeparture[source];
+  // Infinity is the VALID "nothing on the route is ever cut" case, not a missing answer.
+  // Rejecting non-finite values here returned null for every uncut network, which is the
+  // one case where the route is least in doubt.
+  if (departure === Number.NEGATIVE_INFINITY) return null;
+
+  const lengthOf = options.edgeLengthM ?? ((e: Edge) => polylineLengthMetres(e.geometry));
+  const isDestination = new Set<number>();
+  for (const d of destinations) if (d >= 0 && d < graph.nodes.length) isDestination.add(d);
+
+  // Arrival time at each node when leaving `source` exactly at the latest departure.
+  const arrival = new Array<number>(graph.nodes.length).fill(Number.POSITIVE_INFINITY);
+  const distance = new Array<number>(graph.nodes.length).fill(Number.POSITIVE_INFINITY);
+  const previous = new Array<number>(graph.nodes.length).fill(-1);
+  const settled = new Uint8Array(graph.nodes.length);
+  arrival[source] = departure;
+  distance[source] = 0;
+
+  // Min-heap on distance, so the route published is the shortest one that works.
+  const heap = new MinHeap();
+  heap.push(0, source);
+  let target = -1;
+  while (heap.size > 0) {
+    const { node: u } = heap.pop();
+    if (settled[u]) continue;
+    settled[u] = 1;
+    if (u !== source && isDestination.has(u)) {
+      target = u;
+      break;
+    }
+    for (const edgeIndex of graph.outgoing[u]) {
+      const edge = graph.edges[edgeIndex];
+      const w = edge.to;
+      if (settled[w]) continue;
+      const arriveAt = arrival[u] + edge.travelSeconds;
+      // Both constraints: clear the edge itself, and still be able to continue from w.
+      const deadline = Math.min(cutAtSeconds[edgeIndex], solve.latestDeparture[w]);
+      if (arriveAt > deadline) continue;
+      const next = distance[u] + lengthOf(edge);
+      if (next < distance[w] - 1e-9) {
+        distance[w] = next;
+        arrival[w] = arriveAt;
+        previous[w] = edgeIndex;
+        heap.push(next, w);
+      }
+    }
+  }
+  if (target < 0) return null;
 
   const segmentIds: string[] = [];
   let travelSeconds = 0;
@@ -274,31 +394,27 @@ export function routeTo(
   let tightestEdgeId: string | null = null;
   let tightestSlack = Number.POSITIVE_INFINITY;
 
-  const visited = new Set<number>([source]);
-  let current = source;
-  // Bounded by the node count: g strictly decreases along the chain whenever travel
-  // times are positive, so this terminates; the guard covers zero-length edges.
-  for (let hops = 0; hops <= graph.nodes.length; hops++) {
-    const edgeIndex = solve.viaEdge[current];
-    if (edgeIndex < 0) break;
+  for (let node = target; previous[node] >= 0; ) {
+    const edgeIndex = previous[node];
     const edge = graph.edges[edgeIndex];
     segmentIds.push(edge.id);
     travelSeconds += edge.travelSeconds;
-    distanceKm += polylineLengthMetres(edge.geometry) / 1000;
+    distanceKm += lengthOf(edge) / 1000;
     if (HIGHWAY_RANK.indexOf(edge.highway) > HIGHWAY_RANK.indexOf(slowestHighway)) {
       slowestHighway = edge.highway;
     }
-    // Slack measured against the cut time of the edge itself, which is the quantity a
-    // driver actually experiences. Zero or negative means the plan has no margin.
-    const slack = cutAtSeconds[edgeIndex] - edge.travelSeconds;
+    // Slack is the gap between when the vehicle reaches this edge's FAR end and when the
+    // fire does. The arrival time comes from the forward pass rather than from a
+    // running sum, because accumulating while walking backwards is off by one edge —
+    // it reported the first edge's slack as the last one's.
+    const slack = cutAtSeconds[edgeIndex] - arrival[node];
     if (slack < tightestSlack) {
       tightestSlack = slack;
       tightestEdgeId = edge.id;
     }
-    current = edge.to;
-    if (visited.has(current)) break;
-    visited.add(current);
+    node = edge.from;
   }
+  segmentIds.reverse();
 
   if (segmentIds.length === 0) return null;
   return {

@@ -103,6 +103,29 @@ export function bboxOf(points: LatLon[]): Bbox | null {
   return [w, s, e, n];
 }
 
+/**
+ * Ray-casting point-in-ring test. Used to decide whether a detection sits on a known
+ * persistent heat source, which the Deepfire collection publishes as polygons rather
+ * than points.
+ *
+ * Points exactly on the boundary are not guaranteed either way; for this use that is
+ * harmless, because a detection on the edge of a gas flare is a detection on a gas
+ * flare whichever side of the line it lands.
+ */
+export function pointInRing(p: LatLon, ring: LatLon[]): boolean {
+  if (ring.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i];
+    const b = ring[j];
+    if (a.lat > p.lat !== b.lat > p.lat) {
+      const x = ((b.lon - a.lon) * (p.lat - a.lat)) / (b.lat - a.lat) + a.lon;
+      if (p.lon < x) inside = !inside;
+    }
+  }
+  return inside;
+}
+
 export function bboxUnion(a: Bbox, b: Bbox): Bbox {
   return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
 }

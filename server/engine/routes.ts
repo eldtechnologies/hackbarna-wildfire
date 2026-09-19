@@ -14,6 +14,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { buildEgress, loadContext } from './egress';
+import { buildAlerts } from './alerts';
 import { SWEEP_CONFIGS } from './sweep';
 
 export function engineRouter(): Router {
@@ -84,18 +85,49 @@ export function engineRouter(): Router {
     }
   });
 
-  // Deliberately not a stub returning an empty package list. An empty list reads as
-  // "no alert is needed", which is the single most dangerous thing this system could
-  // say by accident, and the emitter is not built yet.
-  router.get('/api/alerts', (_req: Request, res: Response) => {
-    res.status(503).json({
-      error: 'alert emitter not built yet',
-      detail:
-        'The egress solve and the cut field are live at /api/egress. The CAP package ' +
-        'emitter (server/engine/cap/) has not landed, so there are no packages to return. ' +
-        'This endpoint answers 503 rather than 200 with an empty list, because an empty ' +
-        'list is indistinguishable from "no alert required".',
-    });
+  router.get('/api/alerts', (req: Request, res: Response) => {
+    try {
+      const atSeconds = parseAt(req.query.at);
+      const built = buildAlerts(atSeconds === undefined ? {} : { atSeconds });
+      res.json({
+        ...built.response,
+        ledger: built.ledger,
+        diagnostics: built.diagnostics,
+      });
+    } catch (err) {
+      console.error('[api] /api/alerts failed:', err);
+      res.status(502).json({ error: 'alert package unavailable' });
+    }
+  });
+
+  /**
+   * One CAP 1.2 document per pocket.
+   *
+   * `<alert>` is the document root in CAP, so a multi-pocket send is several messages,
+   * each with its own identifier — which is how acknowledgement works in a real system.
+   * The endpoint therefore takes a pocket rather than returning a bundle that would not
+   * be schema-valid.
+   */
+  router.get('/api/cap/:pocketId', (req: Request, res: Response) => {
+    try {
+      const atSeconds = parseAt(req.query.at);
+      const built = buildAlerts(atSeconds === undefined ? {} : { atSeconds });
+      const pocketId = String(req.params.pocketId);
+      const xml = built.documents.get(pocketId);
+      if (xml === undefined) {
+        res.status(404).json({
+          error: `no CAP document for pocket "${pocketId}"`,
+          available: [...built.documents.keys()],
+        });
+        return;
+      }
+      // Express's res.send(string) defaults to text/html; a CAP consumer wants XML.
+      res.type('application/xml; charset=utf-8');
+      res.send(xml);
+    } catch (err) {
+      console.error('[api] /api/cap failed:', err);
+      res.status(502).json({ error: 'CAP emission failed' });
+    }
   });
 
   return router;
