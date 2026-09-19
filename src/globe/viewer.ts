@@ -34,7 +34,6 @@ export function createGlobeViewer(container: HTMLElement): Viewer {
     selectionIndicator: false,
   });
 
-  viewer.scene.globe.enableLighting = false;
   viewer.scene.backgroundColor = Color.fromCssColorString('#0a0e12');
 
   viewer.camera.setView({

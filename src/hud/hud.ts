@@ -10,7 +10,7 @@ import { LAYERS, isLayerVisible, setLayerVisible } from '../layers/registry';
 // HUD shell: corner brackets, title, UTC clock, telemetry, layer toggles.
 // Pure DOM overlay on top of the Cesium canvas.
 
-function el(tag: string, className: string, text = ''): HTMLElement {
+function el(tag: string, className = '', text = ''): HTMLElement {
   const node = document.createElement(tag);
   node.className = className;
   if (text) node.textContent = text;
@@ -32,6 +32,8 @@ export function initHud(viewer: Viewer, root: HTMLElement): void {
   title.appendChild(el('span', 'hud-title-main', 'OJO DE FUEGO'));
   title.appendChild(el('span', 'hud-title-sub', 'WILDFIRE INTELLIGENCE / IBERIA'));
   const status = el('div', 'hud-status');
+  // Display only, not simulated: hardcoded until a data-mode card reads the
+  // server's DATA_MODE.
   const modeBadge = el('span', 'hud-badge', 'REPLAY');
   const clock = el('span', 'hud-clock');
   status.appendChild(modeBadge);
@@ -41,7 +43,7 @@ export function initHud(viewer: Viewer, root: HTMLElement): void {
   root.appendChild(header);
 
   const telemetry = el('div', 'hud-telemetry');
-  const cursorLine = el('div', '', 'CUR ---.---- / ---.----');
+  const cursorLine = el('div', '', 'CUR -------- / --------');
   const heightLine = el('div', '', 'ALT ---- KM');
   telemetry.appendChild(cursorLine);
   telemetry.appendChild(heightLine);
@@ -69,7 +71,7 @@ export function initHud(viewer: Viewer, root: HTMLElement): void {
     heightLine.textContent = `ALT ${heightKm.toFixed(0).padStart(4, '0')} KM`;
   };
   tick();
-  const interval = setInterval(tick, 1000);
+  setInterval(tick, 1000);
 
   const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
   handler.setInputAction((event: ScreenSpaceEventHandler.MotionEvent) => {
@@ -78,7 +80,7 @@ export function initHud(viewer: Viewer, root: HTMLElement): void {
       viewer.scene.globe.ellipsoid,
     );
     if (!cartesian) {
-      cursorLine.textContent = 'CUR ------- / --------';
+      cursorLine.textContent = 'CUR -------- / --------';
       return;
     }
     const carto = Cartographic.fromCartesian(cartesian);
@@ -86,10 +88,4 @@ export function initHud(viewer: Viewer, root: HTMLElement): void {
     const lon = formatCoordinate(CesiumMath.toDegrees(carto.longitude), 'E', 'W');
     cursorLine.textContent = `CUR ${lat} / ${lon}`;
   }, ScreenSpaceEventType.MOUSE_MOVE);
-
-  // Clean up on Vite HMR so handlers and the clock do not double-register.
-  import.meta.hot?.dispose(() => {
-    clearInterval(interval);
-    handler.destroy();
-  });
 }
