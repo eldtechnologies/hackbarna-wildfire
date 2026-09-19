@@ -208,8 +208,12 @@ export function sweepField(
  * string claimed all twelve while the band was built from fewer. A provenance line that
  * overstates the evidence is worse than no line.
  */
+export function configLabel(id: string): string {
+  return SWEEP_CONFIGS.find((c) => c.id === id)?.label ?? id;
+}
+
 export function basisFor(earliestId: string, latestId: string, contributors?: number): string {
-  const label = (id: string): string => SWEEP_CONFIGS.find((c) => c.id === id)?.label ?? id;
+  const label = configLabel;
   const total = SWEEP_CONFIGS.length;
   const scope =
     contributors === undefined || contributors >= total

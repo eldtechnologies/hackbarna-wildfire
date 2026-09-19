@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { buildEgress, loadContext } from './egress';
 import { buildAlerts } from './alerts';
 import { nearestNode } from './graph';
+import { ASSUMPTION_PROFILES, withAssumedSpeeds } from './assumptions';
+import { allNodesSafe, bottleneckOf, latestDeparture } from './solve';
+import { SWEEP_CONFIGS } from './sweep';
+import { DEFAULT_LATENCY_SECONDS } from './time';
 
 const ctx = loadContext();
 
@@ -28,21 +32,34 @@ test("a published departure is a departure, not the pocket's own burn deadline",
   // 134 seconds MORE time than any route the same response published, which is the
   // permissive direction, and it is the number a coordinator would have acted on.
   const { diagnostics } = buildEgress({});
-  const published = new Map(diagnostics.sweep.map((s) => [s.id, s.departureSeconds]));
 
+  // The property is asserted for every combination of configuration and assumption
+  // profile, not for the nominal one alone. A profile scales travel times, so it could in
+  // principle move the published value back onto the pocket's own deadline — the exact
+  // permissive inversion this test exists to catch — and only checking the nominal profile
+  // would miss it.
   let checked = 0;
-  for (const [id, departure] of published) {
-    if (departure === null) continue;
-    const burn = ctx.sweep.nodeCutByConfig.get(id)?.[bedarNode];
-    assert.ok(burn !== undefined, `${id} has a node cut field`);
+  for (const { configId, profileId, departureSeconds } of diagnostics.sweep) {
+    if (departureSeconds === null) continue;
+    const burn = ctx.sweep.nodeCutByConfig.get(configId)?.[bedarNode];
+    assert.ok(burn !== undefined, `${configId} has a node cut field`);
     if (!Number.isFinite(burn)) continue;
     checked += 1;
     assert.ok(
-      departure < burn,
-      `${id} published ${departure} as a departure, at or after the fire reaches the pocket (${burn})`,
+      departureSeconds < burn,
+      `${profileId}/${configId} published ${departureSeconds} as a departure, at or after the ` +
+        `fire reaches the pocket (${burn})`,
     );
   }
-  assert.ok(checked >= 10, `expected most configurations to be checkable, checked ${checked}`);
+  // Most combinations must actually be checkable, or the loop above proves nothing. The
+  // bound is derived from the sweep rather than hardcoded, so adding or removing a profile
+  // moves it — a fixed number written for one sweep size silently becomes vacuous when the
+  // sweep changes underneath it.
+  const combinations = ASSUMPTION_PROFILES.length * SWEEP_CONFIGS.length;
+  assert.ok(
+    checked >= Math.floor(combinations * 0.8),
+    `expected most of the ${combinations} combinations to be checkable, checked ${checked}`,
+  );
 });
 
 test('an unbounded departure publishes the window-end clamp, never null', () => {
@@ -50,13 +67,21 @@ test('an unbounded departure publishes the window-end clamp, never null', () => 
   // to null inverted the meaning: null is the contract's word for "cut", so an unbounded
   // deadline — the safest state there is — was published as the most alarming one.
   const { diagnostics } = buildEgress({});
-  const hundred = diagnostics.sweep.find((s) => s.id === 'all-100m');
-  assert.ok(hundred, 'the 100 m configuration ships');
+  const hundreds = diagnostics.sweep.filter((s) => s.configId === 'all-100m');
   assert.equal(
-    hundred.departureSeconds,
-    windowEndSeconds,
-    'the 100 m mask never closes a route, so its departure is the end of the window',
+    hundreds.length,
+    ASSUMPTION_PROFILES.length,
+    'the 100 m configuration ships under every swept profile',
   );
+  for (const entry of hundreds) {
+    // The clamp is a property of the mask, not of the assumptions: a profile that scales
+    // travel times changes how long the drive takes, not whether any road is ever cut.
+    assert.equal(
+      entry.departureSeconds,
+      windowEndSeconds,
+      `the 100 m mask never closes a route under ${entry.profileId}, so its departure is the end of the window`,
+    );
+  }
 });
 
 test('the cursor masks the destination deadline as well as the road cut', () => {
@@ -140,14 +165,287 @@ test('a band never claims more contributing configurations than produced it', ()
 test('the timeline is three states with two transitions', () => {
   // The whole replay, asserted because the transitions are the demo's most
   // consequential numbers and both moved when the node field started being masked.
+  //
+  // `atSeconds` counts from the scenario ORIGIN, which for this capture is 00:00Z on
+  // 9 July — so hour 17 is 19:00 CEST, not 17:00. The earlier wording here said "17:00
+  // CEST" while the arithmetic was hours from origin, which is an invitation to a later
+  // reader to "fix" the code to match the comment.
+  //
+  // Both transitions were re-measured when the assumption axis landed and are unchanged:
+  // the band stays unbounded — hence trivially gating open — until hour 18, and the
+  // moment it becomes finite the gate fails under either assumption set.
   const verdictAt = (h: number): string => buildEgress({ atSeconds: h * 3600 }).response.pockets[0].verdict;
 
   assert.equal(verdictAt(0), 'not_yet_observed', 'nothing has arrived yet');
-  assert.equal(verdictAt(17), 'routes_open', 'at 17:00 CEST a route is known and still open');
-  assert.equal(verdictAt(19), 'no_verified_action', 'by 19:00 CEST the decision is already late');
+  assert.equal(verdictAt(17), 'routes_open', 'the band is still unbounded, so a route gates open');
+  assert.equal(verdictAt(19), 'no_verified_action', 'the band is finite and the decision is already late');
 
   // The verdict is not decoration: it is what the message layer gates on, so each state
   // has to carry a different instruction or the third state would buy nothing.
   assert.equal(buildAlerts({ atSeconds: 17 * 3600 }).response.packages[0]?.instruction, 'evacuate_alternate');
   assert.equal(buildAlerts({ atSeconds: 19 * 3600 }).response.packages[0]?.instruction, 'no_verified_action');
+});
+
+// ---------------------------------------------------------------------------------------
+// The assumption axis. Each test below is the verification command for one acceptance
+// criterion of issue #25, and each is named so the gate's --test-name-pattern finds it.
+// ---------------------------------------------------------------------------------------
+
+/** The cursor masking, re-derived here rather than imported, so a test can recompute what
+ *  a named combination should have produced without borrowing the engine's own answer. */
+function maskedField(configId: string, cursor: number): { cuts: number[]; nodeCut: number[] } {
+  const rawCut = ctx.sweep.cutByConfig.get(configId);
+  const rawNode = ctx.sweep.nodeCutByConfig.get(configId);
+  const latency = ctx.sweep.latencyByConfig.get(configId);
+  const edgeCount = ctx.graph.edges.length;
+  const cuts = new Array<number>(edgeCount).fill(Number.POSITIVE_INFINITY);
+  const nodeCut = allNodesSafe(ctx.graph.nodes.length);
+  if (rawCut) {
+    for (let i = 0; i < edgeCount; i++) {
+      const c = rawCut[i];
+      if (!Number.isFinite(c)) continue;
+      if (c + (latency ? latency[i] : DEFAULT_LATENCY_SECONDS) <= cursor) cuts[i] = c;
+    }
+  }
+  if (rawNode) {
+    for (let i = 0; i < nodeCut.length; i++) {
+      const c = rawNode[i];
+      if (!Number.isFinite(c)) continue;
+      if (c + (latency ? latency[edgeCount + i] : DEFAULT_LATENCY_SECONDS) <= cursor) nodeCut[i] = c;
+    }
+  }
+  return { cuts, nodeCut };
+}
+
+/** The departure a named (profile, configuration) combination produces for one destination. */
+function recomputeDeparture(configId: string, profileId: string, cursor: number, destNode: number): number {
+  const profile = ASSUMPTION_PROFILES.find((p) => p.id === profileId);
+  assert.ok(profile, `profile ${profileId} exists`);
+  const graph = withAssumedSpeeds(ctx.graph, ctx.loaded.speedByHighway, profile.assumptions.speedByHighway);
+  const { cuts, nodeCut } = maskedField(configId, cursor);
+  return latestDeparture(graph, cuts, [destNode], { nodeCutSeconds: nodeCut }).latestDeparture[bedarNode];
+}
+
+function destNodeFor(destination: string): number {
+  const settlement = ctx.settlements.find((s) => s.name === destination);
+  assert.ok(settlement, `route names a settlement the fixture holds: ${destination}`);
+  const node = nearestNode(ctx.graph, { lat: settlement.lat, lon: settlement.lon });
+  assert.ok(node !== null, `${destination} snaps to the road graph`);
+  return node;
+}
+
+test('each band end is attained by a named combination of configuration and assumption profile', () => {
+  const cursor = 20 * 3600;
+  const built = buildEgress({ atSeconds: cursor });
+  const originSeconds = Date.parse(built.diagnostics.originIso) / 1000;
+  const pocket = built.response.pockets[0];
+  assert.ok(pocket, 'fixture sanity: the pocket is published');
+
+  let attributed = 0;
+  for (const route of pocket.routes) {
+    const band = route.lastSafeDeparture;
+    if (!band || band.basis.startsWith('no combination')) continue;
+
+    // "earliest from <config> under <profile>; latest from <config> under <profile>; ..."
+    const parsed = /^earliest from (.+?) under (.+?); latest from (.+?) under (.+?);/.exec(band.basis);
+    assert.ok(parsed, `the basis does not attribute both ends to a named combination: ${band.basis}`);
+    const [, eConfigLabel, eProfileLabel, lConfigLabel, lProfileLabel] = parsed;
+
+    const eConfig = SWEEP_CONFIGS.find((c) => c.label === eConfigLabel);
+    const lConfig = SWEEP_CONFIGS.find((c) => c.label === lConfigLabel);
+    const eProfile = ASSUMPTION_PROFILES.find((p) => p.label === eProfileLabel);
+    const lProfile = ASSUMPTION_PROFILES.find((p) => p.label === lProfileLabel);
+    assert.ok(
+      eConfig && lConfig && eProfile && lProfile,
+      `the basis names a combination that does not exist: ${band.basis}`,
+    );
+
+    // Recompute BOTH named ends from the named combination. A basis naming the wrong
+    // profile still reads plausibly, and this is the only check that catches it: the value
+    // has to come back out of the combination the string points at.
+    const destNode = destNodeFor(route.destination);
+    const expectedPessimistic = recomputeDeparture(eConfig.id, eProfile.id, cursor, destNode);
+    assert.equal(
+      Date.parse(band.earliest) / 1000 - originSeconds,
+      Math.min(expectedPessimistic, windowEndSeconds),
+      `basis names ${eProfile.id}/${eConfig.id} as the pessimistic end, but recomputing it gives a different value`,
+    );
+    if (band.latest !== null) {
+      const expectedOptimistic = recomputeDeparture(lConfig.id, lProfile.id, cursor, destNode);
+      assert.equal(
+        Date.parse(band.latest) / 1000 - originSeconds,
+        expectedOptimistic,
+        `basis names ${lProfile.id}/${lConfig.id} as the optimistic end, but recomputing it gives a different value`,
+      );
+    }
+    attributed += 1;
+  }
+  assert.ok(attributed > 0, 'fixture sanity: at least one route publishes an attributed band');
+});
+
+test('changing a swept assumption value changes the published band', () => {
+  const cursor = 20 * 3600;
+  const built = buildEgress({ atSeconds: cursor });
+  const originSeconds = Date.parse(built.diagnostics.originIso) / 1000;
+  const pocket = built.response.pockets[0];
+
+  // If the profile axis were declared but never solved, every profile's departure would be
+  // identical and the published band would be exactly the nominal-only one. So the check is
+  // not "the band exists" but "it is strictly wider than one profile's answer".
+  const route = pocket.routes.find((r) => r.lastSafeDeparture !== null);
+  assert.ok(route?.lastSafeDeparture, 'fixture sanity: a route publishes a band');
+  const destNode = destNodeFor(route.destination);
+
+  // The nominal answer is the committed graph, unscaled — it is the centre the profiles
+  // bracket, not one of them.
+  const { cuts: nominalCuts, nodeCut: nominalNodeCut } = maskedField('all-2x', cursor);
+  const nominalOnly = latestDeparture(ctx.graph, nominalCuts, [destNode], {
+    nodeCutSeconds: nominalNodeCut,
+  }).latestDeparture[bedarNode];
+  const cautious = recomputeDeparture('all-2x', 'cautious', cursor, destNode);
+  const optimistic = recomputeDeparture('all-2x', 'optimistic', cursor, destNode);
+
+  assert.ok(cautious < nominalOnly, `the cautious profile must move the departure earlier: ${cautious} vs ${nominalOnly}`);
+  assert.ok(nominalOnly < optimistic, `the optimistic profile must move it later: ${nominalOnly} vs ${optimistic}`);
+
+  const published = Date.parse(route.lastSafeDeparture.earliest) / 1000 - originSeconds;
+  assert.ok(
+    published < nominalOnly,
+    `the published pessimistic end ${published} is not earlier than the nominal-only answer ` +
+      `${nominalOnly}, so the assumption axis did not reach the band`,
+  );
+  assert.ok(published <= Math.min(cautious, windowEndSeconds) + 1);
+});
+
+test('every response prints the assumption set that produced its band', () => {
+  // The band's basis names a profile by label. That is only useful if the reader can
+  // resolve the label to the values behind it from the same response, so the swept set
+  // travels with every answer — including the cursors where no band exists yet.
+  for (const at of [undefined, 17 * 3600, 20 * 3600]) {
+    const built = buildEgress(at === undefined ? {} : { atSeconds: at });
+    const profiles = built.response.profiles;
+    assert.equal(profiles.length, ASSUMPTION_PROFILES.length, 'the swept set is published in full');
+    const publishedIds = new Set(profiles.map((p) => p.id));
+    for (const profile of profiles) {
+      assert.ok(profile.id.length > 0 && profile.label.length > 0, 'each profile is nameable');
+      assert.ok(Number.isFinite(profile.assumptions.mobileFraction), `${profile.id} prints its mobile fraction`);
+      assert.ok(Number.isFinite(profile.assumptions.vehicleOccupancy), `${profile.id} prints its occupancy`);
+      assert.ok(Number.isFinite(profile.assumptions.departureDelayMinutes), `${profile.id} prints its delay`);
+      assert.ok(
+        Object.keys(profile.assumptions.speedByHighway).length > 0,
+        `${profile.id} prints a speed table`,
+      );
+      assert.ok(
+        Object.keys(profile.assumptions.capacityPerHour).length > 0,
+        `${profile.id} prints a capacity table`,
+      );
+    }
+    // Nothing may be cited that was not published: a basis naming a profile absent from
+    // the list is a dead reference in a safety artifact.
+    for (const pocket of built.response.pockets) {
+      for (const route of pocket.routes) {
+        const prose = `${route.lastSafeDeparture?.basis ?? ''} ${route.clearanceMinutes?.basis ?? ''}`;
+        for (const profile of ASSUMPTION_PROFILES) {
+          if (prose.includes(profile.label)) {
+            assert.ok(publishedIds.has(profile.id), `${profile.id} is cited but not published`);
+          }
+        }
+      }
+    }
+  }
+});
+
+test('clearance is a range across the swept assumptions, not a single number', () => {
+  const cursor = 20 * 3600;
+  const built = buildEgress({ atSeconds: cursor });
+  const pocket = built.response.pockets[0];
+  const population = ctx.settlements.find((s) => s.id === pocket.pocketId)?.population ?? null;
+  assert.ok(population !== null && population > 0, 'fixture sanity: the pocket population is known');
+
+  let checked = 0;
+  for (const route of pocket.routes) {
+    const range = route.clearanceMinutes;
+    assert.ok(range, `${route.destination} publishes a clearance range`);
+
+    // Recompute both ends per profile and check the DIRECTION against them, rather than
+    // only that two numbers exist. Min and max are easy to swap, the swap is invisible in
+    // the types, and it hands the gate an optimistic deadline.
+    const perProfile = ASSUMPTION_PROFILES.map((profile) => {
+      const a = profile.assumptions;
+      const vehicles = (population * a.mobileFraction) / a.vehicleOccupancy;
+      const bottleneck = bottleneckOf(
+        {
+          segmentIds: route.segmentIds,
+          travelSeconds: 0,
+          distanceKm: 0,
+          slowestHighway: '',
+          tightestEdgeId: null,
+          tightestSlackSeconds: null,
+        },
+        ctx.graph,
+        vehicles,
+        a.capacityPerHour,
+        600,
+      );
+      return { profile, minutes: bottleneck?.clearMinutes ?? Number.POSITIVE_INFINITY };
+    });
+    const worst = perProfile.reduce((x, y) => (y.minutes > x.minutes ? y : x));
+    const best = perProfile.reduce((x, y) => (y.minutes < x.minutes ? y : x));
+
+    assert.equal(
+      range.pessimisticMinutes,
+      Number(worst.minutes.toFixed(1)),
+      `the pessimistic end is the largest clearance, attained by ${worst.profile.id}`,
+    );
+    assert.equal(
+      range.optimisticMinutes,
+      Number(best.minutes.toFixed(1)),
+      `the optimistic end is the smallest clearance, attained by ${best.profile.id}`,
+    );
+    assert.ok(
+      range.pessimisticMinutes > range.optimisticMinutes,
+      'the swept assumptions must actually spread the clearance',
+    );
+    assert.ok(range.basis.includes(worst.profile.label), 'the basis names the pessimistic profile');
+    assert.ok(range.basis.includes(best.profile.label), 'the basis names the optimistic profile');
+    assert.match(range.basis, new RegExp(String(population)), 'the basis names the population it divided');
+    checked += 1;
+  }
+  assert.ok(checked > 0, 'fixture sanity: the pocket publishes at least one route');
+});
+
+test('the gate reads the pessimistic end of the band and of the clearance range', () => {
+  const cursor = 20 * 3600;
+  const built = buildEgress({ atSeconds: cursor });
+  const originSeconds = Date.parse(built.diagnostics.originIso) / 1000;
+  const pocket = built.response.pockets[0];
+  assert.equal(pocket.verdict, 'no_verified_action', 'fixture sanity: by 20:00Z the decision is late');
+
+  const delay = Math.max(...ASSUMPTION_PROFILES.map((p) => p.assumptions.departureDelayMinutes));
+  let checked = 0;
+  for (const route of pocket.routes) {
+    assert.ok(route.lastSafeDeparture && route.clearanceMinutes);
+    assert.equal(route.usable, false, `${route.destination} must not read usable on a late decision`);
+
+    // The published reason carries the arithmetic, so the exact number of minutes pins
+    // WHICH clearance the gate subtracted. Reading the optimistic end would produce a
+    // smaller lateness and a different string.
+    const departure = Date.parse(route.lastSafeDeparture.earliest) / 1000 - originSeconds;
+    const startBy = departure - route.clearanceMinutes.pessimisticMinutes * 60 - delay * 60;
+    assert.equal(
+      route.unusableReason,
+      `the decision had to be made ${Math.round((cursor - startBy) / 60)} minutes ago to clear the bottleneck in time`,
+      `${route.destination} was not gated on the pessimistic clearance`,
+    );
+
+    // And the choice is load-bearing, not cosmetic: the optimistic end would have granted
+    // the coordinator real time back.
+    const optimisticStartBy = departure - route.clearanceMinutes.optimisticMinutes * 60 - delay * 60;
+    assert.ok(
+      optimisticStartBy > startBy,
+      'the optimistic clearance grants more time, so reading the wrong end changes the answer',
+    );
+    checked += 1;
+  }
+  assert.ok(checked > 0, 'fixture sanity: the pocket publishes at least one route');
 });

@@ -17,7 +17,7 @@ import type {
   RejectedCandidate,
 } from '../../shared/alerts';
 import type { LatLon } from '../../shared/fires';
-import { ASSUMPTIONS, buildEgress, loadContext, type EgressOptions, type Settlement } from './egress';
+import { buildEgress, loadContext, type EgressOptions, type Settlement } from './egress';
 import { capIdentifier, emitCap, groupByPocket, validateCapSemantics } from './cap/emit';
 import { fillTemplate, languagesFor, templateFor, unresolvedPlaceholders } from './cap/templates';
 import { verifySentence, type Place } from './cap/verify';
@@ -311,11 +311,12 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
               : `recommended ${chosen.destination}: ${chosen.distanceKm} km, ${chosen.travelMinutes} min, worst road ${chosen.slowestHighway}`,
         `departure band ${chosen?.lastSafeDeparture ? `${chosen.lastSafeDeparture.earliest} .. ${chosen.lastSafeDeparture.latest ?? 'never closes inside the window'}` : 'none'}`,
         chosen?.lastSafeDeparture ? `basis: ${chosen.lastSafeDeparture.basis}` : 'basis: n/a',
+        // The range, with its own basis, rather than a single figure. The ledger is the
+        // artifact a reviewer reads to find out why a recommendation was made, so it has
+        // to carry the spread the recommendation was made across — and the basis names the
+        // values behind each end, which is the part a bare pair of numbers does not say.
         chosen?.clearanceMinutes != null
-          ? 'clearance at the tightest point: ' +
-            `${chosen.clearanceMinutes} min ` +
-            `(${settlement.population ?? 'unknown'} residents at ` +
-            `${ASSUMPTIONS.mobileFraction} mobile ÷ ${ASSUMPTIONS.vehicleOccupancy} per vehicle)`
+          ? `clearance at the tightest point: ${chosen.clearanceMinutes.basis}`
           : 'clearance: not computed',
         `detections ${built.diagnostics.detections}; persistent-heat polygons ${built.diagnostics.staticHeat.polygons}, detections removed ${built.diagnostics.staticHeat.removed}`,
       ],
@@ -324,7 +325,12 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
         vehicleOccupancy: clock.vehicleOccupancy,
         departureDelayMinutes: clock.departureDelayMinutes,
         population: settlement.population ?? 'unknown',
-        clearanceMinutes: chosen?.clearanceMinutes ?? 'unknown',
+        // The pessimistic figure is the one the gate acted on, so it is the one recorded
+        // under the plain name; the range travels with it rather than replacing it.
+        clearanceMinutes: chosen?.clearanceMinutes?.pessimisticMinutes ?? 'unknown',
+        clearanceRangeMinutes: chosen?.clearanceMinutes
+          ? `${chosen.clearanceMinutes.optimisticMinutes}..${chosen.clearanceMinutes.pessimisticMinutes}`
+          : 'unknown',
       },
       rejected: [],
     });

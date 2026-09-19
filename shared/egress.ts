@@ -84,6 +84,46 @@ export interface EgressAssumptions {
   capacityPerHour: Record<string, number>;
 }
 
+/**
+ * One assumption set the departure band was swept over, with the id and label its basis
+ * line cites.
+ *
+ * The shape is the contract's rather than the engine's on purpose: a profile is a complete
+ * `EgressAssumptions`, so it prints in the same shape every other assumption already
+ * prints in, and a reader never has to learn a second layout to compare the swept values
+ * against the nominal centre.
+ */
+export interface AssumptionProfile {
+  /** Stable key, cited by the basis line. */
+  id: string;
+  /** Printed beside every number this profile produced. */
+  label: string;
+  assumptions: EgressAssumptions;
+}
+
+/**
+ * How long the pocket takes to clear the tightest point on a route, across the swept
+ * assumption set.
+ *
+ * A range rather than a number, for the same reason a departure is a band rather than a
+ * time: the quantity rests on assumptions nobody has measured, and a single figure would
+ * present the middle of a wide spread as though it were the answer. The ends are named for
+ * the direction they mean rather than as `min`/`max`, because "minimum clearance" is the
+ * optimistic end and an unlabelled pair is exactly where a reader swaps them.
+ *
+ * On the committed Los Gallardos capture this spread is 89 to 185 minutes for Bédar —
+ * ninety-six minutes of the decision resting on values that are labelled assumptions
+ * everywhere they surface.
+ */
+export interface ClearanceRange {
+  /** The longest the pocket could take to clear, across the swept assumptions. The gate reads this one. */
+  pessimisticMinutes: number;
+  /** The shortest. Published so the reader can see how much the decision rests on assumptions. */
+  optimisticMinutes: number;
+  /** Which values produced each end, and at which segment, in words. */
+  basis: string;
+}
+
 /** One way out of a pocket, and how long it stays viable. */
 export interface EgressRoute {
   id: string;
@@ -100,12 +140,13 @@ export interface EgressRoute {
    */
   slowestHighway: string;
   /**
-   * How long the pocket takes to clear the tightest point on this route, in minutes,
-   * and which segment that is. Vehicles divided by the road's throughput: the number
-   * that decides whether a departure band is achievable at all, and the acceptance
-   * criterion in docs/work-plan.md. Null when the pocket's population is unknown.
+   * How long the pocket takes to clear the tightest point on this route, swept over the
+   * assumption set. Vehicles divided by the road's throughput: the number that decides
+   * whether a departure band is achievable at all, and the acceptance criterion in
+   * docs/work-plan.md. Null when the pocket's population is unknown.
    */
-  clearanceMinutes: number | null;
+  clearanceMinutes: ClearanceRange | null;
+  /** The segment the pessimistic clearance was reached at, since that is the one that decides. */
   bottleneckSegmentId: string | null;
   /**
    * Band, not a point. Null when the route is already cut at this cursor.
@@ -148,7 +189,18 @@ export interface EgressResponse {
   provenance: 'live' | 'replay';
   /** The cursor this answered for, at or before the requested time. */
   at: string;
+  /**
+   * The nominal assumption set — the centre the swept profiles bracket. Printed because a
+   * number without its assumptions is the point estimate the spike showed is indefensible.
+   */
   assumptions: EgressAssumptions;
+  /**
+   * The assumption sets this response was actually solved under, in the order the band's
+   * basis names them. Every band and clearance range in the response is the envelope of
+   * these, so a reader can see the values behind a published end rather than only the
+   * centre it was varied around.
+   */
+  profiles: AssumptionProfile[];
   /**
    * Which fire this describes. The capture's bbox holds three separate heat sources and
    * the fire itself is carried as two cluster ids, so a response with no fire identity

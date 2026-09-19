@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildAlerts, certaintyFor, instructionFor, severityFor } from './alerts';
 import { buildEgress, loadContext } from './egress';
+import { SWEEP_CONFIGS } from './sweep';
+import { ASSUMPTION_PROFILES } from './assumptions';
 
 const XSD = fileURLToPath(new URL('../../data/cap/CAP-v1.2.xsd', import.meta.url));
 
@@ -113,24 +115,35 @@ test('severity is read off the hazard, not off how hard the decision was', () =>
   }
 });
 
-test('the basis reports how many configurations actually contributed', () => {
-  // A configuration under which the route is never cut yields Infinity and used to be
+test('the basis reports how many combinations actually contributed', () => {
+  // A combination under which the route is never cut yields Infinity and used to be
   // dropped without a word, so the provenance line claimed all twelve while the band was
   // built from fewer. Overstating the evidence is worse than saying nothing.
+  //
+  // The denominator is now configurations x assumption profiles, because the band is the
+  // envelope over both. A basis still counting only the twelve mask configurations would
+  // understate what the band was built from just as surely as the old one overstated it.
+  const expectedTotal = SWEEP_CONFIGS.length * ASSUMPTION_PROFILES.length;
   const egress = buildEgress({ atSeconds: CURSOR });
+  let seen = 0;
   for (const pocket of egress.response.pockets) {
     for (const route of pocket.routes) {
       const basis = route.lastSafeDeparture?.basis ?? '';
       assert.ok(basis.length > 0, 'a band needs its basis');
-      const claimed = /across (\d+)(?: of (\d+))? configurations/.exec(basis);
-      assert.ok(claimed, `basis does not state a configuration count: ${basis}`);
+      const claimed = /across (?:all (\d+)|(\d+) of (\d+)) combinations/.exec(basis);
+      assert.ok(claimed, `basis does not state a combination count: ${basis}`);
       if (claimed[2] !== undefined) {
-        const contributing = Number(claimed[1]);
-        const total = Number(claimed[2]);
+        const contributing = Number(claimed[2]);
+        const total = Number(claimed[3]);
+        assert.equal(total, expectedTotal, `basis names ${total} combinations, swept ${expectedTotal}`);
         assert.ok(contributing > 0 && contributing < total, `impossible count ${contributing}/${total}`);
+      } else {
+        assert.equal(Number(claimed[1]), expectedTotal, `basis names ${claimed[1]} combinations`);
       }
+      seen += 1;
     }
   }
+  assert.ok(seen > 0, 'fixture sanity: the response publishes at least one route');
 });
 
 test('a band whose pessimistic end has passed is no longer a verified action', () => {

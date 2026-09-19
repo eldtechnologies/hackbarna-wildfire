@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 
 import {
   ASSUMPTION_PROFILES,
-  NOMINAL_PROFILE_ID,
+  NOMINAL_SPEED_KMH,
   assertProfile,
   scaledTravelSeconds,
   withAssumedSpeeds,
@@ -85,31 +85,34 @@ test('a class absent from the swept table falls back to nominal rather than drop
   assert.equal(scaled.edges[0].travelSeconds, 3600);
 });
 
-test('the profiles bracket the nominal centre and are conventionally ordered', () => {
+test('the swept profiles bracket the nominal table and sit either side of it', () => {
   const ids = ASSUMPTION_PROFILES.map((p) => p.id);
-  assert.ok(ids.includes(NOMINAL_PROFILE_ID), 'the nominal profile is present by id');
   assert.equal(new Set(ids).size, ids.length, 'profile ids are unique');
-  for (const profile of ASSUMPTION_PROFILES) {
-    assertProfile(profile);
-  }
-  const nominal = ASSUMPTION_PROFILES.find((p) => p.id === NOMINAL_PROFILE_ID)!;
+  for (const profile of ASSUMPTION_PROFILES) assertProfile(profile);
+
+  // Neither swept end is the centre. A band is an envelope, so a nominal profile among
+  // these could never attain either end — measured on the committed capture it strictly
+  // attained 0 of 48 configuration-by-destination ends — and it would cost a third of the
+  // solve budget to publish a value nothing reads. The centre survives as the table below,
+  // which is what the response publishes as `assumptions`.
+  assert.ok(!ids.includes('nominal'), 'the nominal centre is a table, not a swept profile');
+
   const cautious = ASSUMPTION_PROFILES.find((p) => p.id === 'cautious')!;
   const optimistic = ASSUMPTION_PROFILES.find((p) => p.id === 'optimistic')!;
-  for (const highway of Object.keys(nominal.assumptions.speedByHighway)) {
-    const n = nominal.assumptions.speedByHighway[highway];
+  for (const [highway, nominal] of Object.entries(NOMINAL_SPEED_KMH)) {
     assert.ok(
-      cautious.assumptions.speedByHighway[highway] <= n,
-      `cautious must not be faster than nominal on ${highway}`,
+      cautious.assumptions.speedByHighway[highway] <= nominal,
+      `cautious must not be faster than the nominal table on ${highway}`,
     );
     assert.ok(
-      optimistic.assumptions.speedByHighway[highway] >= n,
-      `optimistic must not be slower than nominal on ${highway}`,
+      optimistic.assumptions.speedByHighway[highway] >= nominal,
+      `optimistic must not be slower than the nominal table on ${highway}`,
     );
   }
 });
 
 test('an invalid profile is refused at construction, naming what is wrong', () => {
-  const nominal = ASSUMPTION_PROFILES.find((p) => p.id === NOMINAL_PROFILE_ID)!;
+  const nominal = ASSUMPTION_PROFILES[0];
   assertProfile(nominal);
   assert.throws(
     () => assertProfile({ ...nominal, id: 'bad', assumptions: { ...nominal.assumptions, mobileFraction: 0 } }),
@@ -130,12 +133,13 @@ test('an invalid profile is refused at construction, naming what is wrong', () =
   );
 });
 
-test('the nominal profile carries the graph speed table the committed graph was built with', () => {
-  const nominal = ASSUMPTION_PROFILES.find((p) => p.id === NOMINAL_PROFILE_ID)!;
+test('the nominal table is the one the committed graph was built with', () => {
   // Source of expected: scripts/fetch-roads.mjs HIGHWAY_SPEED_KMH, which is what the
-  // committed travelSeconds were computed from. If these diverge, the identity property
-  // above still holds per-edge but the "nominal" label is no longer the committed reality.
-  assert.equal(nominal.assumptions.speedByHighway.primary, 80);
-  assert.equal(nominal.assumptions.speedByHighway.track, 15);
-  assert.equal(nominal.assumptions.speedByHighway.motorway, 100);
+  // committed travelSeconds were computed from. The identity property above still holds
+  // per-edge if these diverge, but then "nominal" would no longer mean the committed
+  // reality and every profile would be silently offset from the graph it scales.
+  assert.equal(NOMINAL_SPEED_KMH.primary, 80);
+  assert.equal(NOMINAL_SPEED_KMH.track, 15);
+  assert.equal(NOMINAL_SPEED_KMH.motorway, 100);
+  assert.equal(Object.keys(NOMINAL_SPEED_KMH).length, 16, 'every class the fetcher keeps');
 });

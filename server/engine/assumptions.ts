@@ -20,8 +20,12 @@
 // the same profiles move its clearance by 96 minutes. The drive out is short relative to
 // the fire's arrival uncertainty; the queue at the track is not.
 
-import type { EgressAssumptions } from '../../shared/egress';
+import type { AssumptionProfile } from '../../shared/egress';
 import type { RoadGraph } from './solve';
+
+// The profile shape lives in the frozen contract rather than here, because it is what the
+// response publishes; this module owns the values and the arithmetic, not the vocabulary.
+export type { AssumptionProfile };
 
 /** The speed table the committed graph's travel times were computed from. */
 export const NOMINAL_SPEED_KMH: Record<string, number> = {
@@ -42,16 +46,6 @@ export const NOMINAL_CAPACITY_PER_HOUR: Record<string, number> = {
   motorway: 3600, trunk: 2400, primary: 1800, secondary: 1500, tertiary: 1200,
   unclassified: 900, residential: 600, living_street: 400, service: 300, track: 300, road: 600,
 };
-
-export const NOMINAL_PROFILE_ID = 'nominal';
-
-export interface AssumptionProfile {
-  /** Stable key, referenced by the published basis line. */
-  id: string;
-  /** Printed beside every band and clearance range this profile produced. */
-  label: string;
-  assumptions: EgressAssumptions;
-}
 
 /**
  * A speed table scaled from the nominal one.
@@ -78,14 +72,19 @@ function capacitiesAt(scale: number): Record<string, number> {
 }
 
 /**
- * The swept profiles.
+ * The swept profiles: two, bracketing the nominal centre.
  *
- * Two, bracketing the nominal centre, and the count is a decision rather than a default.
- * The envelope only ever reads its ends, and the measured spread across the whole speed
- * axis is under a minute, so an intermediate profile would add resolution the data does not
- * have while costing a third of the solve budget. The other four assumptions are swept at
- * the same two points because they are free to sweep, and they are where the decision
- * actually moves.
+ * The count is a decision rather than a default, and there is deliberately no "nominal"
+ * profile among them. A band is an envelope, so only its ends are ever read, and the
+ * nominal set sits between the two by construction — measured on the committed capture,
+ * the nominal profile strictly attained an end in 0 of 48 configuration-by-destination
+ * combinations. Adding it back would spend a third of the solve budget to publish nothing,
+ * and the centre it would describe is already published as the response's `assumptions`.
+ *
+ * Two rather than more because the whole speed axis moves the Bédar departure by under a
+ * minute while the mask axis moves it by hours, so further points would add resolution the
+ * data does not have. The other four assumptions are swept at the same two points because
+ * sweeping them costs no solve at all, and they are where the decision actually moves.
  *
  * Every value here is an assumption. None has a field measurement behind it, and each is
  * labelled as one wherever it surfaces.
@@ -100,17 +99,6 @@ export const ASSUMPTION_PROFILES: readonly AssumptionProfile[] = [
       vehicleOccupancy: 1.2,
       speedByHighway: speedsAt(0.7),
       capacityPerHour: capacitiesAt(0.6),
-    },
-  },
-  {
-    id: NOMINAL_PROFILE_ID,
-    label: 'nominal assumptions',
-    assumptions: {
-      mobileFraction: 0.8,
-      departureDelayMinutes: 15,
-      vehicleOccupancy: 1.4,
-      speedByHighway: speedsAt(1),
-      capacityPerHour: capacitiesAt(1),
     },
   },
   {
