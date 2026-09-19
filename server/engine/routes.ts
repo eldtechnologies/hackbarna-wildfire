@@ -25,6 +25,16 @@ export interface EngineRouterOptions {
   cacheLimit?: number;
 }
 
+/**
+ * A cursor the client got wrong.
+ *
+ * Distinct from the engine's own RangeErrors — the profile scaling refuses an unusable
+ * speed, the mask refuses a lattice it cannot cover — so `fail` can answer 400 for the one
+ * and 502 for the other. Both were RangeErrors, and catching the class rather than the
+ * meaning turned an engine fault into a client error.
+ */
+class CursorError extends RangeError {}
+
 export function engineRouter(options: EngineRouterOptions = {}): Router {
   const router = Router();
 
@@ -40,7 +50,12 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
    * stack trace, which says the server is broken when the request was.
    */
   const fail = (res: Response, err: unknown, fallback: string): void => {
-    if (err instanceof RangeError) {
+    // Only a bad cursor is the client's fault. This used to catch every RangeError, and
+    // the engine throws them too — the profile scaling refuses an unusable speed, the mask
+    // refuses a lattice it cannot cover — so a corrupt committed graph was answered as
+    // "your request was invalid" with the engine's internal message echoed to the caller,
+    // on every request, forever. Engine failures are ours and belong in the log.
+    if (err instanceof CursorError) {
       res.status(400).json({ error: err.message });
       return;
     }
@@ -62,26 +77,35 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
       // Express hands `?at[]=1&at[]=2` through as an array. Silently falling back would
       // serve the end of the window — the most-informed state — to a client that asked
       // for something else, which is the opposite answer.
-      throw new RangeError('at must be a single value');
+      throw new CursorError('at must be a single value');
     }
     if (raw === '') return undefined;
     // Canonical digits only: `Number()` also accepts '0x10', '1e5' and ' 42 ', so a
     // cursor would silently mean something other than what the client wrote.
-    if (!/^\d+$/.test(raw)) throw new RangeError('at must be a non-negative integer number of seconds');
+    if (!/^\d+$/.test(raw)) throw new CursorError('at must be a non-negative integer number of seconds');
     const n = Number(raw);
-    if (n > MAX_AT_SECONDS) throw new RangeError('at is beyond the representable range of a CAP timestamp');
+    if (n > MAX_AT_SECONDS) throw new CursorError('at is beyond the representable range of a CAP timestamp');
     return n;
   };
 
   /**
    * Memoised responses, because the build is deterministic.
    *
-   * Every engine request runs the twelve-configuration sweep on the event loop — measured
-   * at 210-260 ms of CPU with no coalescing, so eight concurrent callers serialise to
-   * 1.8 s and one client at a few requests a second stalls `/api/fires` and `/api/health`
-   * with it. The routes are unauthenticated and the server binds every interface, so the
-   * cursor is the only thing that varies and it is a small integer space a scrubber
+   * Every engine request runs the twelve-configuration sweep on the event loop, over each
+   * swept assumption profile — measured at roughly 200-260 ms of CPU with no coalescing,
+   * so eight concurrent callers serialise to about 2 s and one client at a few requests a
+   * second stalls `/api/fires` and `/api/health` with it. The routes are unauthenticated,
+   * so the cursor is the only thing that varies and it is a small integer space a scrubber
    * revisits constantly.
+   *
+   * Reachability, stated accurately rather than as the reassurance that used to be here:
+   * `SERVER_HOST` defaults to `127.0.0.1` (server/config.ts), so by default this is
+   * loopback-only and the exposure is a local process. Setting `HOST=0.0.0.0` — which that
+   * file documents as the way to show the demo from a phone — puts unauthenticated,
+   * unthrottled, ~250 ms-of-event-loop routes on the LAN. The earlier wording here claimed
+   * the server "binds every interface" unconditionally, which is not true by default and
+   * invites a reader to misjudge the exposure in whichever direction they were already
+   * leaning.
    *
    * Bounded so a hostile cursor walk cannot use the cache as a memory amplifier: the
    * scrubber's own path through the window is tens of entries, and a producer that
@@ -148,6 +172,11 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
         origin: built.diagnostics.originIso,
         scenario: built.diagnostics.scenario,
         assumptions: built.response.assumptions,
+        // The swept set travels with the field as well as with each cursor answer. This is
+        // the payload a client fetches once, and a band basis naming a profile it has no
+        // way to resolve is a dead reference — the reader cannot see the values behind the
+        // label without asking a second endpoint for them.
+        profiles: built.response.profiles,
         // Cursor-independent: the same field answers every `at`.
         segments: built.response.segments.filter((s) => s.cutAt !== null),
         totalSegments: built.response.segments.length,

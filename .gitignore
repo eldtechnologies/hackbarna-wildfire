@@ -5,6 +5,9 @@ dist/
 !.env.example
 *.log
 .creatumo/
+.claude/
+.flow/
+.decisions/
 .DS_Store
 
 # Python

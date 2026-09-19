@@ -438,6 +438,26 @@ export function routeTo(
 }
 
 /**
+ * Segment id to edge, built once per graph.
+ *
+ * `bottleneckOf` used to rebuild this on every call. That was invisible while it ran four
+ * times per request; once the clearance became a range over the swept assumptions it runs
+ * twelve times, and mapping 29,834 edges twelve times measured at over 100 ms — more than
+ * a third of the request, spent rebuilding an index that never changes. Keyed weakly so a
+ * graph that goes out of scope takes its index with it.
+ */
+const edgeIndexCache = new WeakMap<RoadGraph, Map<string, Edge>>();
+
+export function edgesById(graph: RoadGraph): Map<string, Edge> {
+  let byId = edgeIndexCache.get(graph);
+  if (byId === undefined) {
+    byId = new Map(graph.edges.map((e) => [e.id, e]));
+    edgeIndexCache.set(graph, byId);
+  }
+  return byId;
+}
+
+/**
  * The edge the convoy clears last: the one where the number of vehicles divided by the
  * road's throughput takes longest. This is the acceptance number in docs/work-plan.md —
  * "how long the population takes to clear each bottleneck" — and it is what decides
@@ -450,7 +470,7 @@ export function bottleneckOf(
   capacityPerHourByHighway: Record<string, number>,
   defaultCapacityPerHour: number,
 ): { segmentId: string; clearMinutes: number } | null {
-  const byId = new Map(graph.edges.map((e) => [e.id, e]));
+  const byId = edgesById(graph);
   let worst: { segmentId: string; clearMinutes: number } | null = null;
   for (const id of route.segmentIds) {
     const edge = byId.get(id);
