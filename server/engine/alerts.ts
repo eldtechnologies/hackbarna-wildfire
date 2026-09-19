@@ -65,6 +65,8 @@ export interface BuildAlertsResult {
       reused: number;
       unreadable: number;
       writeFailures: string[];
+      /** True once the store has reached its cap and stopped accepting entries. */
+      full: boolean;
     };
   };
 }
@@ -205,6 +207,7 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
   let appended = 0;
   let reused = 0;
   const writeFailures: string[] = [];
+  let ledgerFull = false;
   const byPocket = new Map<string, Settlement>();
 
   for (const pocketEgress of built.response.pockets) {
@@ -421,7 +424,14 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
       reused += 1;
       continue;
     }
-    if (!ledgerStore.append(fresh)) writeFailures.push(settlement.id);
+    const written = ledgerStore.append(fresh);
+    if (!written.ok) {
+      // A full store is the record working as designed and saying so; a failed write is a
+      // fault. Reporting them as one number would let a reader dismiss a lost record as a
+      // cap having been reached.
+      if (written.reason === 'full') ledgerFull = true;
+      else writeFailures.push(settlement.id);
+    }
     freshEntries.push(fresh);
     ledger.push(fresh);
     appended += 1;
@@ -475,6 +485,7 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
         reused,
         unreadable: ledgerStore.history().unreadable,
         writeFailures,
+        full: ledgerFull || ledgerStore.isFull(),
       },
       emitter: {
         identifierSeed: built.response.fireId ?? 'unknown',

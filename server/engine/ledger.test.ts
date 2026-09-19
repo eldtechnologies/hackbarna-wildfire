@@ -12,7 +12,7 @@ import { appendFileSync, chmodSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { fingerprintInputs, openLedger, type StoredEntry } from './ledger';
+import { fingerprintInputs, openLedger, type AppendResult, type StoredEntry } from './ledger';
 
 const FINGERPRINT_A = 'inputs-a';
 const FINGERPRINT_B = 'inputs-b';
@@ -181,16 +181,50 @@ test('a store whose directory cannot be created fails, naming the path', () => {
 test('an entry that cannot be written is reported rather than silently dropped', () => {
   const path = storePath();
   const store = openLedger(path);
-  assert.equal(store.append(entry({ id: 'ok' })), true, 'a normal append reports success');
+  assert.deepEqual(store.append(entry({ id: 'ok' })), { ok: true }, 'a normal append reports success');
 
   // A store that opened correctly but can no longer be written — a full disk, a permission
   // change mid-run. The request must still serve, so the contract is that the caller learns
   // the write failed rather than the append throwing or quietly reporting success.
   chmodSync(path, 0o444);
   try {
-    assert.equal(store.append(entry({ id: 'should-fail' })), false, 'a failed append reports failure');
+    assert.deepEqual(
+      store.append(entry({ id: 'should-fail' })),
+      { ok: false, reason: 'write-failed' },
+      'a failed write names its reason rather than reporting a bare failure',
+    );
   } finally {
     chmodSync(path, 0o644);
   }
   assert.equal(store.history().entries.length, 1, 'the failed append left no partial entry');
+});
+
+test('a store at its cap refuses to grow, rather than deleting or growing without bound', () => {
+  // The store is append-only by requirement, so nothing may be deleted or rotated. Without
+  // a cap that combination leaves an unauthenticated caller free to grow the file one
+  // distinct cursor at a time, and the history endpoint reads the whole thing on every call.
+  // A refusal keeps the record both append-only and bounded — a history that stops, rather
+  // than one that disappears.
+  const path = storePath();
+  const store = openLedger(path, { maxBytes: 400 });
+
+  assert.deepEqual(store.append(entry({ id: 'fits' })), { ok: true });
+  assert.equal(store.isFull(), false, 'one entry is well under the cap');
+
+  let last: AppendResult = { ok: true };
+  for (let i = 0; i < 50 && last.ok; i += 1) last = store.append(entry({ id: `more-${i}` }));
+  assert.deepEqual(last, { ok: false, reason: 'full' }, 'the cap is reached and named as such');
+  assert.equal(store.isFull(), true);
+
+  const filled = store.history().entries.length;
+  assert.ok(filled > 1, 'fixture sanity: the store really did fill up');
+
+  assert.deepEqual(store.append(entry({ id: 'too-much' })), { ok: false, reason: 'full' });
+  assert.equal(store.history().entries.length, filled, 'a refusal changes nothing');
+  assert.equal(store.history().unreadable, 0, 'and does not corrupt what was written');
+  assert.deepEqual(
+    store.history().entries.map((e) => e.id)[0],
+    'fits',
+    'the first entry is still there: nothing was rotated out to make room',
+  );
 });

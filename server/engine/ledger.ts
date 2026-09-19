@@ -19,7 +19,7 @@
 //     nothing in the record saying so.
 
 import { createHash } from 'node:crypto';
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import type { LedgerEntry } from '../../shared/alerts';
@@ -37,6 +37,32 @@ export interface StoredEntry extends LedgerEntry {
   inputFingerprint: string;
 }
 
+/**
+ * Why an append did not happen.
+ *
+ * Distinguished because the two mean different things to a reader: a write failure is a
+ * fault that should be investigated, while a full store is the record working as designed
+ * and saying so.
+ */
+export type AppendResult = { ok: true } | { ok: false; reason: 'write-failed' | 'full' };
+
+export interface LedgerLimits {
+  /** Refuse to append once the file has reached this many bytes. */
+  maxBytes: number;
+}
+
+/**
+ * The default cap, 16 MiB.
+ *
+ * The store is append-only by requirement, so nothing here deletes or rotates — which means
+ * without a cap an unauthenticated caller reaching the port could grow the file without
+ * bound, one distinct cursor at a time, and `/api/ledger` reads the whole thing on every
+ * call. Refusing to grow past a limit keeps the record append-only AND bounded, at the cost
+ * of a history that stops rather than one that disappears. At roughly 800 bytes an entry
+ * this is about twenty thousand recommendations, which is far more than a replay holds.
+ */
+export const DEFAULT_MAX_BYTES = 16 * 1024 * 1024;
+
 export interface LedgerStore {
   /**
    * The entry recorded for this pocket, at this cursor, under these inputs.
@@ -46,8 +72,10 @@ export interface LedgerStore {
    * and serve one village's recommendation for another.
    */
   find(cursorSeconds: number, fingerprint: string, pocketId: string): StoredEntry | undefined;
-  /** Append one entry. Returns false when the write failed, rather than throwing. */
-  append(entry: StoredEntry): boolean;
+  /** Append one entry. Reports rather than throws, so a request can still serve. */
+  append(entry: StoredEntry): AppendResult;
+  /** Whether the store has reached its cap and will accept no more. */
+  isFull(): boolean;
   /** Everything, in recording order, with the number of lines that could not be read. */
   history(): { entries: StoredEntry[]; unreadable: number };
 }
@@ -73,7 +101,7 @@ export function fingerprintInputs(inputs: Record<string, unknown>): string {
  * moment the record was supposed to survive — so an unusable path is an error at startup
  * that names the path, and the caller decides what to do about it.
  */
-export function openLedger(path: string): LedgerStore {
+export function openLedger(path: string, limits: LedgerLimits = { maxBytes: DEFAULT_MAX_BYTES }): LedgerStore {
   try {
     mkdirSync(dirname(path), { recursive: true });
   } catch (err) {
@@ -144,15 +172,39 @@ export function openLedger(path: string): LedgerStore {
       return found;
     },
 
+    isFull() {
+      try {
+        return statSync(path).size >= limits.maxBytes;
+      } catch (err) {
+        // No file yet is an empty store, which is not full.
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false;
+        throw err;
+      }
+    },
+
     append(entry) {
+      // Checked before the write rather than after, so the cap is a bound and not a
+      // post-mortem. `stat` is O(1) where counting entries would mean reading the file.
+      let size = 0;
+      try {
+        size = statSync(path).size;
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+      }
+      if (size >= limits.maxBytes) {
+        console.error(
+          `[ledger] refusing to append to ${path}: the store has reached its ${limits.maxBytes}-byte cap`,
+        );
+        return { ok: false, reason: 'full' };
+      }
       try {
         appendFileSync(path, `${JSON.stringify(entry)}\n`, { flag: 'a' });
-        return true;
+        return { ok: true };
       } catch (err) {
         // The request must still serve, so this reports rather than throws; the caller puts
         // the failure where a reader can see it instead of dropping the entry in silence.
         console.error(`[ledger] could not append an entry to ${path}:`, err);
-        return false;
+        return { ok: false, reason: 'write-failed' };
       }
     },
 
