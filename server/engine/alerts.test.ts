@@ -6,9 +6,22 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildAlerts, certaintyFor, instructionFor, severityFor } from './alerts';
+import { openLedger, type StoredEntry } from './ledger';
 import { buildEgress, loadContext } from './egress';
 import { SWEEP_CONFIGS } from './sweep';
 import { ASSUMPTION_PROFILES } from './assumptions';
+
+/**
+ * A ledger path in a temporary directory.
+ *
+ * Every call gets its own by default, because the store makes a repeated cursor return the
+ * RECORDED entry rather than a fresh computation — so a shared path would turn any test
+ * that asks for a cursor twice into a test of the store, and would make the suite's result
+ * depend on what an earlier run left behind in the working tree.
+ */
+function tmpLedger(): string {
+  return join(mkdtempSync(join(tmpdir(), 'alerts-ledger-')), 'recommendations.jsonl');
+}
 
 const XSD = fileURLToPath(new URL('../../data/cap/CAP-v1.2.xsd', import.meta.url));
 
@@ -109,7 +122,7 @@ test('severity is read off the hazard, not off how hard the decision was', () =>
   assert.equal(severityFor(false), 'Severe');
   // Without node information the hazard is assumed real: under-reporting it is the
   // direction that gets people killed.
-  const built = buildAlerts({ atSeconds: CURSOR });
+  const built = buildAlerts({ atSeconds: CURSOR, ledgerPath: tmpLedger() });
   for (const pkg of built.response.packages) {
     assert.ok(pkg.severity === 'Extreme' || pkg.severity === 'Severe');
   }
@@ -161,7 +174,7 @@ test('a band whose pessimistic end has passed is no longer a verified action', (
 });
 
 test('the package and the pocket verdict never disagree', () => {
-  const built = buildAlerts({ atSeconds: CURSOR });
+  const built = buildAlerts({ atSeconds: CURSOR, ledgerPath: tmpLedger() });
   const egress = buildEgress({ atSeconds: CURSOR });
   for (const pocket of egress.response.pockets) {
     const packages = built.response.packages.filter((p) => p.pocketId === pocket.pocketId);
@@ -182,13 +195,13 @@ test('the pipeline emits packages for the real fire rather than rejecting everyt
   // candidate was rejected as "not a name in the road data" and the endpoint returned an
   // empty list — indistinguishable from "no alert is needed", the most dangerous reading
   // the system can produce.
-  const built = buildAlerts({ atSeconds: CURSOR });
+  const built = buildAlerts({ atSeconds: CURSOR, ledgerPath: tmpLedger() });
   assert.ok(built.response.packages.length > 0, 'the real scenario must produce a package');
   assert.equal(built.response.rejected.length, 0, 'nothing in the real scenario should be rejected');
 });
 
 test('a destination resolves as a place, and the road as a way', () => {
-  const built = buildAlerts({ atSeconds: EARLY_CURSOR });
+  const built = buildAlerts({ atSeconds: EARLY_CURSOR, ledgerPath: tmpLedger() });
   const pkg = built.response.packages[0];
   assert.ok(pkg.resolvedNames.length > 0, 'an evacuation sentence names things');
   const kinds = new Map(pkg.resolvedNames.map((n) => [n.osm?.type, n.text]));
@@ -201,7 +214,7 @@ test('a destination resolves as a place, and the road as a way', () => {
 });
 
 test('the sentence names the road the route actually uses', () => {
-  const built = buildAlerts({ atSeconds: EARLY_CURSOR });
+  const built = buildAlerts({ atSeconds: EARLY_CURSOR, ledgerPath: tmpLedger() });
   const egress = buildEgress({ atSeconds: EARLY_CURSOR });
   const pkg = built.response.packages[0];
 
@@ -238,7 +251,7 @@ test('the sentence names the road the route actually uses', () => {
 });
 
 test('every language gets a package, and they say the same thing', () => {
-  const built = buildAlerts({ atSeconds: CURSOR });
+  const built = buildAlerts({ atSeconds: CURSOR, ledgerPath: tmpLedger() });
   const languages = built.response.packages.map((p) => p.language).sort();
   assert.deepEqual(languages, ['en', 'es'], 'Almería is Spanish and English, never Catalan');
   const instructions = new Set(built.response.packages.map((p) => p.instruction));
@@ -248,7 +261,7 @@ test('every language gets a package, and they say the same thing', () => {
 });
 
 test('the emitted CAP for the real fire validates against the schema and passes the semantic checks', { skip: !hasXmllint ? 'xmllint not installed' : false }, () => {
-  const built = buildAlerts({ atSeconds: CURSOR });
+  const built = buildAlerts({ atSeconds: CURSOR, ledgerPath: tmpLedger() });
   assert.ok(built.documents.size > 0, 'a document must be emitted');
   for (const [pocketId, xml] of built.documents) {
     const failure = xsdValidate(xml);
@@ -258,7 +271,7 @@ test('the emitted CAP for the real fire validates against the schema and passes 
 });
 
 test('the CAP document is one alert with one info per language', () => {
-  const built = buildAlerts({ atSeconds: CURSOR });
+  const built = buildAlerts({ atSeconds: CURSOR, ledgerPath: tmpLedger() });
   for (const xml of built.documents.values()) {
     assert.equal((xml.match(/<alert /g) ?? []).length, 1);
     assert.equal((xml.match(/<info>/g) ?? []).length, built.response.packages.length);
@@ -269,7 +282,7 @@ test('the CAP document is one alert with one info per language', () => {
 });
 
 test('the polygon written is Bédar, in lat,lon order', () => {
-  const built = buildAlerts({ atSeconds: CURSOR });
+  const built = buildAlerts({ atSeconds: CURSOR, ledgerPath: tmpLedger() });
   const xml = [...built.documents.values()][0];
   const poly = /<polygon>([^<]+)<\/polygon>/.exec(xml)?.[1] ?? '';
   const pairs = poly.split(' ').map((s) => s.split(',').map(Number));
@@ -289,7 +302,7 @@ test('the polygon is the real building hull, not the placeholder box', () => {
   // is exactly 0.008 degrees on a side with its corners on a lattice, which makes it
   // distinguishable from a hull of real building centroids — so this fails if the
   // fixture stops loading, rather than silently shipping a square over the village.
-  const built = buildAlerts({ atSeconds: CURSOR });
+  const built = buildAlerts({ atSeconds: CURSOR, ledgerPath: tmpLedger() });
   const xml = [...built.documents.values()][0];
   const pairs = (/<polygon>([^<]+)<\/polygon>/.exec(xml)?.[1] ?? '').split(' ').map((s) => s.split(',').map(Number));
   const lats = new Set(pairs.map((p) => p[0]));
@@ -303,6 +316,7 @@ test('a Private scope profile cannot ship without addresses, and the check says 
   const built = buildAlerts({
     atSeconds: CURSOR,
     sender: { sender: 'x@y.invalid', senderName: 'X', status: 'Test', scope: 'Private' },
+    ledgerPath: tmpLedger(),
   });
   for (const [, validation] of Object.entries(built.diagnostics.emitter.validation)) {
     assert.equal(validation.ok, false);
@@ -314,7 +328,7 @@ test('a Private scope profile cannot ship without addresses, and the check says 
 });
 
 test('the ledger records the evidence behind every recommendation', () => {
-  const built = buildAlerts({ atSeconds: CURSOR });
+  const built = buildAlerts({ atSeconds: CURSOR, ledgerPath: tmpLedger() });
   assert.ok(built.ledger.length > 0);
   for (const entry of built.ledger) {
     assert.ok(entry.evidence.length >= 3, 'a recommendation needs its evidence');
@@ -324,15 +338,62 @@ test('the ledger records the evidence behind every recommendation', () => {
 });
 
 test('emission is deterministic across calls at the same cursor', () => {
-  const a = buildAlerts({ atSeconds: CURSOR });
-  const b = buildAlerts({ atSeconds: CURSOR });
+  // Two separate stores, so both calls compute rather than one reusing the other's record.
+  // With a shared path this test would pass while asserting nothing about the solve: the
+  // second call would return the first's stored entry and agree by construction. That is
+  // the risk-map row the store introduces — a determinism check that compares a computation
+  // against itself.
+  const a = buildAlerts({ atSeconds: CURSOR, ledgerPath: tmpLedger() });
+  const b = buildAlerts({ atSeconds: CURSOR, ledgerPath: tmpLedger() });
   assert.deepEqual(a.response.packages, b.response.packages);
   assert.deepEqual([...a.documents.entries()].sort(), [...b.documents.entries()].sort());
+  assert.equal(a.diagnostics.ledger.reused, 0, 'both calls actually computed');
+  assert.equal(b.diagnostics.ledger.reused, 0);
+});
+
+test('a cursor already recorded is served from the record, not recomputed', () => {
+  // One shared store across two calls. The second must return what the first recorded, and
+  // the counter is what distinguishes that from a recomputation that happened to agree —
+  // without it the test would pass on a store that was never read.
+  const path = tmpLedger();
+  const first = buildAlerts({ atSeconds: CURSOR, ledgerPath: path });
+  assert.ok(first.ledger.length > 0, 'fixture sanity: there are recommendations to record');
+  assert.equal(first.diagnostics.ledger.appended, first.ledger.length, 'the first call records every pocket');
+  assert.equal(first.diagnostics.ledger.reused, 0);
+  assert.equal(first.diagnostics.ledger.unreadable, 0);
+  assert.deepEqual(first.diagnostics.ledger.writeFailures, []);
+
+  const second = buildAlerts({ atSeconds: CURSOR, ledgerPath: path });
+  assert.equal(second.diagnostics.ledger.appended, 0, 'the second call records nothing new');
+  assert.equal(second.diagnostics.ledger.reused, second.ledger.length, 'every pocket came from the record');
+  assert.deepEqual(second.ledger, first.ledger, 'and it is the same content that was recorded');
+});
+
+test('the ledger records what the file holds, and a changed input set does not reuse it', () => {
+  // The risk-map row the fingerprint exists for. Keying by cursor alone would let a store
+  // written under one set of inputs answer for another, serving a recommendation the
+  // current inputs do not support with nothing in the record saying so.
+  const path = tmpLedger();
+  const built = buildAlerts({ atSeconds: CURSOR, ledgerPath: path });
+  const store = openLedger(path);
+
+  for (const entry of built.ledger as StoredEntry[]) {
+    assert.ok(store.find(entry.cursorSeconds, entry.inputFingerprint, entry.pocketId), 'recorded and findable');
+    // The same cursor under different inputs is a miss, which is what makes the caller
+    // compute and append instead of reinterpreting the old entry.
+    assert.equal(store.find(entry.cursorSeconds, 'a-different-input-set', entry.pocketId), undefined);
+    // And the same inputs for a different pocket is a separate entry, not a shared one.
+    assert.equal(store.find(entry.cursorSeconds, entry.inputFingerprint, 'not-a-pocket'), undefined);
+  }
+
+  // The store holds exactly one line per pocket, and nothing was written twice.
+  assert.equal(store.history().entries.length, built.ledger.length);
+  assert.equal(store.history().unreadable, 0);
 });
 
 test('an early cursor, before the fire is known, does not invent a package', () => {
   // 15:00 UTC on 9 July, an hour after ignition and before the evening's detections.
-  const built = buildAlerts({ atSeconds: 15 * 3600 });
+  const built = buildAlerts({ atSeconds: 15 * 3600, ledgerPath: tmpLedger() });
 
   // An empty list would make every loop below vacuous, and the earlier version of this
   // test accepted exactly that: `for (const pkg of [])` asserts nothing, and the
@@ -356,7 +417,7 @@ test('the ledger records the inputs its own clearance was computed from', () => 
   // fewer vehicles. The audit artifact could not reproduce the number it was auditing. The
   // divisor was missing too, so even the corrected inputs could not get from vehicles to
   // minutes.
-  const entry = buildAlerts({ atSeconds: 63_000 }).ledger[0];
+  const entry = buildAlerts({ atSeconds: 63_000, ledgerPath: tmpLedger() }).ledger[0];
   const recorded = Number(entry.inputs.clearanceMinutes);
   assert.ok(Number.isFinite(recorded) && recorded > 0, 'fixture sanity: a clearance was computed');
 

@@ -18,6 +18,8 @@ import type {
 } from '../../shared/alerts';
 import type { LatLon } from '../../shared/fires';
 import { ASSUMPTION_PROFILES } from './assumptions';
+import { LEDGER_PATH } from '../config';
+import { fingerprintInputs, openLedger, type LedgerStore, type StoredEntry } from './ledger';
 import { PESSIMISTIC_DELAY_MINUTES, buildEgress, loadContext, type EgressOptions, type Settlement } from './egress';
 import { capIdentifier, emitCap, groupByPocket, validateCapSemantics } from './cap/emit';
 import { fillTemplate, languagesFor, templateFor, unresolvedPlaceholders } from './cap/templates';
@@ -50,6 +52,19 @@ export interface BuildAlertsResult {
       accepted: number;
       rejected: number;
       validation: Record<string, ReturnType<typeof validateCapSemantics>>;
+    };
+    /**
+     * What the durable ledger did with this request. Published because the two failure
+     * modes that matter are both invisible from the response otherwise: an entry that could
+     * not be written (the record silently lost a decision), and lines that could not be read
+     * (the history is shorter than it looks).
+     */
+    ledger: {
+      path: string;
+      appended: number;
+      reused: number;
+      unreadable: number;
+      writeFailures: string[];
     };
   };
 }
@@ -143,6 +158,8 @@ export function severityFor(fireReaches: boolean): AlertPackage['severity'] {
 }
 
 export interface AlertsOptions extends EgressOptions {
+  /** Where the durable ledger lives. Defaults to the configured path. */
+  ledgerPath?: string;
   sender?: CapSenderConfig;
   /** Pockets to emit for. Defaults to the egress pockets. */
   pocketIds?: string[];
@@ -158,6 +175,22 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
   // re-read of it, so a name and its geometry cannot come from different versions.
   const context = loadContext(options.graphPath);
   const graph = context.graph;
+
+  // The ledger's key: which cursor, and which inputs produced the answer for it. A cursor
+  // alone is not enough — the same instant means something different under a different
+  // capture or different assumption values, and serving the old entry would be a stale
+  // recommendation presented as the recorded one.
+  const originSeconds = Date.parse(built.diagnostics.originIso) / 1000;
+  const cursorSeconds = Math.round(atMs / 1000 - originSeconds);
+  const inputFingerprint = fingerprintInputs({
+    origin: built.diagnostics.originIso,
+    windowEnd: built.diagnostics.windowEnd,
+    detections: built.diagnostics.detections,
+    scenario: built.diagnostics.scenario,
+    profiles: built.response.profiles.map((profile) => [profile.id, profile.assumptions]),
+    pockets: context.settlements.map((s) => [s.id, s.population, s.buildings]),
+  });
+  const ledgerStore: LedgerStore = openLedger(options.ledgerPath ?? LEDGER_PATH);
   // Settlements are the places a sentence may name as a destination. They resolve
   // outside the road graph because a village is not a road.
   const places: Place[] = context.settlements.map((s) => ({
@@ -168,6 +201,10 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
   const packages: AlertPackage[] = [];
   const rejected: RejectedCandidate[] = [];
   const ledger: LedgerEntry[] = [];
+  const freshEntries: StoredEntry[] = [];
+  let appended = 0;
+  let reused = 0;
+  const writeFailures: string[] = [];
   const byPocket = new Map<string, Settlement>();
 
   for (const pocketEgress of built.response.pockets) {
@@ -305,7 +342,7 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
         ? clearanceProfile.assumptions.capacityPerHour[bottleneckHighway]
         : undefined;
 
-    ledger.push({
+    const fresh: StoredEntry = {
       id: `ledger-${settlement.id}-${built.response.at}`,
       at: built.response.at,
       recordedAt: new Date().toISOString(),
@@ -370,11 +407,32 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
           : 'unknown',
       },
       rejected: [],
-    });
+      cursorSeconds,
+      inputFingerprint,
+    };
+
+    // Asking for a cursor already recorded, under the same inputs, serves the recorded
+    // entry rather than a fresh computation. Deterministic as the solve is, the recorded
+    // one is what the system actually advised, and that is what an audit artifact has to
+    // return — a recomputation would quietly replace history with a current answer.
+    const recorded = ledgerStore.find(cursorSeconds, inputFingerprint, settlement.id);
+    if (recorded !== undefined) {
+      ledger.push(recorded);
+      reused += 1;
+      continue;
+    }
+    if (!ledgerStore.append(fresh)) writeFailures.push(settlement.id);
+    freshEntries.push(fresh);
+    ledger.push(fresh);
+    appended += 1;
   }
 
-  // Rejections are per pocket, so they are attached to the ledger entry that produced them.
-  for (const entry of ledger) {
+  // Rejections are per pocket, so they are attached to the ledger entry that produced them
+  // — the fresh ones only. A reused entry already carries the rejections recorded with it,
+  // and overwriting them with this request's would edit a record that is meant to be
+  // append-only, in the one place the ledger is read to find out why a candidate was
+  // dropped.
+  for (const entry of freshEntries) {
     entry.rejected = rejected.filter((r) => r.pocketId === entry.pocketId);
   }
 
@@ -411,6 +469,13 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
     documents,
     ledger,
     diagnostics: {
+      ledger: {
+        path: options.ledgerPath ?? LEDGER_PATH,
+        appended,
+        reused,
+        unreadable: ledgerStore.history().unreadable,
+        writeFailures,
+      },
       emitter: {
         identifierSeed: built.response.fireId ?? 'unknown',
         accepted: packages.length,

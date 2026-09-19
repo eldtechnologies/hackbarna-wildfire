@@ -16,6 +16,8 @@ import { Router, type Request, type Response } from 'express';
 import { buildEgress, loadContext } from './egress';
 import { buildAlerts } from './alerts';
 import { SWEEP_CONFIGS } from './sweep';
+import { openLedger } from './ledger';
+import { LEDGER_PATH } from '../config';
 
 export interface EngineRouterOptions {
   /**
@@ -240,6 +242,26 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
       res.send(xml);
     } catch (err) {
       fail(res, err, 'CAP emission failed');
+    }
+  });
+
+  /**
+   * The whole recommendation history, in recording order.
+   *
+   * No cursor is supplied: the point of the record is that a reviewer can read the incident
+   * without already knowing which moments to ask for. Recording order rather than cursor
+   * order, because the engine is asked for cursors by a scrubber rather than in sequence and
+   * sorting would present a later moment before an earlier one.
+   *
+   * `unreadable` travels with the entries so a short history cannot be read as a complete
+   * one — a truncated line from a crash mid-append is skipped, not hidden.
+   */
+  router.get('/api/ledger', (_req: Request, res: Response) => {
+    try {
+      const { entries, unreadable } = openLedger(LEDGER_PATH).history();
+      res.json({ path: LEDGER_PATH, count: entries.length, unreadable, entries });
+    } catch (err) {
+      fail(res, err, 'recommendation history unavailable');
     }
   });
 

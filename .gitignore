@@ -5,6 +5,7 @@ dist/
 !.env.example
 *.log
 .creatumo/
+data/ledger/
 .claude/
 .flow/
 .decisions/
