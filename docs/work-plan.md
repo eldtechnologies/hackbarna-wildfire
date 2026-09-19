@@ -7,177 +7,199 @@ Proposal · 19 Sep 2026 · for the three of us
 An alert-first product: **hotspot → road cut → last safe departure → CAP package.** The unit of
 analysis is time-of-arrival, and the output is an artifact a 112 coordinator can send, not a map.
 
-The console is the surface that shows it. This is the direction both the spike
-(`last-safe-departure.md`) and the model proposal point at, and it is the one that answers the
-challenge's own wording — perimeters, direction, movement.
+The console is the surface that shows it. This is the direction the spike (`last-safe-departure.md`)
+and the model proposal both point at, and it is the one that answers the challenge's own wording —
+perimeters, direction, movement.
 
-## The split
+## Who owns what
 
-| Stream | Owns | Produces |
-| --- | --- | --- |
-| **1 — Console and integration** | `src/`, the open PRs, the demo | The surface a coordinator watches |
-| **2 — Egress engine** | `server/engine/`, `server/reach.ts`, the engine routes | Road cut times, last safe departure, the CAP package |
-| **3 — Model** | `server/model/`, the training pipeline, `data/model/` | Direction and rate per cluster, with its baselines |
+| Stream | Owner | Owns | Produces |
+| --- | --- | --- | --- |
+| **1 — Console and integration** | Magnus | `src/`, the open PRs, the demo | The surface a coordinator watches |
+| **2 — Egress engine** | Daniel | `server/engine/`, `server/reach.ts`, the engine routes | Road cut times, last safe departure, the CAP package |
+| **3 — Model and validation** | Ola | The training pipeline on the data box, `server/model/` | Measured baselines with their error bars, and a model only if it beats them |
 
-Stream 3 runs in parallel from the start — the training is the long pole and does not block the
-other two.
+## The decisions
 
-## The frozen interfaces — first hour, all three together
+Recorded here so nobody re-litigates them at hour 30.
 
-Three type-only files under `shared/`, written together and then frozen. They are the contract
-that lets three people work without waiting on each other.
-
-| File | Contains |
+| # | Decision |
 | --- | --- |
-| `shared/egress.ts` | road segment, cut time, pocket, egress result, last safe departure, confidence band |
-| `shared/alerts.ts` | alert package, CAP message, instruction, language, ledger entry |
-| `shared/growth.ts` | growth vector, and the baseline results returned beside it |
+| 1 | **The Deepfire client is rewritten first — item 0, before any merge.** It currently points at `api.deepfire.example.com` and expects flat fields; every engine module sits on it |
+| 2 | **Stream 3 is harness-first and the baseline is the shipped answer.** A model ships only if it beats the baseline on the harness |
+| 3 | **Ola's machine is the data box.** Stream 3 runs there; only the model artefact, its metrics and small fixture JSON cross back |
+| 4 | **The 600-day hotspot archive pull is dropped.** The labels it existed to manufacture already exist as PT-FireSprd and FireSpread_MedEU |
+| 5 | **The cut mask is hotspots + MTG archive, sensor-footprint buffered, minus `deepfire:static-heat-sources`** |
+| 6 | **Last safe departure is a band, not a time**, swept over an assumption set printed beside every number |
+| 7 | **The road graph comes from a local Overpass here, bbox only**, cached to JSON so the demo never depends on the container |
+| 8 | **The unification refactor lands on `main` first**, then each open branch rebases onto it — one conflict resolution per branch, done once |
+| 9 | **The falsification test is re-run with the calibrated mask**, and whatever it shows goes on the slide |
+| 10 | **CAP is one `<alert>` per pocket, one `<info>` per language.** Sender, status and scope are configurable, defaulting to a fictional demo sender with `status=Test`, `scope=Private` |
+| 11 | **The harness tests both targets** — bearing/rate and burned area — so we can say which quantity a model helps with |
+| 12 | **The July replay snapshot is recorded with the replay tooling** once item 0 lands, so the two validate each other |
+| 13 | **Jev is out of scope.** The verification gate is deterministic OSM checks with a visible rejection log |
+| 14 | **The live panel is best-effort; the replay is the spine** of the four minutes |
+| 15 | **The foundation window is H0–4**, not H0–2 |
+| 16 | **Scope is unchanged for now.** The added work is absorbed and re-cut at the H12 gate against real evidence |
 
-Match the convention already in `shared/fires.ts`: type-only, ISO strings and never `Date`,
+## The frozen interfaces
+
+`shared/egress.ts`, `shared/alerts.ts` and `shared/growth.ts` are drafted in this PR. The H0–4
+session ratifies them rather than authoring them from a blank page; three people writing a contract
+from scratch under time pressure produce three different mental models.
+
+They follow the convention already in `shared/fires.ts`: type-only, ISO strings and never `Date`,
 `LatLon` objects and no GeoJSON inside the app, ids as strings.
 
-**Then each engine stream publishes a stub endpoint returning fixture data in the frozen shape
-on day one.** Stream 1 builds the client against those stubs immediately. This is the whole
-trick — without it, stream 1 waits on stream 2 and two-thirds of the team idles.
+**Until the freeze, treat them as proposal, not contract** — but treat them as the thing to argue
+with, because everything else depends on them.
+
+**Then each engine stream publishes a stub endpoint returning fixture data in the frozen shape.**
+Stream 1 builds the client against those immediately. Without this, Stream 1 waits on Stream 2 and
+two-thirds of the team idles.
 
 ## Stream 1 — Console and integration
 
-**1. Unify the seams, then merge.** This lands on `main` before anything else and before the open
-PRs go in. Four PRs are in flight and they collide: three incompatible visibility-listener APIs,
-two `initHud` return contracts, three overlapping fire visualisations, four click handlers on one
-canvas, and up to three concurrent `/api/fires` fetches.
+**Item 0. Rewrite the Deepfire client.** It has never been pointed at the real API — the endpoint
+default is a placeholder domain, and the normalizer expects flat `latitude`/`longitude`/`frp`/
+`acq_datetime` fields against an API that returns OGC Feature collections with GeoJSON geometry and
+`fire_radiative_power`. Four defects fall out of the same file: the confidence map's keys are
+lowercase so every value silently becomes 0.5; clusters are read for fields the real API does not
+have, so membership has to come from each hotspot's `cluster_id`; the bbox helper returns infinities
+for empty input; and there is no `active` filter, so the globe would render every detection since
+January 2025 rather than the live fire. Missing FRP must stay `null`, never `0`.
 
-- One visibility-listener API in the layer registry — `(id, visible) => disposer` from PR #10,
-  which generalises what #8 and #9 each invented.
+This is server-side, self-contained, and unblocks the console, the engine and the live panel at
+once. It also makes the July snapshot recording possible, which is what validates it.
+
+**Then unify the seams and merge.** Four branches are in flight and they collide: three incompatible
+visibility-listener APIs, two `initHud` return contracts, three overlapping fire visualisations,
+four click handlers on one canvas, and up to three concurrent `/api/fires` fetches.
+
+- One visibility-listener API — `(id, visible) => disposer` from PR #10, which generalises what #8
+  and #9 each invented.
 - One `HudHandle` with a single badge setter. Drop the hardcoded `REPLAY` badge.
-- One `fires` store and one `cursor` owned by the entry module, subscribed to by every layer and
-  panel. This kills the triple-fetch and makes the replay clock a property of the app rather than
-  of one layer.
-- One pick router dispatching by id prefix, replacing four independent handlers that all fire on
-  the same click.
-- Merge order **#11 → #10 → #8 → #9**, keeping #9's cluster rectangles over #10's duplicate
-  cluster markers. #11 goes first because it sets the time convention everything else adopts.
+- One `fires` store and one cursor owned by the entry module, subscribed to by every layer and
+  panel. This kills the triple-fetch and makes the replay clock an app property.
+- One pick router dispatching by id prefix, replacing four handlers that all fire on the same click.
+- Rebase order **#11 → #10 → #8 → #9**, keeping #9's cluster rectangles over #10's duplicate
+  markers. #11 first because it sets the time convention.
 
-**2. Lock the time convention: `?at=<seconds>`.** PR #11 adds `GET /api/fires?at=<seconds>` and a
-`ReplayTimeline` to the shared types — event-timeline seconds from the start of a recording, not
-an ISO timestamp. Adopt that exact convention for the engine routes (`/api/egress?at=`,
-`/api/alerts?at=`) rather than inventing a second one. One cursor, one unit, everywhere.
+**Lock the time convention: `?at=<seconds>`.** PR #11 adds `GET /api/fires?at=<seconds>` and a
+`ReplayTimeline` — event-timeline seconds, not an ISO timestamp. Engine routes adopt the same
+parameter rather than inventing a second one. One cursor, one unit, everywhere.
 
-**3. Replay with a clock.** The server half exists in PR #11; the work here is the scrubber UI and
-propagating the cursor to the engine endpoints, so scrubbing moves the road cut and the alert
-package together with the fire. Its recording tooling also lets us capture a real session into a
-multi-frame snapshot and rehearse against it.
+**Then the panels.** Cut-time field over the road network; pocket report showing the departure band
+per route with its assumptions; alert package panel with the CAP download and the rejection log.
 
-**4. Layers and panels.** Cut-time field over the road network; pocket report showing departure
-time per route with its band; alert package panel with the CAP download.
-
-**5. Live panel.** The ensemble path on a currently active Iberian cluster — `clusterId` with
-`ensembleMembers`. Max two simulations concurrent, so pre-warm and cache.
-
-**6. Demo.** Rehearse timed. Record the video at H32.
+**Live panel last, best-effort.** A currently active cluster with a cluster-ignition ensemble, max
+two concurrent, so pre-warm and cache. The demo is designed to stand without it.
 
 ## Stream 2 — Egress engine
 
-Everything lives in `server/engine/`, and consumes `getFires()` from the existing provider layer
-so `DATA_MODE` and the live→replay fallback are inherited rather than rebuilt.
+Everything lives in `server/engine/`, consuming `getFires()` from the provider layer so `DATA_MODE`
+and the live→replay fallback are inherited.
 
-Every engine route takes the same `?at=<seconds>` cursor as `/api/fires`, so one scrubber drives
-the fire, the road cut and the alert package together. Endpoints return the cursor time they
-actually answered for, since frame selection is "at or before".
+**Graph.** A local Overpass instance with just the Los Gallardos bbox, queried once and cached to
+JSON on disk. Small, fast to rebuild, and the demo never depends on the container running.
 
-**1. Graph.** Directed road graph from the local Overpass instance, **cached to disk as JSON** so
-the demo never depends on the container being up.
+**Mask and cut times.** Accumulate Deepfire hotspots and the MTG archive, each buffered by *sensor
+footprint* — MTG around 1 km, VIIRS 375 m — after **subtracting `deepfire:static-heat-sources`**.
+That subtraction is not optional: the archive carries persistent industrial heat, including cells
+around 18 MW within about 20 km of Gallardos, and a mask built from raw detections would cut a road
+on a gas flare.
 
-**2. Mask and cut times.** Build a per-timestep fire mask from detections, buffered by *sensor
-footprint* — MTG around 1 km, VIIRS 375 m. A segment is cut at the first timestep whose
-accumulated mask intersects it.
+A segment is cut at the first timestep whose accumulated mask intersects it. This replaces the
+point-radius cut that read 19:38, 21:18 or 00:03 for the same road depending on buffer and sensor
+mix — the spike's central weakness, and the reason a defensible band is possible at all.
 
-This replaces the point-radius cut, which is the single biggest weakness in the spike: the same
-exit road "closed" at 19:38, 21:18 or 00:03 depending on the buffer radius and sensor mix. A
-sensor-calibrated accumulated mask removes the arbitrary parameter — and it is what makes a
-defensible confidence band possible at all.
+**Egress.** Pockets from Catastro footprints tiled in ~500 m boxes, with INE padrón population.
+Walk forward over the graph to get a departure band per pocket per route. The unknowns — mobile
+fraction, departure delay, vehicle occupancy, speed by road class — are swept, and the assumption
+set is returned with the response and printed beside every number.
 
-**3. Egress.** Pockets from Catastro footprints, tiled in ~500 m boxes, with INE padrón
-population. Walk forward over the graph to get last safe departure per pocket per route.
+Acceptance is the spike's own missing test: one complete Bédar scenario, showing how long the
+population takes to clear each bottleneck and when no feasible route remains.
 
-Acceptance is the spike's own missing test: **one complete Bédar scenario** — population and
-vehicle-demand ranges, a directed graph, and a calculation showing how long the population takes
-to clear each bottleneck and when no feasible route remains.
+**The package.** Pre-approved phrasings per instruction and language; one `<alert>` per pocket with
+one `<info>` per language; CAP 1.2 XML; deterministic OSM name and passability checks; and a
+**visible rejection log**, which is the anti-hallucination story and the first thing anyone probes.
 
-**4. The package.** Pre-approved phrasings per instruction and language; CAP 1.2 XML emission;
-deterministic OSM name and passability checks; and a **visible rejection log**. The rejection log
-is the anti-hallucination story and the first thing anyone will probe.
+**Reach.** OpenCelliD towers to served footprints, producing the over-alerting numbers — the
+"6,200 versus 2,100" comparison.
 
-**5. Reach.** OpenCelliD tower positions to served footprints, producing the over-alerting
-numbers — the "6,200 versus 2,100" comparison.
+**Ledger.** Append-only record of every recommendation with its evidence and the cursor time.
 
-**6. Ledger.** Append-only record of every recommendation with its evidence and timestamp.
+## Stream 3 — Model and validation
 
-**7. Nice-to-haves** in the cut order below.
+Runs on the data box from the first hour and never blocks the other two.
 
-## Stream 3 — Model
+**1. The harness, both targets.** Leave-one-event-out over PT-FireSprd and FireSpread_MedEU,
+scoring burned area *and* bearing/rate. The review measured constant-ROS beating a learned model on
+area (R² 0.992 against 0.862), but that is a different quantity from the one the Monitoring track
+asks for, so the direction claim gets tested rather than assumed.
 
-Runs in parallel from the first hour. Full reasoning is in the cluster growth vector proposal,
-open alongside this document.
+**2. Baselines first.** Persistence — same bearing, same rate — and constant rate of spread, built
+and scored before anything is trained.
 
-**1. Pull — start now.** Deepfire hotspots, Iberia bbox, January 2025 onward, paginated. This is
-the long pole and it costs nothing to run in the background while the rest is built.
+**3. Train opportunistically.** Gradient boosting over tabular features. Note that `lightgbm` is
+not viable in this environment; `sklearn.ensemble.HistGradientBoostingClassifier` is the same
+family without the OpenMP dependency.
 
-**2. Labels and features.** Displacement between consecutive detection windows. Carry detection
-count, age and sensor mix as features so the model learns the sampling artefact rather than
-absorbing it as fire behaviour.
+**4. Serve.** `GET /api/growth?clusterId=` returns the baseline beside the model's numbers, both
+held out by **fire, not by time**, with `shippedBaseline` saying which one is on screen. A measured
+"persistence wins, here is its error" is a stronger answer to the accuracy criterion than a model
+that loses and is not reported.
 
-**3. Baselines first.** Persistence and wind-drift, both a few lines, built before any training.
+## Foundation window — H0–4
 
-**4. Train.** Gradient boosting over tabular features — minutes on CPU, no GPU rental needed. Pin
-Python 3.12 in a `uv` venv; 3.14 wheels for xgboost and lightgbm are a coin flip.
-
-**5. Serve.** `GET /api/growth?clusterId=`, returning the baseline numbers beside the model's. If
-the model does not beat persistence, we ship persistence and report both — that is a real
-accuracy result and a better answer to the accuracy criterion than an unvalidated simulator.
-
-**Optional upgrade:** SEVIRI FRP gives 15-minute fire detections back to 2004, against the
-Deepfire archive's uneven cadence. Worth checking whether it is reachable through the LSA SAF
-channel already used for MTG before treating a key as a blocker.
-
-## Sequence
-
-| Window | What |
+| What | Who |
 | --- | --- |
-| H0–2 | Together: freeze the three shared type files. Stream 1 lands the unification refactor. Streams 2 and 3 publish their stub endpoints. |
-| H2+ | Parallel, each stream against the frozen contracts. |
-| H12 | The spike's own end-to-end test: hotspot → road cut → one CAP file. |
-| H32 | Record the demo video. |
-| H38 | Freeze. Nothing new lands after. |
+| Ratify the three shared type files | All three |
+| Item 0 — rewrite the Deepfire client | Magnus |
+| The unification refactor on `main` | Magnus |
+| Stub endpoints in the frozen shapes | Daniel, Ola |
+| Harness scaffolding on the data box | Ola |
+
+Stream 3 is independent of the others and starts immediately regardless — its work happens on
+another machine.
 
 ## Scope and cut order
 
-The scope runs through the spike's nice-to-have tier, which is larger than the window. The tiers
-are the execution rule, not a menu.
+Scope is unchanged; the added work is absorbed. Re-cut at the H12 gate, against evidence about what
+is actually slow rather than against a guess made now.
 
-**Drop from 19 downward. Items 6 and 7 come last** — evacuation-difficulty class and route
-usability class change what the egress model computes rather than how it looks, so they are worth
-more than anything above them.
+When the cut comes, **drop from 19 downward, and items 6 and 7 come last** — evacuation-difficulty
+class and route usability class change what the egress model computes rather than how it looks.
 
-If the must-haves are at risk, fall back to the replay alone, presented honestly as a
-retrospective analysis. That still demonstrates the insight and still beats a dashboard.
+If the must-haves are at risk, fall back to the replay alone, presented honestly as a retrospective
+analysis. That still demonstrates the insight and still beats a dashboard.
 
 ## Verification
 
-There is no test framework today; `npm run typecheck` is the only gate. Add `node --test` — built
-into Node 26, no new dependencies — for the pure functions: cut times, egress, CAP escaping, mask
-accumulation.
+There is no test framework; `npm run typecheck` is the only gate. Add `node --test` — built into
+Node 26, no new dependencies — for the pure functions: cut times, egress, CAP escaping, mask
+accumulation, and the OSM name resolver.
 
 End to end, in order:
 
 1. `npm run typecheck` after every phase. It is strict across both projects.
 2. `npm test` for the pure functions.
 3. One `/api/fires` request per page load, and a layer checkbox that actually changes the render.
-4. Scrub the replay to 2026-07-09 19:38 CEST and confirm the Bédar exit road shows as cut; scrub
-   to 17:00 and confirm it does not. That is the spike's falsification test, run against the
-   product rather than a notebook.
-5. Validate the emitted CAP file against the CAP 1.2 XSD — not merely "it is XML".
-6. `/api/growth` returns the baselines beside the model's numbers, held out by fire, not by time.
+4. Scrub the replay to 2026-07-09 19:38 CEST and confirm the Bédar exit road shows as cut; scrub to
+   17:00 and confirm it does not. That is the spike's falsification test run against the product.
+5. Validate the emitted CAP against the CAP 1.2 XSD — not merely "it is XML".
+6. `/api/growth` returns baselines beside the model's numbers, held out by fire.
+
+## Open
+
+- **SEVIRI `PIXEL_SIZE`: km or km²?** Read as 11.4–12.6 km it cannot carry a small fire's mask; read
+  as km² it is a ~3.4 km pixel and usable. It decides whether SEVIRI joins the backtest, and should
+  be pinned down before it settles any design.
+- **The Deepfire key is not on every machine.** Item 0 can be written anywhere but only tested where
+  the key is, and the July snapshot recording needs it.
+- **Whether a model beats the baselines on bearing and rate.** The harness will say. Until it does,
+  the baseline is what ships.
 
 ## One thing to say out loud, early
 
