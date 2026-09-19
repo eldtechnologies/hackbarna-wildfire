@@ -238,6 +238,29 @@ test('a Private scope without addresses is caught by the semantic check', () => 
   assert.ok(semantics.problems.some((p) => /addresses/.test(p)));
 });
 
+test('a hostile sender cannot inject markup, and the enum fields are escaped too', { skip: !hasXmllint ? 'xmllint not installed' : false }, () => {
+  // The contract invites a real 112 centre to supply its own CapSenderConfig, so the
+  // free-text sender fields are third-party input even though today's default is ours.
+  // The six closed-enum fields are escaped as well — no request reaches them now, and
+  // escaping a value from a closed set costs nothing against the day one does.
+  const hostile = {
+    ...SENDER,
+    sender: 'x@y.invalid<evil/>',
+    senderName: 'Centre & <script>',
+  };
+  const xml = emit([pkg()], { sender: hostile });
+  const semantics = validateCapSemantics({
+    identifier: 'x', sender: hostile, sentMs: 0, source: 's',
+    packages: [pkg()], area: BEDAR_RING, eventName: 'e',
+  }, xml);
+  assert.ok(semantics.ok, `unexpected problems: ${JSON.stringify(semantics.problems)}`);
+  assert.ok(!xml.includes('<evil/>'), 'injected markup must not survive');
+  assert.ok(!xml.includes('<script>'), 'injected markup must not survive');
+  assert.ok(xml.includes('&lt;evil/&gt;'), 'and must be present as text');
+  // The document is still schema-valid with the hostile values escaped.
+  assert.equal(validateAgainstXsd(xml).ok, true);
+});
+
 test('the identifier is deterministic, so a replay is reproducible', () => {
   const a = capIdentifier('bedar', '2026-07-09T17:38:21.000Z', 'evacuate_primary');
   const b = capIdentifier('bedar', '2026-07-09T17:38:21.000Z', 'evacuate_primary');

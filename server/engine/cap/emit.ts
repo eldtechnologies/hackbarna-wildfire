@@ -73,10 +73,10 @@ export function emitCap(input: CapAlertInput): string {
         '    <category>Fire</category>',
         '    <category>Safety</category>',
         `    <event>${clean(input.eventName)}</event>`,
-        `    <responseType>${template.responseType}</responseType>`,
-        `    <urgency>${pkg.urgency}</urgency>`,
-        `    <severity>${pkg.severity}</severity>`,
-        `    <certainty>${pkg.certainty}</certainty>`,
+        `    <responseType>${clean(template.responseType)}</responseType>`,
+        `    <urgency>${clean(pkg.urgency)}</urgency>`,
+        `    <severity>${clean(pkg.severity)}</severity>`,
+        `    <certainty>${clean(pkg.certainty)}</certainty>`,
         '    <eventCode>',
         '      <valueName>deepfire:cluster_id</valueName>',
         `      <value>${clean(pkg.pocketId)}</value>`,
@@ -102,10 +102,10 @@ export function emitCap(input: CapAlertInput): string {
     `  <identifier>${clean(input.identifier)}</identifier>`,
     `  <sender>${clean(sender.sender)}</sender>`,
     `  <sent>${sent}</sent>`,
-    `  <status>${sender.status}</status>`,
+    `  <status>${clean(sender.status)}</status>`,
     '  <msgType>Alert</msgType>',
     `  <source>${clean(input.source)}</source>`,
-    `  <scope>${sender.scope}</scope>`,
+    `  <scope>${clean(sender.scope)}</scope>`,
     ...infos,
     '</alert>',
     '',
@@ -145,6 +145,17 @@ export function validateCapSemantics(input: CapAlertInput, xml: string): CapVali
   for (const p of ring) {
     if (!(p.lat > 35 && p.lat < 44)) problems.push(`polygon latitude ${p.lat} is outside Iberia — lon/lat swapped?`);
     if (!(p.lon > -10 && p.lon < 4)) problems.push(`polygon longitude ${p.lon} is outside Iberia — lon/lat swapped?`);
+  }
+
+  // The six closed-enum fields are escaped too. No request can reach them today — they
+  // come from TEMPLATES, the internal severity/certainty mappings and a hardwired sender
+  // — but the contract invites a real 112 centre to supply its own `CapSenderConfig`, and
+  // the moment that is wired to configuration an unescaped value is markup in a document
+  // served unauthenticated. Escaping a value from a closed set costs nothing.
+  for (const tag of ['status', 'scope', 'responseType', 'urgency', 'severity', 'certainty']) {
+    for (const m of xml.matchAll(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'g'))) {
+      if (/[<>&"']/.test(m[1])) problems.push(`<${tag}> contains markup that was not escaped: ${m[1]}`);
+    }
   }
 
   // Anything that survives escaping as a raw angle bracket means the escaper was bypassed.
