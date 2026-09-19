@@ -5,6 +5,7 @@
 import {
   Cartesian3,
   Color,
+  Material,
   PointPrimitiveCollection,
   PolylineCollection,
   Scene,
@@ -86,7 +87,8 @@ export class InfrastructureLayer {
         line: this.lines.add({
           positions: path.map((p) => Cartesian3.fromDegrees(p.lon, p.lat)),
           width: 1.5,
-          material: CYAN.withAlpha(0.5),
+          // PolylineCollection takes Material instances, not bare Colors.
+          material: Material.fromType('Color', { color: CYAN.withAlpha(0.5) }),
           clampToGround: true,
         }),
       });
