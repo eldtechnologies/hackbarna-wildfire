@@ -67,8 +67,8 @@ forward systematically under-predicts it.
 | --- | --- | ---: | ---: | ---: |
 | PT-FireSprd | persistence | 42.6° | 0.087 | 56.6 % |
 | PT-FireSprd | model | 56.2° | 0.119 | 73.7 % |
-| FireSpread_MedEU | persistence | 97.5° | −1.257 | 81.2 % |
-| FireSpread_MedEU | model | 99.1° | −0.053 | 58.2 % |
+| FireSpread_MedEU | persistence | 70.1° | −1.043 | 88.4 % |
+| FireSpread_MedEU | model | 86.9° | −0.083 | 83.8 % |
 
 The model is gradient boosting over the only features these corpora carry: the
 previous area, the previous rate, the elapsed time, and the previous bearing. That
@@ -116,8 +116,9 @@ is misleading twice over.
 median error of 90°. The Global Fire Atlas reports spread direction at 45°
 quantisation, so 45° is the resolution floor for daily satellite direction.
 Persistence lands at **42.6° on PT-FireSprd** — better than chance, at the floor, and
-only just. At 24 h it is **97.5°**, which is *at chance*: persistence has no
-direction skill at a daily horizon at all.
+only just. At 24 h it is **70.1°** — better than chance, but well above the floor
+and far worse than the hourly figure, so daily direction skill is weak rather than
+absent.
 
 **3. The model does not rescue finding 2, and cannot here.** It is marginally better
 on rate at MedEU and worse on PT-FireSprd, but on bearing it is worse on both
@@ -147,11 +148,20 @@ A number without its corpus is a number without its caveat, which is why
   persistence R²=0.7233 against the 0.7681 above. Same direction, same conclusion,
   different event set - so quote the loader rule with the number.
 
-- **The MedEU rate is not a rate.** A centroid displacement over a *growing*
-  polygon reaches hundreds of km/h. The harness marks that corpus
+- **The MedEU rate is a drift, not a rate of advance.** It is the displacement of
+  the centroid of a *growing* polygon, so it measures where the fire's mass moved,
+  not how fast the front ran. The harness marks the corpus
   `rate_basis: 'centroid_drift'` and the server refuses to serve it as the constant
   rate of spread. Only PT-FireSprd's `ros_p` is a rate of frontal advance.
-- **MedEU's bearing is weak for the same reason.** Treat the 97.5° as indicative.
+- **MedEU's geometry was previously in the wrong units, and that is now fixed.**
+  The file is EPSG:3035 - projected metres - and the loader fed those numbers to a
+  haversine that expects degrees, so every MedEU bearing and rate was wrong. The
+  222 km/h mean rate this doc first reported was that error, not a property of
+  centroid drift. Corrected: 0.017 km/h, and the bearing error moves from 97.5° to
+  70.1°. The area scores were never affected - they come from the attribute table -
+  which is why the defect survived every test written against the area target. The
+  loader now reprojects to EPSG:4326, and `tools/model/test_harness.py` presents one
+  fire in both CRSs and asserts the two give the same rate.
 - **The all-pairs rows stay in `metrics.json` but are never served.** One 8738-hour
   pair drives constant-ROS to R²=−28.5. The gap-filtered row is the usable reading
   and the only one the server reads.

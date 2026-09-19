@@ -117,16 +117,24 @@ def load_pt_firesprd() -> list[State]:
     return out
 
 
-def load_medeu() -> list[State]:
+def load_medeu(path: str | None = None) -> list[State]:
     """One cumulative burned-area state per usable acquisition.
 
     A step with a missing area is a gap where no usable imagery existed; it drops
     that state, never the fire.
+
+    `path` is a parameter so the CRS rule below can be tested against a synthetic
+    projected file. It reads the real shapefile by default.
     """
     import geopandas as gpd
     import pandas as pd
 
-    g = gpd.read_file(WORK / "medeu/FireSpread_MedEU.shp")
+    g = gpd.read_file(path or WORK / "medeu/FireSpread_MedEU.shp")
+    # The file is EPSG:3035 - projected metres, not degrees. Feeding those numbers
+    # to a haversine that expects lon/lat gives a distance that is meaningless and a
+    # rate about four orders of magnitude too large. The area numbers are unaffected
+    # (they come from the attribute table), which is why this hid for so long.
+    g = g.to_crs(4326)
     out: list[State] = []
     for fire, grp in g.groupby("EFFIS_id"):
         rows = grp[grp["BA (ha)"].notna() & grp.geometry.notna()].copy()

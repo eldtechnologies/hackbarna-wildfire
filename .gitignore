@@ -6,3 +6,7 @@ dist/
 *.log
 .creatumo/
 .DS_Store
+
+# Python
+__pycache__/
+*.pyc
