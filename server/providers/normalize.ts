@@ -1,8 +1,22 @@
 // Raw Deepfire API shapes and the normalizer that maps them into the internal
-// schema. The real Deepfire spec arrives at the hackathon, so these shapes are
-// mocked from the public description (hotspots, clusters, fire spread). When
-// the spec lands, adjust only this file: both the live client and the replay
-// snapshots pass through the same normalize() function.
+// schema. Deepfire serves OGC API Features: each collection is a GeoJSON
+// FeatureCollection. Attributes live in `properties`, the shape lives in
+// `geometry`.
+//
+// Verified against https://api.deepfire.co/ogc/features/v1/collections on 19 Sep 2026:
+//
+//   deepfire:hotspots              Point         id, cluster_id, observed_at, source,
+//                                                 confidence (LOW|MEDIUM|HIGH),
+//                                                 fire_radiative_power, country, active
+//   deepfire:clusters              Point         id, first_observed, last_observed, active
+//   deepfire:satellite-perimeters  MultiPolygon  id, cluster_id, computed_at,
+//                                                 observed_watermark, n_hotspots,
+//                                                 area_m2, perimeter_m, active
+//   deepfire:static-heat-sources   Polygon       id, global_id, type, source, method,
+//                                                 remarks, year
+//
+// The API reports no `numberMatched`, and `startIndex` is unreliable on wide
+// bboxes (HTTP 500). The live client chunks by day. See live.ts.
 
 import type {
   FireCluster,
@@ -10,53 +24,99 @@ import type {
   FiresResponse,
   Hotspot,
   LatLon,
-  SpreadStep,
 } from '../../shared/fires';
 
-export interface RawHotspot {
-  id: string | number;
-  latitude: number;
-  longitude: number;
-  frp: number; // fire radiative power in MW
-  confidence: number | 'low' | 'nominal' | 'high';
-  acq_datetime: string;
-  cluster_id?: string | number | null;
+type LonLat = [number, number];
+
+interface OgcFeature<P, G> {
+  type: 'Feature';
+  id?: string | number;
+  geometry: G;
+  properties: P;
 }
 
-export interface RawCluster {
-  id: string | number;
-  label?: string;
-  centroid: { lat: number; lon: number };
-  hotspot_ids?: Array<string | number>;
-  bbox?: [number, number, number, number];
-  total_frp?: number;
-  first_seen: string;
-  last_seen: string;
+interface PointGeometry {
+  type: 'Point';
+  coordinates: LonLat;
 }
 
-export interface RawSpreadPolygon {
-  cluster_id: string | number;
-  valid_time: string;
-  horizon_hours?: number; // 0 or absent means the observed perimeter
-  area_km2?: number;
-  geometry: { type: 'Polygon'; coordinates: number[][][] }; // GeoJSON, [lon, lat] rings
+interface PolygonGeometry {
+  type: 'Polygon';
+  coordinates: LonLat[][];
 }
+
+interface MultiPolygonGeometry {
+  type: 'MultiPolygon';
+  coordinates: LonLat[][][];
+}
+
+export interface RawHotspotProps {
+  id: string;
+  cluster_id: string | null;
+  observed_at: string;
+  source: string;
+  confidence: string;
+  fire_radiative_power: number | null;
+  country: string | null;
+  active: boolean;
+}
+
+export interface RawClusterProps {
+  id: string;
+  first_observed: string;
+  last_observed: string;
+  active: boolean;
+}
+
+export interface RawPerimeterProps {
+  id: string;
+  cluster_id: string;
+  computed_at: string;
+  observed_watermark: string;
+  n_hotspots: number | string;
+  area_m2: number | string;
+  perimeter_m: number | string;
+  active: boolean;
+}
+
+export type RawHotspot = OgcFeature<RawHotspotProps, PointGeometry>;
+export type RawCluster = OgcFeature<RawClusterProps, PointGeometry>;
+export type RawPerimeter = OgcFeature<
+  RawPerimeterProps,
+  PolygonGeometry | MultiPolygonGeometry
+>;
 
 export interface RawFiresPayload {
   hotspots: RawHotspot[];
   clusters: RawCluster[];
-  spread: RawSpreadPolygon[];
+  perimeters: RawPerimeter[];
 }
 
-const CONFIDENCE_MAP = { low: 0.3, nominal: 0.65, high: 0.9 } as const;
+// The API returns uppercase confidence words. Anything else is unclassified:
+// keep a low value rather than inventing confidence.
+const CONFIDENCE_MAP: Record<string, number> = {
+  HIGH: 0.9,
+  MEDIUM: 0.65,
+  LOW: 0.3,
+};
 
-function normalizeConfidence(value: RawHotspot['confidence']): number {
-  if (typeof value === 'number') return Math.min(1, Math.max(0, value));
-  return CONFIDENCE_MAP[value] ?? 0.5;
+function normalizeConfidence(value: string | null | undefined): number {
+  if (!value) return 0.3;
+  return CONFIDENCE_MAP[String(value).toUpperCase()] ?? 0.3;
 }
 
-function ringToLatLon(ring: number[][]): LatLon[] {
+function ringToLatLon(ring: LonLat[]): LatLon[] {
   return ring.map(([lon, lat]) => ({ lat, lon }));
+}
+
+// A MultiPolygon perimeter becomes one FirePerimeter per part. The outer ring
+// is ring 0; inner rings (holes) are dropped, because the internal schema
+// carries a single closed ring.
+function perimeterParts(
+  geometry: PolygonGeometry | MultiPolygonGeometry,
+): LonLat[][] {
+  if (geometry.type === 'Polygon') return [geometry.coordinates[0] ?? []];
+  return geometry.coordinates.map((poly) => poly[0] ?? []);
 }
 
 function computeBbox(points: LatLon[]): [number, number, number, number] {
@@ -70,7 +130,14 @@ function computeBbox(points: LatLon[]): [number, number, number, number] {
     east = Math.max(east, p.lon);
     north = Math.max(north, p.lat);
   }
+  // An empty ring must not produce an inverted box of infinities.
+  if (!Number.isFinite(west)) return [0, 0, 0, 0];
   return [west, south, east, north];
+}
+
+function num(value: number | string | null | undefined): number {
+  const n = typeof value === 'string' ? Number(value) : value;
+  return typeof n === 'number' && Number.isFinite(n) ? n : 0;
 }
 
 export function normalize(
@@ -78,14 +145,20 @@ export function normalize(
   provenance: 'live' | 'replay',
   scenario: string | null,
 ): FiresResponse {
-  const hotspots: Hotspot[] = raw.hotspots.map((h) => ({
-    id: String(h.id),
-    position: { lat: h.latitude, lon: h.longitude },
-    frpMw: h.frp,
-    confidence: normalizeConfidence(h.confidence),
-    detectedAt: h.acq_datetime,
-    clusterId: h.cluster_id != null ? String(h.cluster_id) : null,
-  }));
+  const hotspots: Hotspot[] = (raw.hotspots ?? []).map((f) => {
+    const p = f.properties;
+    const [lon, lat] = f.geometry.coordinates;
+    const frp = num(p.fire_radiative_power);
+    return {
+      id: String(p.id ?? f.id ?? ''),
+      position: { lat, lon },
+      // Missing FRP stays null. A null is "not measured"; a 0 is "measured zero".
+      frpMw: p.fire_radiative_power == null || frp === 0 ? null : frp,
+      confidence: normalizeConfidence(p.confidence),
+      detectedAt: p.observed_at,
+      clusterId: p.cluster_id != null ? String(p.cluster_id) : null,
+    };
+  });
 
   const hotspotsByCluster = new Map<string, Hotspot[]>();
   for (const h of hotspots) {
@@ -95,51 +168,42 @@ export function normalize(
     hotspotsByCluster.set(h.clusterId, list);
   }
 
-  const clusters: FireCluster[] = raw.clusters.map((c) => {
-    const id = String(c.id);
+  // The real cluster carries only id, first_observed, last_observed, active.
+  // Membership comes from each hotspot's cluster_id, never from the cluster.
+  const clusters: FireCluster[] = (raw.clusters ?? []).map((f) => {
+    const p = f.properties;
+    const id = String(p.id ?? f.id ?? '');
+    const [lon, lat] = f.geometry.coordinates;
     const members = hotspotsByCluster.get(id) ?? [];
-    const memberIds = c.hotspot_ids?.map(String) ?? members.map((h) => h.id);
-    const totalFrpMw =
-      c.total_frp ?? members.reduce((sum, h) => sum + h.frpMw, 0);
-    const bbox =
-      c.bbox ??
-      (members.length > 0
-        ? computeBbox(members.map((h) => h.position))
-        : computeBbox([c.centroid]));
+    const totalFrpMw = members.reduce((sum, h) => sum + (h.frpMw ?? 0), 0);
     return {
       id,
-      name: c.label ?? null,
-      centroid: { lat: c.centroid.lat, lon: c.centroid.lon },
-      hotspotIds: memberIds,
-      bbox,
+      name: null,
+      centroid: { lat, lon },
+      hotspotIds: members.map((h) => h.id),
+      bbox:
+        members.length > 0
+          ? computeBbox(members.map((h) => h.position))
+          : computeBbox([{ lat, lon }]),
       totalFrpMw,
-      firstDetectedAt: c.first_seen,
-      lastDetectedAt: c.last_seen,
+      firstDetectedAt: p.first_observed,
+      lastDetectedAt: p.last_observed,
     };
   });
 
   const perimeters: FirePerimeter[] = [];
-  const spread: SpreadStep[] = [];
-  for (const s of raw.spread) {
-    const polygon = ringToLatLon(s.geometry.coordinates[0] ?? []);
-    const horizon = s.horizon_hours ?? 0;
-    if (horizon <= 0) {
+  for (const f of raw.perimeters ?? []) {
+    const p = f.properties;
+    for (const ring of perimeterParts(f.geometry)) {
+      if (ring.length < 3) continue;
       perimeters.push({
-        clusterId: String(s.cluster_id),
-        polygon,
-        areaKm2: s.area_km2 ?? 0,
-        observedAt: s.valid_time,
-      });
-    } else {
-      spread.push({
-        clusterId: String(s.cluster_id),
-        at: s.valid_time,
-        horizonHours: horizon,
-        polygon,
+        clusterId: String(p.cluster_id),
+        polygon: ringToLatLon(ring),
+        areaKm2: num(p.area_m2) / 1e6,
+        observedAt: p.observed_watermark ?? p.computed_at,
       });
     }
   }
-  spread.sort((a, b) => a.horizonHours - b.horizonHours);
 
   return {
     provenance,
@@ -148,6 +212,7 @@ export function normalize(
     hotspots,
     clusters,
     perimeters,
-    spread,
+    // Deepfire exposes observed perimeters only. It has no forecast collection.
+    spread: [],
   };
 }

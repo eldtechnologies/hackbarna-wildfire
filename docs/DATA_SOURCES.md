@@ -54,7 +54,7 @@ Companion to the analysis in [`last-safe-departure.md`](last-safe-departure.md) 
 | MTG 2026 archive (73,630 files / 36,815 scans) | `~/Documents/Codex/2026-09-19/file-users-ola-downloads-hackbarna-20/outputs/LSA_SAF_MTFRPPixel_2026/` | 77 GB |
 | — Iberia extract (246,528 obs) | `…/analysis/iberia_bbox_hotspots.csv.gz` | 11 MB |
 | — Los Gallardos extract (1,932 obs) | `…/analysis/los_gallardos_2026-07-09_12.geojson` | 0.9 MB |
-| Deepfire replay snapshot | `data/snapshots/castelltallat-2025.json` | — |
+| Deepfire replay snapshot | `data/snapshots/los-gallardos-2026-07-09.json` | — |
 | Andalucía OSM extract | `/tmp/df/osm/andalucia.osm.pbf` | 194 MB |
 | Local Overpass DB | docker volume `opdb` | ~4.5 GB |
 

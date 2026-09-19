@@ -10,7 +10,9 @@ export interface LatLon {
 export interface Hotspot {
   id: string;
   position: LatLon;
-  frpMw: number; // fire radiative power, drives marker size and color
+  // Fire radiative power in MW, or null when the sensor did not report one.
+  // Missing FRP must stay null: a null is "not measured", a 0 is "measured zero".
+  frpMw: number | null;
   confidence: number; // 0..1
   detectedAt: string; // ISO timestamp
   clusterId: string | null;
