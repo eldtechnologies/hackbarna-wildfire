@@ -313,7 +313,10 @@ body,
   border: 1px solid var(--line);
   background: rgba(10, 14, 18, 0.88);
   padding: 10px 14px 12px;
-  pointer-events: auto;
+  /* Closed means fully inert: opacity alone would leave an invisible box
+     swallowing clicks over the FIRES list. */
+  pointer-events: none;
+  visibility: hidden;
   opacity: 0;
   transform: translateY(8px);
   transition:
@@ -322,6 +325,8 @@ body,
 }
 
 .hotspot-panel.open {
+  pointer-events: auto;
+  visibility: visible;
   opacity: 1;
   transform: translateY(0);
 }

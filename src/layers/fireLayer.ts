@@ -24,8 +24,8 @@ const LIVE_POLL_MS = 10 * 60 * 1000;
 const REPLAY_POLL_MS = 60 * 1000;
 const RETRY_POLL_MS = 15 * 1000;
 
-// FRP ceiling that clamps marker size and color scaling (display heuristic,
-// not a modeled threshold).
+// FRP ceiling that clamps marker size and color scaling (display only, not
+// simulated).
 const FRP_MAX_MW = 150;
 
 const COLOR_LOW_FRP = Color.fromCssColorString('#ffb454'); // amber
@@ -52,7 +52,8 @@ function frpColor(frpMw: number): Color {
   );
 }
 
-// Radar-contact pulse: size breathes between base and base * 1.25.
+// Radar-contact pulse: size breathes between base and base * 1.25 (display
+// only, not simulated).
 function pulsingSize(base: number, phase: number): CallbackProperty {
   return new CallbackProperty(() => {
     const t = performance.now() / 1000;

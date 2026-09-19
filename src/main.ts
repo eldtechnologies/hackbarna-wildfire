@@ -20,8 +20,7 @@ const hud = initHud(viewer, hudRoot);
 const fireLayer = new FireLayer(viewer);
 initFirePanels(fireLayer, hudRoot);
 // Hotspot + cluster controller. Polls /api/fires on its own cadence and
-// drives the provenance badge. Unifying its store with loadFires is planned
-// in docs/work-plan.md.
+// drives the provenance badge.
 createFireLayer(viewer, hudRoot, hud.setMode);
 
 async function loadFires(): Promise<void> {
