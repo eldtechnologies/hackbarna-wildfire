@@ -42,7 +42,12 @@ import {
   type Route,
 } from './solve';
 import { SWEEP_CONFIGS, basisFor, configLabel, sweepField } from './sweep';
-import { ASSUMPTION_PROFILES, profileById, withAssumedSpeeds } from './assumptions';
+import {
+  ASSUMPTION_PROFILES,
+  NOMINAL_CAPACITY_PER_HOUR,
+  profileById,
+  withAssumedSpeeds,
+} from './assumptions';
 
 import { DEFAULT_LATENCY_SECONDS, LATENCY_SECONDS, fromEpochMs, resolveTimelineOrigin } from './time';
 
@@ -113,15 +118,16 @@ export const ASSUMPTIONS: Omit<EgressAssumptions, 'speedByHighway'> = {
   departureDelayMinutes: 15,
   vehicleOccupancy: 1.4,
   /**
-   * Vehicles per hour by road class. There is no measurement behind any of these — they
-   * are order-of-magnitude figures for a single carriageway, and the clearance number
-   * they produce is therefore an assumption, not a finding. Stated here so it is printed
-   * beside every clearance figure rather than buried.
+   * Vehicles per hour by road class — the NOMINAL centre, which the swept profiles are
+   * scaled from. There is no measurement behind any of these; they are order-of-magnitude
+   * figures for a single carriageway, and the clearance they produce is an assumption
+   * rather than a finding.
+   *
+   * Aliased to the table in `assumptions.ts` rather than repeated, because the two are the
+   * same claim: the profile scaling divides by this table, so a copy that drifted would
+   * make the published centre and the swept ends disagree about what "nominal" means.
    */
-  capacityPerHour: {
-    motorway: 3600, trunk: 2400, primary: 1800, secondary: 1500, tertiary: 1200,
-    unclassified: 900, residential: 600, living_street: 400, service: 300, track: 300, road: 600,
-  },
+  capacityPerHour: NOMINAL_CAPACITY_PER_HOUR,
 };
 
 const DEFAULT_CAPACITY_PER_HOUR = 600;
