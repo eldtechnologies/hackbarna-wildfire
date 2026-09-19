@@ -25,11 +25,11 @@ Recorded here so nobody re-litigates them at hour 30.
 
 | # | Decision |
 | --- | --- |
-| 1 | **The Deepfire client is rewritten first — item 0, before any merge.** It currently points at `api.deepfire.example.com` and expects flat fields; every engine module sits on it |
+| 1 | **The Deepfire client is rewritten first — item 0, before any merge.** It currently points at `api.deepfire.example.com` and expects flat fields; every engine module sits on it. Ola authors it with a working key, Magnus reviews and merges |
 | 2 | **Stream 3 is harness-first and the baseline is the shipped answer.** A model ships only if it beats the baseline on the harness |
 | 3 | **Ola's machine is the data box.** Stream 3 runs there; only the model artefact, its metrics and small fixture JSON cross back |
 | 4 | **The 600-day hotspot archive pull is dropped.** The labels it existed to manufacture already exist as PT-FireSprd and FireSpread_MedEU |
-| 5 | **The cut mask is hotspots + MTG archive, sensor-footprint buffered, minus `deepfire:static-heat-sources`** |
+| 5 | **The cut mask is hotspots + MTG + SEVIRI, sensor-footprint buffered, minus `deepfire:static-heat-sources`.** SEVIRI joined once its pixels were measured at ~3.1–4.2 km across rather than 12 km |
 | 6 | **Last safe departure is a band, not a time**, swept over an assumption set printed beside every number |
 | 7 | **The road graph comes from a local Overpass here, bbox only**, cached to JSON so the demo never depends on the container |
 | 8 | **The unification refactor lands on `main` first**, then each open branch rebases onto it — one conflict resolution per branch, done once |
@@ -41,6 +41,7 @@ Recorded here so nobody re-litigates them at hour 30.
 | 14 | **The live panel is best-effort; the replay is the spine** of the four minutes |
 | 15 | **The foundation window is H0–4**, not H0–2 |
 | 16 | **Scope is unchanged for now.** The added work is absorbed and re-cut at the H12 gate against real evidence |
+| 17 | **The model proposal is updated rather than closed**, so it stops contradicting this plan while keeping the Jev check and the drift caveats it documents |
 
 ## The frozen interfaces
 
@@ -71,6 +72,11 @@ January 2025 rather than the live fire. Missing FRP must stay `null`, never `0`.
 
 This is server-side, self-contained, and unblocks the console, the engine and the live panel at
 once. It also makes the July snapshot recording possible, which is what validates it.
+
+**Ola authors it and the Los Gallardos snapshot, Magnus reviews and merges.** The key and the
+corrected shapes are already there, and the snapshot travelling in the same PR is what makes the
+fix demonstrably working rather than merely merged. Magnus keeps the refactor and the merge order,
+so this does not move ownership of the console.
 
 **Then unify the seams and merge.** Four branches are in flight and they collide: three incompatible
 visibility-listener APIs, two `initHud` return contracts, three overlapping fire visualisations,
@@ -103,11 +109,17 @@ and the live→replay fallback are inherited.
 **Graph.** A local Overpass instance with just the Los Gallardos bbox, queried once and cached to
 JSON on disk. Small, fast to rebuild, and the demo never depends on the container running.
 
-**Mask and cut times.** Accumulate Deepfire hotspots and the MTG archive, each buffered by *sensor
-footprint* — MTG around 1 km, VIIRS 375 m — after **subtracting `deepfire:static-heat-sources`**.
-That subtraction is not optional: the archive carries persistent industrial heat, including cells
-around 18 MW within about 20 km of Gallardos, and a mask built from raw detections would cut a road
-on a gas flare.
+**Mask and cut times.** Accumulate Deepfire hotspots, the MTG archive and the SEVIRI series, each
+buffered by *sensor footprint* — MTG around 1 km, VIIRS 375 m, SEVIRI 3.1–4.2 km — after
+**subtracting `deepfire:static-heat-sources`**. That subtraction is not optional: the archive
+carries persistent industrial heat, including cells around 18 MW within about 20 km of Gallardos,
+and a mask built from raw detections would cut a road on a gas flare.
+
+Three sensors means three footprints and three latencies in the sweep, which widens the band. That
+is the honest result rather than a problem: SEVIRI rarely sets a cut time on a small fire — on
+Gallardos it starts about three hours after MTG and stops seven hours before it — so it mostly
+covers gaps and widens the estimate. The band is what ships, so a wider one that is true beats a
+narrow one that is not.
 
 A segment is cut at the first timestep whose accumulated mask intersects it. This replaces the
 point-radius cut that read 19:38, 21:18 or 00:03 for the same road depending on buffer and sensor
@@ -156,9 +168,9 @@ that loses and is not reported.
 | What | Who |
 | --- | --- |
 | Ratify the three shared type files | All three |
-| Item 0 — rewrite the Deepfire client | Magnus |
+| Item 0 — the Deepfire client and the July snapshot | Ola, reviewed by Magnus |
 | The unification refactor on `main` | Magnus |
-| Stub endpoints in the frozen shapes | Daniel, Ola |
+| Stub endpoints in the frozen shapes | Daniel |
 | Harness scaffolding on the data box | Ola |
 
 Stream 3 is independent of the others and starts immediately regardless — its work happens on
@@ -193,13 +205,11 @@ End to end, in order:
 
 ## Open
 
-- **SEVIRI `PIXEL_SIZE`: km or km²?** Read as 11.4–12.6 km it cannot carry a small fire's mask; read
-  as km² it is a ~3.4 km pixel and usable. It decides whether SEVIRI joins the backtest, and should
-  be pinned down before it settles any design.
-- **The Deepfire key is not on every machine.** Item 0 can be written anywhere but only tested where
-  the key is, and the July snapshot recording needs it.
 - **Whether a model beats the baselines on bearing and rate.** The harness will say. Until it does,
   the baseline is what ships.
+- **How much the SEVIRI band actually widens.** Its per-sensor timing on Gallardos is known; whether
+  that holds across the other events belongs in the calibration sweep, because it moves the band
+  more than it moves the mean.
 
 ## One thing to say out loud, early
 
