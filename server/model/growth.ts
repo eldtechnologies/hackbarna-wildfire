@@ -4,8 +4,7 @@
 // The estimate is a centroid displacement between the earlier and later half of a
 // cluster's detections. Nothing else is available at serve time: one observation
 // window holds detections, not a track, so the advance is inferred from how the
-// detection mass moved inside that window. That is the same quantity the offline
-// harness scores, which is why the baseline numbers travel with it.
+// detection mass moved inside that window.
 
 import type { Hotspot, LatLon } from '../../shared/fires';
 import type { GrowthVector } from '../../shared/growth';
@@ -71,6 +70,12 @@ export function timeSplit(detections: Hotspot[]): [Hotspot[], Hotspot[]] | null 
 /**
  * Bearing and rate between two detection halves. Null when the halves are too
  * close to carry a direction, or when their timestamps do not separate.
+ *
+ * The rate divides the centroid displacement by the separation of the two
+ * half-centroids, not by the window's first-to-last span. Each centroid carries
+ * the mean time of its own detections, so dividing by the full span (which reaches
+ * past both centroids) under-reports the rate — roughly half, on evenly spread
+ * halves. The displacement and the interval must describe the same two instants.
  */
 export function advanceBetween(
   earlier: Hotspot[],
@@ -81,12 +86,28 @@ export function advanceBetween(
   if (!a || !b) return null;
   const distanceKm = haversineKm(a, b);
   if (distanceKm < MIN_DISPLACEMENT_KM) return null;
-  const tA = earlier.map((d) => d.detectedAt).filter((t): t is string => t !== null).sort()[0];
-  const tB = later.map((d) => d.detectedAt).filter((t): t is string => t !== null).sort().slice(-1)[0];
-  if (!tA || !tB) return null;
-  const hours = (Date.parse(tB) - Date.parse(tA)) / 3_600_000;
+  const tA = meanStampMs(earlier);
+  const tB = meanStampMs(later);
+  if (tA === null || tB === null) return null;
+  const hours = (tB - tA) / 3_600_000;
   if (!Number.isFinite(hours) || hours <= 0) return null;
   return { bearingDeg: bearingDeg(a, b), rateKmh: distanceKm / hours };
+}
+
+/** Epoch milliseconds of the dated detections, dropping unparseable stamps. */
+function epochStamps(detections: Hotspot[]): number[] {
+  return detections
+    .map((d) => d.detectedAt)
+    .filter((t): t is string => t !== null)
+    .map((t) => Date.parse(t))
+    .filter(Number.isFinite);
+}
+
+/** Mean timestamp of the dated detections, or null when none is dated. */
+function meanStampMs(detections: Hotspot[]): number | null {
+  const ms = epochStamps(detections);
+  if (ms.length === 0) return null;
+  return ms.reduce((sum, x) => sum + x, 0) / ms.length;
 }
 
 export function sourceMixOf(detections: Hotspot[]): Record<string, number> {
@@ -102,13 +123,11 @@ export function sourceMixOf(detections: Hotspot[]): Record<string, number> {
 
 /** Hours since the most recent detection, or null when none is dated. */
 export function hoursSinceLastDetection(detections: Hotspot[], now: Date): number | null {
-  const stamps = detections
-    .map((d) => d.detectedAt)
-    .filter((t): t is string => t !== null)
-    .map((t) => Date.parse(t))
-    .filter(Number.isFinite);
+  const stamps = epochStamps(detections);
   if (stamps.length === 0) return null;
-  return (now.getTime() - Math.max(...stamps)) / 3_600_000;
+  // A detection dated in the future (clock skew, an accelerated mock clock) is not
+  // "hours ago"; the honest floor is zero rather than a negative age.
+  return Math.max(0, (now.getTime() - Math.max(...stamps)) / 3_600_000);
 }
 
 /**

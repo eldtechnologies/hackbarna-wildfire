@@ -4,7 +4,7 @@
 Runs on the data box. The corpora stay here; only the small outputs are committed
 under `data/model/`, so the numbers are checkable without the bulk data.
 
-    uv run --with geopandas --with pandas python tools/model/harness.py
+    uv run --with geopandas --with pandas --with scikit-learn python tools/model/harness.py
 
 Two corpora, reported separately because their cadence differs by an order of
 magnitude, and because each carries a different usable signal:
@@ -32,14 +32,24 @@ import sys
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
-WORK = Path(
-    os.environ.get(
-        "STREAM3_DATA_DIR",
-        Path.home()
-        / "Documents/Codex/2026-09-19/file-users-ola-downloads-hackbarna-20/work",
-    )
-)
 OUT = Path(__file__).resolve().parents[2] / "data" / "model"
+
+
+def data_dir() -> Path:
+    """The corpora live on the data box, not in this repo.
+
+    A hardcoded default would silently fail on every machine but the data box and,
+    before the write guard in main(), overwrite the committed artifact with an empty
+    list. Requiring the variable makes that failure legible instead.
+    """
+    raw = os.environ.get("STREAM3_DATA_DIR")
+    if not raw:
+        raise RuntimeError(
+            "STREAM3_DATA_DIR is not set; point it at the corpora "
+            "(see docs/stream3-baselines.md)"
+        )
+    return Path(raw)
+
 
 R_EARTH_KM = 6371.0088
 
@@ -47,6 +57,11 @@ R_EARTH_KM = 6371.0088
 # states are not one continuous interval. Both readings are reported and neither
 # is silently dropped - a single 8738 h pair otherwise dominates constant-ROS.
 MAX_GAP_HOURS = 168.0
+
+# In-file provenance, matching the other committed data artifacts (data/graph/*.json
+# carry `source` and `fetched`). Named here so every output points back at its origin.
+SOURCE = "PT-FireSprd (L2_FireBehavior) and FireSpread_MedEU; see docs/stream3-baselines.md"
+GENERATOR = "tools/model/harness.py"
 
 
 @dataclass
@@ -90,7 +105,7 @@ def load_pt_firesprd() -> list[State]:
     import pyogrio
 
     path = (
-        WORK
+        data_dir()
         / "ptfiresprd/extracted/PT-FireSprd_v0.08/L2_FireBehavior/PT-FireSprd_L2_FireBehavior.shp"
     )
     df = pyogrio.read_dataframe(path, read_geometry=False)
@@ -129,7 +144,7 @@ def load_medeu(path: str | None = None) -> list[State]:
     import geopandas as gpd
     import pandas as pd
 
-    g = gpd.read_file(path or WORK / "medeu/FireSpread_MedEU.shp")
+    g = gpd.read_file(path or data_dir() / "medeu/FireSpread_MedEU.shp")
     # The file is EPSG:3035 - projected metres, not degrees. Feeding those numbers
     # to a haversine that expects lon/lat gives a distance that is meaningless and a
     # rate about four orders of magnitude too large. The area numbers are unaffected
@@ -203,22 +218,35 @@ def held_out_mean_rates(pairs) -> dict[str, float]:
     return {f: statistics.fmean(v) for f, v in per_fire.items()}
 
 
+def loo_mean_rate(rates: dict[str, float], fire: str) -> float:
+    """The other fires' mean growth rate: the constant-ROS fit for a held-out fire.
+
+    Callers guard on at least two fires; with one there is nothing to fit against.
+    """
+    return statistics.fmean(r for f, r in rates.items() if f != fire)
+
+
 def score_corpus(
     states: list[State], label: str, max_gap: float | None, rate_basis: str
 ) -> dict:
     pairs = pairs_of(states, max_gap)
     rates = held_out_mean_rates(pairs)
+    fires = len(set(s.fire for s in states))
 
     obs = [b.area_ha for _, b in pairs]
     pers = [a.area_ha for a, _ in pairs]
-    cros = []
-    for a, b in pairs:
-        others = [r for f, r in rates.items() if f != a.fire]
-        rate = statistics.fmean(others) if others else 0.0
-        cros.append(max(0.0, a.area_ha + rate * (b.t - a.t)))
-
     r2_p, mape_p = r2_mape(obs, pers)
-    r2_c, mape_c = r2_mape(obs, cros)
+
+    # Constant-ROS is fitted on the OTHER fires. With one fire there are none, the
+    # fit collapses to persistence, and publishing that as a scored predictor would
+    # dress a placeholder as a result. Publish it only with at least two fires.
+    constant_ros_ok = fires >= 2
+    if constant_ros_ok:
+        cros = [
+            max(0.0, a.area_ha + loo_mean_rate(rates, a.fire) * (b.t - a.t))
+            for a, b in pairs
+        ]
+        r2_c, mape_c = r2_mape(obs, cros)
 
     # Pooled R2 across all held-out pairs is dominated by the few largest fires: a
     # fire that grows through three orders of magnitude owns most of the variance.
@@ -234,20 +262,17 @@ def score_corpus(
                 o = [v[0] for v in vals]
                 pr = [v[1] for v in vals]
                 scores.append(r2_mape(o, pr)[0])
-        finite = [x for x in scores if x == x]
+        finite = [x for x in scores if math.isfinite(x)]
         return round(statistics.median(finite), 4) if finite else None
-
-    rate_by_fire = rates
 
     def persistence_pred(a, b):
         return a.area_ha
 
     def constant_ros_pred(a, b):
-        others = [r for f, r in rate_by_fire.items() if f != a.fire]
-        return max(0.0, a.area_ha + (statistics.fmean(others) if others else 0.0) * (b.t - a.t))
+        return max(0.0, a.area_ha + loo_mean_rate(rates, a.fire) * (b.t - a.t))
 
     median_p = per_fire_median_r2(persistence_pred)
-    median_c = per_fire_median_r2(constant_ros_pred)
+    median_c = per_fire_median_r2(constant_ros_pred) if constant_ros_ok else None
 
     berr, r_obs, r_pred = [], [], []
     for a, b in pairs:
@@ -271,7 +296,7 @@ def score_corpus(
         # travel with the scores rather than be recomputed at serve time.
         "mean_rate_kmh": round(statistics.fmean(rates_kmh), 4) if rates_kmh else None,
         "rate_basis": rate_basis,
-        "fires": len(set(s.fire for s in states)),
+        "fires": fires,
         "states": len(states),
         "pairs": len(pairs),
         "dt_hours": {
@@ -287,11 +312,18 @@ def score_corpus(
                 "median_r2_per_fire": median_p,
                 "median_mape": round(mape_p, 2),
             },
-            "constant_ros": {
-                "r2": round(r2_c, 4),
-                "median_r2_per_fire": median_c,
-                "median_mape": round(mape_c, 2),
-            },
+            "constant_ros": (
+                {
+                    "r2": round(r2_c, 4),
+                    "median_r2_per_fire": median_c,
+                    "median_mape": round(mape_c, 2),
+                }
+                if constant_ros_ok
+                else {
+                    "computed": False,
+                    "reason": f"only {fires} fire(s); constant-ROS is fitted on the other fires",
+                }
+            ),
         },
         "bearing_rate": {
             "pairs_with_direction": len(berr),
@@ -334,14 +366,27 @@ def score_model(states: list[State], max_gap: float | None) -> dict:
     pred_sin = np.zeros(len(pairs))
     pred_cos = np.zeros(len(pairs))
     pred_rate = np.zeros(len(pairs))
+    folds_trained = 0
     for held in set(fires):
         train = fires != held
         test = ~train
         if test.sum() == 0 or train.sum() < 10:
             continue
+        folds_trained += 1
         for target, out in ((sin_t, pred_sin), (cos_t, pred_cos), (rate_t, pred_rate)):
             m = HistGradientBoostingRegressor(max_iter=120, random_state=0).fit(features[train], target[train])
             out[test] = m.predict(features[test])
+
+    # Every fold was skipped, so every prediction is still the zero placeholder. A
+    # score computed from zeros must not read as a trained one.
+    if folds_trained == 0:
+        return {
+            "computed": False,
+            "reason": (
+                f"no fold had a training split of 10 pairs "
+                f"({len(pairs)} pairs over {len(set(fires))} fires)"
+            ),
+        }
 
     # Baseline: carry the previous observed bearing and rate forward.
     pers_bearing = np.array([a.bearing_deg or 0 for a, _ in pairs])
@@ -356,6 +401,7 @@ def score_model(states: list[State], max_gap: float | None) -> dict:
         "computed": True,
         "pairs": len(pairs),
         "fires": len(set(fires)),
+        "folds_trained": folds_trained,
         "bearing": {
             "persistence_median_error_deg": round(float(np.median(err_pers)), 2),
             "model_median_error_deg": round(float(np.median(err_model)), 2),
@@ -371,6 +417,8 @@ def score_model(states: list[State], max_gap: float | None) -> dict:
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     results = []
+    fixtures: dict[str, str] = {}
+    failed: list[str] = []
     # PT-FireSprd carries an observed rate of frontal advance. MedEU does not, so
     # its "rate" is the displacement of the centroid of a growing polygon over the
     # gap - a drift measure that reaches hundreds of km/h and is not a rate at all.
@@ -383,22 +431,74 @@ def main() -> int:
             states = loader()
         except Exception as exc:
             print(f"{label}: NOT COMPUTED ({exc})", file=sys.stderr)
+            failed.append(label)
             continue
-        for max_gap in (None, MAX_GAP_HOURS):
-            s = score_corpus(states, label, max_gap, rate_basis)
-            results.append(s)
-            print(json.dumps(s, indent=2))
+        # The gap-filtered row (primary) is the one the server reads, so the model
+        # block attaches to it explicitly rather than to whatever the loop left behind.
+        all_pairs = score_corpus(states, label, None, rate_basis)
+        primary = score_corpus(states, label, MAX_GAP_HOURS, rate_basis)
+        results.extend((all_pairs, primary))
+        # Stdout traces only; the artifact below is what must be JSON-clean.
+        print(json.dumps(all_pairs, indent=2))
+        print(json.dumps(primary, indent=2))
         try:
-            s["model"] = score_model(states, MAX_GAP_HOURS)
+            primary["model"] = score_model(states, MAX_GAP_HOURS)
         except Exception as exc:
-            s["model"] = {"computed": False, "reason": str(exc)}
-        print(json.dumps(s["model"], indent=2))
-        (OUT / f"fixture-{label}.json").write_text(
-            json.dumps([asdict(x) for x in states], separators=(",", ":")) + "\n"
+            print(f"{label}: model NOT COMPUTED ({exc})", file=sys.stderr)
+            primary["model"] = {"computed": False, "reason": str(exc)}
+        print(json.dumps(primary["model"], indent=2))
+        fixtures[label] = (
+            json.dumps(
+                {"source": SOURCE, "generator": GENERATOR, "states": [asdict(x) for x in states]},
+                separators=(",", ":"),
+            )
+            + "\n"
         )
-    (OUT / "metrics.json").write_text(json.dumps(results, indent=2) + "\n")
+
+    # Write nothing until every corpus scored. A loader that fails on this machine -
+    # every machine but the data box - must not overwrite the committed artifact with
+    # an empty list and report success; the reader following the docs would destroy
+    # the numbers the docs describe.
+    expected = {label for label, _, _ in corpora}
+    scored = {r["corpus"] for r in results}
+    missing = sorted(expected - scored)
+    if failed or missing:
+        print(
+            f"refusing to write {OUT / 'metrics.json'}: "
+            f"scored {sorted(scored)}; failed {sorted(failed)}; missing {missing}",
+            file=sys.stderr,
+        )
+        return 1
+
+    # allow_nan=False: a NaN is not JSON. Emitting one would ship an artifact that
+    # JSON.parse rejects, and the server would serve it as "the harness has no scores".
+    # The wrapper carries the provenance the other data/ artifacts carry.
+    try:
+        metrics_text = (
+            json.dumps(
+                {"source": SOURCE, "generator": GENERATOR, "rows": results},
+                indent=2,
+                allow_nan=False,
+            )
+            + "\n"
+        )
+    except ValueError as exc:
+        print(f"refusing to write {OUT / 'metrics.json'}: {exc}", file=sys.stderr)
+        return 1
+
+    # Write to a temp path and rename, so an interrupted run cannot leave a partial
+    # artifact behind the committed name.
+    for label, text in fixtures.items():
+        _write_atomic(OUT / f"fixture-{label}.json", text)
+    _write_atomic(OUT / "metrics.json", metrics_text)
     print(f"\nwrote {OUT/'metrics.json'}")
     return 0
+
+
+def _write_atomic(path: Path, text: str) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(text)
+    tmp.replace(path)
 
 
 if __name__ == "__main__":

@@ -16,6 +16,9 @@ corpora beats it on direction.** Both numbers travel with every response.
 | `server/model/` | this repo | The served baselines, the metrics loader, and `GET /api/growth`. |
 | The corpora | the data box | PT-FireSprd and FireSpread_MedEU. Too large to commit. |
 
+Each committed `data/model/*.json` carries `source` and `generator`, so the artifact
+names where it came from, as the other `data/` artifacts do.
+
 ## Method
 
 **Leave-one-fire-out, never leave-one-step-out.** Every score holds out a whole
@@ -120,9 +123,11 @@ only just. At 24 h it is **70.1°** — better than chance, but well above the f
 and far worse than the hourly figure, so daily direction skill is weak rather than
 absent.
 
-**3. The model does not rescue finding 2, and cannot here.** It is marginally better
-on rate at MedEU and worse on PT-FireSprd, but on bearing it is worse on both
-(56.2° against 42.6°). The reason is in the feature list, not the architecture.
+**3. The model does not rescue finding 2, and cannot here.** On rate R² it is better
+on both corpora (0.119 against 0.087 on PT-FireSprd, −0.083 against −1.043 on MedEU),
+but on rate MAPE it is worse on PT-FireSprd (73.7 % against 56.6 %), and on bearing it
+is worse on both (56.2° against 42.6°). The reason is in the feature list, not the
+architecture.
 
 **4. The baseline ships for now — for a stated reason.** `model` is null because
 nothing beat the baseline *on this metric with these features*. That is a statement
@@ -133,8 +138,9 @@ the literature says the opposite by 2–2.5×.
 
 `GET /api/growth?clusterId=` returns the observed advance for a cluster, both
 baselines for the same cluster, and every held-out score behind them. `model` is
-`null`, and `shipped` names `persistence`. The console prints the baseline score
-beside any model claim so the reader can see which one is winning.
+`null`, and `shipped` names `persistence`. The response carries what a console needs
+to print the baseline score beside any model claim; the console itself is Stream 1's,
+and no client consumes the endpoint yet.
 
 A number without its corpus is a number without its caveat, which is why
 `GrowthScore` carries `corpus` and the response carries `shipped`.
@@ -172,7 +178,9 @@ A number without its corpus is a number without its caveat, which is why
 
 ```bash
 uv run --with geopandas --with pandas --with scikit-learn python tools/model/harness.py
-bun run test
+npm test
 ```
 
-The harness reads `STREAM3_DATA_DIR` and defaults to the data-box path.
+The harness requires `STREAM3_DATA_DIR` and refuses to run without it rather than
+fall back to a hardcoded path. It writes nothing unless every corpus scored, so a run
+on a machine without the data cannot overwrite the committed artifact.

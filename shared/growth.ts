@@ -51,6 +51,12 @@ export interface GrowthScore {
    */
   medianR2PerFire: number | null;
   medianMape: number;
+  /**
+   * Median absolute bearing error, degrees. Only the direction target carries it;
+   * null on the area target. This is the number the model slot is judged on, so it
+   * travels with the null model slot instead of living only in the file.
+   */
+  medianBearingErrorDeg: number | null;
   /** Number of held-out events, not rows. */
   events: number;
 }

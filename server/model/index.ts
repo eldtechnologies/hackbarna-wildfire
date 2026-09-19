@@ -1,15 +1,18 @@
 // Growth response assembly: for one cluster, the observed advance, the naive
 // predictors' answers for the same cluster, and the held-out scores behind both.
 //
-// The model slot is null. That is the measured outcome, not an unfinished branch:
-// on leave-one-fire-out the baselines beat a gradient-boosted model on burned area
-// and the model loses on bearing as well. See docs/stream3-baselines.md.
+// The model slot is null. That is the measured outcome, not an unfinished branch: on
+// leave-one-fire-out the model's bearing error is worse than persistence on both
+// corpora (56.2 deg against 42.6 on PT-FireSprd, 86.9 against 70.1 on MedEU), and
+// direction is the question the product asks. Its rate R2 is better, but R2 on a
+// scalar is the weak metric here. The served scores carry the bearing error, so the
+// null is visible as a reasoned choice. See docs/stream3-baselines.md.
 
 import type { FiresResponse, Hotspot } from '../../shared/fires';
 import type { GrowthResponse } from '../../shared/growth';
 import { baselinesFor } from './baselines';
 import { observedGrowth } from './growth';
-import { loadScores, meanRateKmh, shippedPredictor } from './metrics';
+import { loadMetrics, shippedPredictor, type Metrics } from './metrics';
 
 /** Detections that belong to a cluster. */
 export function detectionsOf(response: FiresResponse, clusterId: string): Hotspot[] {
@@ -28,18 +31,19 @@ export function growthFor(
   clusterId: string,
   response: FiresResponse,
   now: Date = new Date(),
+  loadMetricsFn: () => Metrics = loadMetrics,
 ): GrowthResponse | null {
   if (!response.clusters.some((c) => c.id === clusterId)) return null;
+  const metrics = loadMetricsFn();
   const detections = detectionsOf(response, clusterId);
   const observed = observedGrowth(clusterId, detections, now);
-  const scores = loadScores();
-  const shipped = shippedPredictor(scores);
+  const shipped = shippedPredictor(metrics.scores);
   return {
     clusterId,
     at: now.toISOString(),
     model: null,
-    baselines: baselinesFor(observed, meanRateKmh()),
-    scores,
+    baselines: baselinesFor(observed, metrics.meanRateKmh),
+    scores: metrics.scores,
     shippedBaseline: shipped !== 'model',
     shipped,
   };
