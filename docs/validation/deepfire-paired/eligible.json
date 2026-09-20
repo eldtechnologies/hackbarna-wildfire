@@ -1,0 +1,883 @@
+[
+  {
+    "id": "d3038649-97fc-4313-ba32-eb61a610d975",
+    "cluster_id": "5b03169d-8daa-4531-b05b-ba7231973da4",
+    "name": "La Pobla de Mafumet, Tarragona",
+    "lat": 41.18815879679362,
+    "lon": 1.231496378100713,
+    "model_issue": "2026-09-18T23:00:00+00:00",
+    "deepfire_issue": "2026-09-18T23:19:44.410818Z",
+    "duration": 12,
+    "row": 1582,
+    "col": 5666,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "1.25,41.25",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "adefbc72-75ca-4d7d-ad4c-4963674f6e8d",
+    "cluster_id": "3dd9f686-628b-47c3-934d-f7549a2e6d42",
+    "name": "Alfarr\u00e0s, Lleida",
+    "lat": 41.84511152631781,
+    "lon": 0.5642836428492257,
+    "model_issue": "2026-09-16T14:00:00+00:00",
+    "deepfire_issue": "2026-09-16T14:43:06.615082Z",
+    "duration": 12,
+    "row": 1535,
+    "col": 5612,
+    "spatial_group": "native256-5-21",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "test",
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "0.5,41.75",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "dd844c6d-4c60-4129-8504-d5f8e2113280",
+    "cluster_id": "f39179cc-3212-409f-8640-8e5c126fe708",
+    "name": "Torres de Segre, Lleida",
+    "lat": 41.55819,
+    "lon": 0.5045,
+    "model_issue": "2026-09-16T14:00:00+00:00",
+    "deepfire_issue": "2026-09-16T14:30:10.581325Z",
+    "duration": 12,
+    "row": 1555,
+    "col": 5608,
+    "spatial_group": "native256-6-21",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "0.5,41.5",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "64a627ac-0c88-4534-b918-fae369506a64",
+    "cluster_id": "9750cad0-4c5f-438d-91fc-fb2d96dc1fd7",
+    "name": "Tivenys, Tarragona",
+    "lat": 40.925941467285156,
+    "lon": 0.5451840162277222,
+    "model_issue": "2026-09-16T11:00:00+00:00",
+    "deepfire_issue": "2026-09-16T11:59:23.077390Z",
+    "duration": 12,
+    "row": 1600,
+    "col": 5612,
+    "spatial_group": "native256-6-21",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": false,
+    "weather_key": "0.5,41.0",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "afe201cd-20fa-499d-a8ce-f1e971c5f0cc",
+    "cluster_id": "4f4f2b0b-0ef0-409c-aad7-6064b61707c5",
+    "name": "Belianes, Lleida",
+    "lat": 41.560821533203125,
+    "lon": 1.014401137828827,
+    "model_issue": "2026-09-16T07:00:00+00:00",
+    "deepfire_issue": "2026-09-16T07:40:32.228261Z",
+    "duration": 12,
+    "row": 1555,
+    "col": 5648,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "1.0,41.5",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "f053529e-f684-42bb-b968-9678c37b9e29",
+    "cluster_id": "ff06741e-fca9-4966-8038-5c93643dbfda",
+    "name": "Sant Sadurn\u00ed d'Anoia, Barcelona",
+    "lat": 41.438350677490234,
+    "lon": 1.7936471700668335,
+    "model_issue": "2026-09-16T05:00:00+00:00",
+    "deepfire_issue": "2026-09-16T05:43:04.576614Z",
+    "duration": 12,
+    "row": 1564,
+    "col": 5711,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "1.75,41.5",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "ecd580bb-3ddd-4d48-8a25-7a1a7e608cfa",
+    "cluster_id": "26a9db26-2b39-454e-adff-98effe5cd75c",
+    "name": "Alcanar, Tarragona",
+    "lat": 40.57751,
+    "lon": 0.54214,
+    "model_issue": "2026-09-16T03:00:00+00:00",
+    "deepfire_issue": "2026-09-16T03:42:26.889298Z",
+    "duration": 12,
+    "row": 1626,
+    "col": 5612,
+    "spatial_group": "native256-6-21",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "0.5,40.5",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "217cabbe-e223-4654-951f-cd3773d31573",
+    "cluster_id": "0a674edd-d1ed-45c9-a91e-2032215b90bc",
+    "name": "La R\u00e0pita, Tarragona",
+    "lat": 40.64136,
+    "lon": 0.60143,
+    "model_issue": "2026-09-15T16:00:00+00:00",
+    "deepfire_issue": "2026-09-15T16:43:04.434265Z",
+    "duration": 12,
+    "row": 1621,
+    "col": 5616,
+    "spatial_group": "native256-6-21",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "0.5,40.75",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "e8bdba1c-7d88-4ffb-9e80-73b33b6bf2e9",
+    "cluster_id": "c7fd9cec-f9e7-43cf-bbf4-fbe8a9f3fd1b",
+    "name": "La Granadella, Lleida",
+    "lat": 41.375328063964844,
+    "lon": 0.6678110361099243,
+    "model_issue": "2026-09-15T14:00:00+00:00",
+    "deepfire_issue": "2026-09-15T14:45:08.660098Z",
+    "duration": 12,
+    "row": 1568,
+    "col": 5621,
+    "spatial_group": "native256-6-21",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "0.75,41.5",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "f7395cf0-708e-43be-b377-95a667cfd91a",
+    "cluster_id": "3dd9f686-628b-47c3-934d-f7549a2e6d42",
+    "name": "Alfarr\u00e0s, Lleida",
+    "lat": 41.843374252319336,
+    "lon": 0.5537277460098267,
+    "model_issue": "2026-09-15T14:00:00+00:00",
+    "deepfire_issue": "2026-09-15T14:24:54.096554Z",
+    "duration": 12,
+    "row": 1535,
+    "col": 5611,
+    "spatial_group": "native256-5-21",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "test",
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "0.5,41.75",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "c0a2dddd-8d97-4661-8b73-860b9bad49f6",
+    "cluster_id": "91837020-3c9b-4e9a-bc6a-70ee88a41871",
+    "name": "Deltebre, Tarragona",
+    "lat": 40.74675369262695,
+    "lon": 0.6761389970779419,
+    "model_issue": "2026-09-15T12:00:00+00:00",
+    "deepfire_issue": "2026-09-15T12:30:47.300630Z",
+    "duration": 12,
+    "row": 1613,
+    "col": 5622,
+    "spatial_group": "native256-6-21",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": false,
+    "weather_key": "0.75,40.75",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "5266e3a6-e1b3-43ba-87b1-a6939596f66f",
+    "cluster_id": "26d78a4a-487c-4cbb-bee7-31f2389c5af8",
+    "name": "Alcanar, Tarragona",
+    "lat": 40.57636,
+    "lon": 0.54299,
+    "model_issue": "2026-09-15T03:00:00+00:00",
+    "deepfire_issue": "2026-09-15T03:59:23.303047Z",
+    "duration": 12,
+    "row": 1626,
+    "col": 5612,
+    "spatial_group": "native256-6-21",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "0.5,40.5",
+    "scan_files_present": 50,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "bb2bcc77-81ac-4945-a706-653c33085380",
+    "cluster_id": "764aeb6b-1f73-49a6-8ee5-830876e23375",
+    "name": "Montcada i Reixac, Barcelona",
+    "lat": 41.47486,
+    "lon": 2.18492,
+    "model_issue": "2026-09-15T03:00:00+00:00",
+    "deepfire_issue": "2026-09-15T03:59:21.238080Z",
+    "duration": 12,
+    "row": 1562,
+    "col": 5742,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "2.25,41.5",
+    "scan_files_present": 50,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "8cfeeb09-dadc-4c4f-9f54-22a23ca806e9",
+    "cluster_id": "8502c8c3-2110-4851-b032-1294c8e42973",
+    "name": "Matar\u00f3, Barcelona",
+    "lat": 41.5281,
+    "lon": 2.42352,
+    "model_issue": "2026-09-14T14:00:00+00:00",
+    "deepfire_issue": "2026-09-14T14:58:59.304244Z",
+    "duration": 12,
+    "row": 1558,
+    "col": 5761,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": false,
+    "weather_key": "2.5,41.5",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "c746ec27-a8a9-4dd1-a8c5-fc447acb7dbb",
+    "cluster_id": "67500b81-56a1-4b21-8e30-f0d79b022177",
+    "name": "Alcanar, Tarragona",
+    "lat": 40.57396,
+    "lon": 0.54153,
+    "model_issue": "2026-09-14T04:00:00+00:00",
+    "deepfire_issue": "2026-09-14T04:11:43.018775Z",
+    "duration": 12,
+    "row": 1626,
+    "col": 5611,
+    "spatial_group": "native256-6-21",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "0.5,40.5",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "95838f2e-969a-44cd-aa26-dcd3dc52a36a",
+    "cluster_id": "d5714c2e-c4fa-483e-8a58-2b2169df4e28",
+    "name": "Mollerussa, Lleida",
+    "lat": 41.63209,
+    "lon": 0.8905,
+    "model_issue": "2026-09-13T15:00:00+00:00",
+    "deepfire_issue": "2026-09-13T15:02:44.059889Z",
+    "duration": 12,
+    "row": 1550,
+    "col": 5639,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "1.0,41.75",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "4e3cfb59-4655-49e8-b169-c09745ef831a",
+    "cluster_id": "ab6bad84-3d4c-49ec-b09a-a0881e110b93",
+    "name": "La Pobla de Mafumet, Tarragona",
+    "lat": 41.1784875,
+    "lon": 1.2300225,
+    "model_issue": "2026-09-13T08:00:00+00:00",
+    "deepfire_issue": "2026-09-13T08:13:55.247735Z",
+    "duration": 12,
+    "row": 1582,
+    "col": 5666,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "1.25,41.25",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "1329adc8-b7e3-4439-b498-714017015177",
+    "cluster_id": "d0fed8f6-6db5-410f-92e2-8e38f1f1e75f",
+    "name": "Pallej\u00e0, Barcelona",
+    "lat": 41.40777,
+    "lon": 1.99938,
+    "model_issue": "2026-09-12T08:00:00+00:00",
+    "deepfire_issue": "2026-09-12T08:18:55.268239Z",
+    "duration": 12,
+    "row": 1566,
+    "col": 5728,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "2.0,41.5",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "cd82f384-b098-428d-9236-ddceb13c949f",
+    "cluster_id": "ebecac46-3d6e-47b2-92b6-a62d29d4bbdb",
+    "name": "Montcada i Reixac, Barcelona",
+    "lat": 41.47469,
+    "lon": 2.18139,
+    "model_issue": "2026-09-12T04:00:00+00:00",
+    "deepfire_issue": "2026-09-12T04:35:42.007904Z",
+    "duration": 12,
+    "row": 1562,
+    "col": 5742,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "2.25,41.5",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "1a66e28e-c3ad-404a-b3a3-0e905c12c643",
+    "cluster_id": "3a3c585f-0f74-4bdd-b198-46c0980b5d52",
+    "name": "Deltebre, Tarragona",
+    "lat": 40.753108978271484,
+    "lon": 0.7050120234489441,
+    "model_issue": "2026-09-11T12:00:00+00:00",
+    "deepfire_issue": "2026-09-11T12:31:58.766947Z",
+    "duration": 12,
+    "row": 1613,
+    "col": 5625,
+    "spatial_group": "native256-6-21",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": false,
+    "weather_key": "0.75,40.75",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "cf02aece-9241-4c31-b8dd-ca874d6f3f28",
+    "cluster_id": "df58eba5-9dbb-4f8b-b826-7a30303cb135",
+    "name": "La Pobla de Mafumet, Tarragona",
+    "lat": 41.17715644836426,
+    "lon": 1.2317396402359009,
+    "model_issue": "2026-09-11T06:00:00+00:00",
+    "deepfire_issue": "2026-09-11T06:07:35.867746Z",
+    "duration": 12,
+    "row": 1583,
+    "col": 5666,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "1.25,41.25",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "1b2723f6-7de8-4298-9611-8cc8e59e8b4b",
+    "cluster_id": "278edbae-a847-45f8-b751-70968767a399",
+    "name": "Ulldecona, Tarragona",
+    "lat": 40.6336,
+    "lon": 0.49933500000000003,
+    "model_issue": "2026-09-10T14:00:00+00:00",
+    "deepfire_issue": "2026-09-10T14:43:04.124920Z",
+    "duration": 12,
+    "row": 1621,
+    "col": 5608,
+    "spatial_group": "native256-6-21",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "0.5,40.75",
+    "scan_files_present": 53,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "195db106-573a-41af-9edc-5150b2d9e8a0",
+    "cluster_id": "a3a7a137-555c-4131-b428-a9efd70839a0",
+    "name": "Pallej\u00e0, Barcelona",
+    "lat": 41.40733,
+    "lon": 2.0001,
+    "model_issue": "2026-09-10T11:00:00+00:00",
+    "deepfire_issue": "2026-09-10T11:31:34.206038Z",
+    "duration": 12,
+    "row": 1566,
+    "col": 5728,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "2.0,41.5",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "19bc1460-973d-4b60-9c63-488931d6bc7c",
+    "cluster_id": "5715348a-b4d3-4259-af2c-25b57ea9d9ce",
+    "name": "Alcanar, Tarragona",
+    "lat": 40.57728,
+    "lon": 0.54023,
+    "model_issue": "2026-09-10T03:00:00+00:00",
+    "deepfire_issue": "2026-09-10T03:34:22.312463Z",
+    "duration": 12,
+    "row": 1626,
+    "col": 5611,
+    "spatial_group": "native256-6-21",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "0.5,40.5",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "b420da9b-58b9-4200-a6de-88b817c5545e",
+    "cluster_id": "e98a7a28-f25c-475d-8568-3882450bc431",
+    "name": "El Palau d'Anglesola, Lleida",
+    "lat": 41.6465950012207,
+    "lon": 0.8842267394065857,
+    "model_issue": "2026-09-09T12:00:00+00:00",
+    "deepfire_issue": "2026-09-09T12:54:18.383214Z",
+    "duration": 12,
+    "row": 1549,
+    "col": 5638,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "1.0,41.75",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "da55c946-3083-4c88-b30d-a28d46c25b43",
+    "cluster_id": "c4b27453-f908-4917-b8d0-ec516681e3dc",
+    "name": "Segarra, Catalunya",
+    "lat": 41.67292404174805,
+    "lon": 1.2610780000686646,
+    "model_issue": "2026-09-04T13:00:00+00:00",
+    "deepfire_issue": "2026-09-04T13:24:21.991178Z",
+    "duration": 12,
+    "row": 1547,
+    "col": 5668,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": false,
+    "weather_key": "1.25,41.75",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "e6742fab-01aa-4ee9-ac79-2cee4ee28881",
+    "cluster_id": "05a53145-90c6-4595-a2fb-d37e025362c4",
+    "name": "Montsi\u00e0, Catalunya",
+    "lat": 40.57548,
+    "lon": 0.53962,
+    "model_issue": "2026-09-04T03:00:00+00:00",
+    "deepfire_issue": "2026-09-04T03:44:32.769815Z",
+    "duration": 12,
+    "row": 1626,
+    "col": 5611,
+    "spatial_group": "native256-6-21",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "0.5,40.5",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "b9909c1c-c2af-4b74-887f-b9e39c8a0d39",
+    "cluster_id": "10037ac8-202b-4b25-94f8-442bafc31cb1",
+    "name": "Tarragon\u00e8s, Catalunya",
+    "lat": 41.16968,
+    "lon": 1.1823066666666666,
+    "model_issue": "2026-09-03T14:00:00+00:00",
+    "deepfire_issue": "2026-09-03T14:53:45.208882Z",
+    "duration": 12,
+    "row": 1583,
+    "col": 5663,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "1.25,41.25",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "fb625442-2ca1-4226-9580-2db013d911b1",
+    "cluster_id": "bd4809bc-08c6-4c5c-aaa5-cbbb5ff66c5d",
+    "name": "Alt Pened\u00e8s, Catalunya",
+    "lat": 41.24993,
+    "lon": 1.61361,
+    "model_issue": "2026-09-03T14:00:00+00:00",
+    "deepfire_issue": "2026-09-03T14:53:20.599642Z",
+    "duration": 12,
+    "row": 1577,
+    "col": 5697,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "1.5,41.25",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "128797e7-c35f-4460-b74b-1218d5a201f0",
+    "cluster_id": "58012f81-7f1a-4637-988e-3b7489c39072",
+    "name": "Alt Camp, Catalunya",
+    "lat": 41.31531,
+    "lon": 1.25782,
+    "model_issue": "2026-09-03T14:00:00+00:00",
+    "deepfire_issue": "2026-09-03T14:52:30.838162Z",
+    "duration": 12,
+    "row": 1573,
+    "col": 5668,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "1.25,41.25",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "423358fc-ddd0-4e15-8c27-5072d35874ea",
+    "cluster_id": "e09837a4-2df6-4219-80cb-c5418f389580",
+    "name": "Baix Empord\u00e0, Catalunya",
+    "lat": 41.868648529052734,
+    "lon": 3.0007190704345703,
+    "model_issue": "2026-09-03T12:00:00+00:00",
+    "deepfire_issue": "2026-09-03T12:37:37.231002Z",
+    "duration": 12,
+    "row": 1534,
+    "col": 5806,
+    "spatial_group": "native256-5-22",
+    "group_roles": [
+      "test"
+    ],
+    "overlap_roles": [
+      "test",
+      "train"
+    ],
+    "weather_cached": false,
+    "weather_key": "3.0,41.75",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "63ee4f2e-cc80-42f2-a0ac-cf1c76b47f16",
+    "cluster_id": "7f578557-10f2-4c44-a97e-1a0f03a59e35",
+    "name": "Segarra, Catalunya",
+    "lat": 41.813959371512276,
+    "lon": 1.2684652139963422,
+    "model_issue": "2026-09-03T04:00:00+00:00",
+    "deepfire_issue": "2026-09-03T04:43:05.067966Z",
+    "duration": 12,
+    "row": 1537,
+    "col": 5668,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "test",
+      "train"
+    ],
+    "weather_cached": false,
+    "weather_key": "1.25,41.75",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "a40b5795-16c1-4ec9-9827-6db0cb7b6f94",
+    "cluster_id": "73d78ba6-a9a8-4073-b3cb-d1217e7c602e",
+    "name": "41.4935, 1.9013",
+    "lat": 41.49347,
+    "lon": 1.90125,
+    "model_issue": "2026-09-02T15:00:00+00:00",
+    "deepfire_issue": "2026-09-02T15:43:36.149962Z",
+    "duration": 12,
+    "row": 1560,
+    "col": 5719,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "2.0,41.5",
+    "scan_files_present": 53,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "d00c4571-acbc-4f83-9ffd-a63dd4977a28",
+    "cluster_id": "443b17b4-1ef7-4777-b237-3f3579a0dd56",
+    "name": "Garrotxa, Catalunya",
+    "lat": 42.20107,
+    "lon": 2.72105,
+    "model_issue": "2026-09-02T15:00:00+00:00",
+    "deepfire_issue": "2026-09-02T15:43:22.226303Z",
+    "duration": 12,
+    "row": 1511,
+    "col": 5782,
+    "spatial_group": "native256-5-22",
+    "group_roles": [
+      "test"
+    ],
+    "overlap_roles": [
+      "test",
+      "train"
+    ],
+    "weather_cached": false,
+    "weather_key": "2.75,42.25",
+    "scan_files_present": 53,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "d2f67826-ab94-44f0-b087-2c6c887574dd",
+    "cluster_id": "d0b05bb2-c0b5-4332-9f13-4fa89b8888f0",
+    "name": "Alt Empord\u00e0, Catalunya",
+    "lat": 42.29847,
+    "lon": 3.05681,
+    "model_issue": "2026-09-02T14:00:00+00:00",
+    "deepfire_issue": "2026-09-02T14:32:16.047715Z",
+    "duration": 12,
+    "row": 1504,
+    "col": 5808,
+    "spatial_group": "native256-5-22",
+    "group_roles": [
+      "test"
+    ],
+    "overlap_roles": [
+      "test",
+      "train"
+    ],
+    "weather_cached": false,
+    "weather_key": "3.0,42.25",
+    "scan_files_present": 53,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "24ccdba8-cb54-4817-969d-938680823715",
+    "cluster_id": "7f578557-10f2-4c44-a97e-1a0f03a59e35",
+    "name": "Segarra, Catalunya",
+    "lat": 41.81206,
+    "lon": 1.266295,
+    "model_issue": "2026-09-02T04:00:00+00:00",
+    "deepfire_issue": "2026-09-02T04:21:16.257869Z",
+    "duration": 12,
+    "row": 1538,
+    "col": 5668,
+    "spatial_group": "native256-6-22",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "test",
+      "train"
+    ],
+    "weather_cached": false,
+    "weather_key": "1.25,41.75",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "5f7f9f7d-c38f-4fd6-9dbf-d5ff68396d66",
+    "cluster_id": "8fa851be-c790-46b0-9e1b-0bd877e2f05a",
+    "name": "Montsi\u00e0, Catalunya",
+    "lat": 40.57527,
+    "lon": 0.5413,
+    "model_issue": "2026-09-02T04:00:00+00:00",
+    "deepfire_issue": "2026-09-02T04:21:06.261409Z",
+    "duration": 12,
+    "row": 1626,
+    "col": 5611,
+    "spatial_group": "native256-6-21",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "0.5,40.5",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  },
+  {
+    "id": "6d6c71e5-fe93-426d-a08e-077e65b39c68",
+    "cluster_id": "b82e4f31-316f-47b7-8845-0f2de7f1c99e",
+    "name": "Montsi\u00e0, Catalunya",
+    "lat": 40.57841,
+    "lon": 0.53965,
+    "model_issue": "2026-09-01T04:00:00+00:00",
+    "deepfire_issue": "2026-09-01T04:29:21.179859Z",
+    "duration": 12,
+    "row": 1625,
+    "col": 5611,
+    "spatial_group": "native256-6-21",
+    "group_roles": [
+      "train"
+    ],
+    "overlap_roles": [
+      "train"
+    ],
+    "weather_cached": true,
+    "weather_key": "0.5,40.5",
+    "scan_files_present": 54,
+    "scan_files_needed": 54
+  }
+]

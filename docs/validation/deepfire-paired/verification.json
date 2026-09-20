@@ -1,0 +1,9 @@
+{
+  "summary_exact": true,
+  "frame_files_exact": 114,
+  "input_parity": {
+    "event": "2521a4ba462377a0b4f2d393",
+    "x_equal": true,
+    "p_equal": true
+  }
+}
