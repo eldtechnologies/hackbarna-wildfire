@@ -244,15 +244,26 @@ key. The two are not interchangeable, so live mode means exchanging the pair out
 putting the resulting `access_token` into `DEEPFIRE_API_KEY`:
 
 ```bash
+# .env is auto-loaded by `npm run server`, not by your shell, so load it here.
+set -a; . ./.env; set +a
+
+# The body goes in on stdin so the secret never becomes a process argument.
 curl -s -X POST "https://api.deepfire.co/v1/token" \
-  -H "Content-Type: application/json" \
-  -d "{\"client_id\": \"$DEEPFIRE_CLIENT_ID\", \"client_secret\": \"$DEEPFIRE_CLIENT_SECRET\"}"
+  -H "Content-Type: application/json" --data-binary @- <<JSON
+{"client_id": "$DEEPFIRE_CLIENT_ID", "client_secret": "$DEEPFIRE_CLIENT_SECRET"}
+JSON
 ```
 
 The response carries `access_token`, `token_type: "Bearer"` and `expires_in` — about 180 days,
-with no refresh token, so re-exchange the same credentials when it lapses. Keep the client pair in
-`.env` for the exchange, but note that the server itself never reads them: `DEEPFIRE_CLIENT_ID`
-and `DEEPFIRE_CLIENT_SECRET` are used by your exchange step and by nothing else.
+with no refresh token. Keep the client pair in `.env` for the exchange, but note that the server
+itself never reads them: `DEEPFIRE_CLIENT_ID` and `DEEPFIRE_CLIENT_SECRET` are used by your
+exchange step and by nothing else.
+
+An issued token is valid until it expires, and nothing in this repository revokes one — the
+server sends whatever `DEEPFIRE_API_KEY` holds. So a leaked token is not repaired by exchanging
+the same pair again: the remedy is to rotate the `client_id`/`client_secret` pair and exchange a
+fresh one, which invalidates the old pair rather than the token already issued from it. Treat the
+token as a long-lived secret and keep it out of anything that retains text.
 
 If `DEEPFIRE_API_KEY` is empty while `DATA_MODE=live`, the first request throws, the provider logs
 a warning, and the response comes back from replay with `provenance: "replay"`. The HUD badge

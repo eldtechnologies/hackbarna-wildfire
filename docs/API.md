@@ -92,8 +92,12 @@ Returns `status` (`state` of `available` / `partial` / `unavailable`, plus `load
 `failedFiles` and `rejectedFeatures`), `assets` and `powerLinePaths`.
 
 A missing or unparseable GeoJSON file degrades `status.state` rather than failing the request, so
-a partial bundle is visible in the response instead of looking like an empty region. `assets`
-carries 7,000 point features and `powerLinePaths` 1,241 lines in the committed bundle.
+a partial bundle is visible in the response instead of looking like an empty region.
+
+`assets` carries all 7,000 features in the committed bundle: 5,759 points (hospitals, schools,
+towns) and 1,241 power lines. The line assets appear in `assets` as well as in `powerLinePaths`,
+which is the id-keyed lookup for their geometry — so do not read `assets` as points only, and do
+not add the two arrays together.
 
 `502` infrastructure data unavailable. Read once per process.
 

@@ -67,7 +67,7 @@ Committed to the repository:
 | --- | --- |
 | Deepfire replay snapshot (2,743 hotspots) | `data/snapshots/los-gallardos-2026-07-09.json` |
 | Road graph (13,069 nodes / 29,834 edges) | `data/graph/los-gallardos.json` |
-| Infrastructure bundle (7,000 point assets / 1,241 power lines) | `data/infrastructure/*.geojson` |
+| Infrastructure bundle (7,000 features: 5,759 points and 1,241 power lines) | `data/infrastructure/*.geojson` |
 | Catastro footprints and INE population | `data/pockets/` |
 | OpenCelliD cells (625) | `data/reach/cells.json` |
 | Corpus metrics and fixtures | `data/model/` |
