@@ -120,7 +120,7 @@ body,
 
 .hud-side-panels {
   position: absolute;
-  top: 72px;
+  top: 136px;
   bottom: 56px;
   right: 52px;
   width: 380px;
@@ -148,10 +148,10 @@ body,
 /* One scrollable inspector owns the fire list, forecast controls and threats. */
 .hud-fire-panels {
   position: absolute;
-  top: 72px;
+  top: 136px;
   left: 52px;
   width: min(340px, calc(50vw - 68px));
-  max-height: calc(100vh - 332px);
+  max-height: calc(100vh - 396px);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -627,3 +627,33 @@ body,
   .hud-title-sub { display: none; }
   .hud-header { left: 24px; right: 24px; }
 }
+
+.hud-source { position:absolute; top:54px; left:52px; right:52px; pointer-events:auto; }
+.console-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.console-controls .hud-btn { flex:none; padding:5px 10px; background:rgba(10,14,18,.9); }
+.source-label { display:flex; align-items:center; gap:8px; font-size:10px; color:var(--dim); }
+.source-label select { background:var(--bg); color:var(--cyan); border:1px solid var(--line); padding:5px; font:inherit; }
+.source-status, .map-status, .sensor-note { font-size:10px; line-height:1.8; background:rgba(10,14,18,.88); color:var(--amber); }
+.map-status:empty { display:none; }
+.sensor-note { margin-left:10px; }
+.sensor-view { filter:grayscale(1) contrast(1.65) brightness(1.1); }
+.hud-layers { display:grid; grid-template-columns:1fr 1fr; gap:0 16px; width:100%; }
+.hud-layers .hud-panel-title { grid-column:1 / -1; }
+.agent-header { flex-wrap:wrap; gap:8px; font-size:10px; }
+.agent-more { margin:6px 14px; min-height:28px; flex:none; }
+.threat-group summary { cursor:pointer; list-style:none; }
+.threat-group summary .threat-ring-heading::before { content:'▸ '; }
+.threat-group[open] summary .threat-ring-heading::before { content:'▾ '; }
+.threat-group summary:focus-visible { outline:1px solid var(--amber); }
+.hud-fire-meta { white-space:nowrap; font-size:10px; }
+@media(max-width:900px) {
+  .hud-source { left:16px; right:16px; }
+  .console-controls { gap:4px; }
+  .console-controls .hud-btn { padding:5px; font-size:9px; }
+  .hud-side-panels, .hud-fire-panels { top:156px; }
+  .hud-fire-panels { max-height:calc(100vh - 416px); }
+  .hud-layers { gap:0 4px; font-size:10px; padding:6px; }
+}
+
+.inspectors-hidden .hud-fire-panels, .inspectors-hidden .hud-side-panels,
+.inspectors-hidden .hud-replay { display:none; }

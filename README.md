@@ -78,10 +78,33 @@ when the selected fire has no forecast polygons. A recorded observation is not a
 prediction. Historical availability uses the documented source-delay assumptions;
 cluster association remains retrospective (see `docs/forecast-contract.md`).
 
-The server has two data sources, selected with `DATA_MODE`:
+The source selector changes data for this browser only: **Live satellite observations**,
+**Recorded fire · Los Gallardos**, and **Exercise · Castelltallat**. A configured
+`REPLAY_SNAPSHOT` is also available as **Configured recording**. Source and cursor
+travel together through fire, threat, situation and growth requests (`source=live|replay|drill|configured`).
+
+The exercise contains synthetic mock hotspots and polygons; its badge, report and
+forecast controls say so. The repaired simulation clock spans about 3.5 hours,
+with +2/+4/+6/+8h illustrative spread. Original wall-clock capture timestamps remain
+in `capturedAt`. It is not a real fire, model evaluation, or an evacuation forecast.
+
+Use **RESET** to reset spread playback, **REFRAME** to repeat the fire camera flight,
+and **IBERIA** to return to the overview. **PANELS** hides or restores the inspectors
+for a clear map view on smaller screens. The fire list includes clusters without
+perimeters. Threat ring headings always show their counts when assets are available;
+expand a ring for its assets. Reports show the first eight computed priorities,
+with **SHOW ALL** for the full list.
+
+**SENSOR** applies a high-contrast monochrome visual filter to the map. It does not
+supply FLIR imagery or measured temperatures. **MAP: OFFLINE GRID** uses a locally
+rendered coordinate grid under the fire and infrastructure layers. Imagery errors
+also switch to this grid, with a visible status. Satellite imagery needs internet;
+local replay, geometry and the template report do not.
+
+The initial source is selected with `DATA_MODE`:
 
 - `replay` (default): serves a cached snapshot from `data/snapshots/`. Works with no keys and no network.
-- `live`: calls the Deepfire API (`DEEPFIRE_BASE_URL`, `DEEPFIRE_API_KEY`) and normalizes the response. On any failure it transparently falls back to replay, so a dead API or venue wifi never blanks the demo.
+- `live`: calls the Deepfire API (`DEEPFIRE_BASE_URL`, `DEEPFIRE_API_KEY`) and normalizes the response. After at most eight seconds of upstream work, a failure aborts all collection requests and falls back to the pinned real Los Gallardos capture. The UI names the fallback. Seeking it stays on that recording even if the live API recovers. Live mode currently fetches observations and perimeters; it does not request a spread simulation.
 
 Put keys in a `.env` file at the project root (gitignored, auto-loaded by `npm run server`):
 
@@ -117,6 +140,10 @@ DEEPFIRE_BASE_URL=http://localhost:4590 npm run record:snapshot -- --scenario <n
 
 Files are written as `data/snapshots/<scenario>-<UTCstamp>.json`. The mock's fire grows on an accelerated clock, so you can capture hours of fire growth in under two minutes.
 
+The recorder defaults to `--kind exercise`, using simulated observation times for
+frame selection and retaining wall-clock `capturedAt`. Only use `--kind observations`
+for genuine observations; that mode does not invent delivery or forecast issue times.
+
 ### Replaying a recorded event as a timeline
 
 A recording carries its frames' timestamps. `/api/fires` returns a `timeline` block (`start`, `end`, `durationSeconds`, `frames`) and serves the latest frame by default (the live edge). Scrub the event with `?at=<seconds>` (seconds since the first frame):
@@ -137,7 +164,7 @@ curl localhost:3001/api/fires?at=106  # last frame of the committed drill (its d
 
 For rehearsal without the real API, `npm run mock:deepfire` serves the flat raw shape on `http://localhost:4590` (`MOCK_PORT`, `MOCK_SPEED` for simulated seconds per real second, default 120). The fire grows on the accelerated clock, so an 8-frame, 15-second-interval recording captures roughly 3.5 simulated hours of a fire. The mock is consumed by `npm run record:snapshot`; it does not serve the OGC paths the live provider calls, so it cannot stand in for `DATA_MODE=live`.
 
-The committed `castelltallat-drill-*.json` recording was captured this way: 8 frames, hotspots 10 to 13, perimeter 7.4 to 11 km2. Select it with `REPLAY_SNAPSHOT=castelltallat-drill` (the prefix picks the newest matching recording).
+The committed **synthetic exercise** `castelltallat-drill-*.json` recording was captured this way: 8 frames, hotspots 10 to 13, perimeter 7.4 to 11 km2. Select it with `REPLAY_SNAPSHOT=castelltallat-drill` (the prefix picks the newest matching recording).
 ## Egress engine
 
 `server/engine/` answers a different question from the console: not "where is the fire"

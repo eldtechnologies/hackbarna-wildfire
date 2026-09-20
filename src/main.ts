@@ -1,7 +1,8 @@
+import { initSourcePanel } from './hud/sourcePanel';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import './style.css';
 import { Cartesian3 } from 'cesium';
-import { createGlobeViewer } from './globe/viewer';
+import { createGlobeViewer, initMapControls } from './globe/viewer';
 import { initHud } from './hud/hud';
 import { initFirePanels } from './hud/firePanels';
 import { FireLayer } from './fires/fireLayer';
@@ -28,6 +29,7 @@ const fireLayer = new FireLayer(viewer);
 const firePanels = initFirePanels(fireLayer, hudRoot);
 const hotspotLayer = createFireLayer(viewer, firePanels);
 const playback = new FirePlayback(fetchFires);
+initMapControls(viewer, initSourcePanel(playback, hudRoot));
 initReplayPanel(playback, hudRoot);
 
 const threatPanel = document.createElement('div');

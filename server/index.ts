@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LEDGER_PATH, SERVER_HOST, SERVER_PORT } from './config';
 import { openLedger } from './engine/ledger';
-import { getFires } from './providers';
+import { getFires, parseSource } from './providers';
 import { getInfrastructure } from './infrastructure';
 import { getThreats } from './threats';
 import { getSituation } from './situation';
@@ -37,7 +37,7 @@ export function createApp(metrics: () => Metrics = loadMetrics, forecasts = new 
     try {
       // An absent cursor serves the replay edge; malformed cursors fail closed.
       const atSeconds = parseCursor(req.query.at);
-      res.json(await getFires(atSeconds));
+      res.json(await getFires(atSeconds, parseSource(req.query.source)));
     } catch (err) {
       if (err instanceof CursorError) { res.status(400).json({error:err.message}); return; }
       console.error('[api] /api/fires failed:', err);
@@ -61,7 +61,7 @@ export function createApp(metrics: () => Metrics = loadMetrics, forecasts = new 
       return;
     }
     try {
-      const threats = await getThreats(fireId,await getFires(parseCursor(req.query.at)));
+      const threats = await getThreats(fireId,await getFires(parseCursor(req.query.at), parseSource(req.query.source)));
       if (!threats) {
         res.status(404).json({ error: `unknown fireId ${fireId}` });
         return;
@@ -78,7 +78,7 @@ export function createApp(metrics: () => Metrics = loadMetrics, forecasts = new 
     const fireId=typeof req.query.fireId==='string' ? req.query.fireId : '';
     if (!fireId) {res.status(400).json({error:'fireId query parameter required'});return;}
     try {
-      const situation=await getSituation(fireId,parseCursor(req.query.at));
+      const situation=await getSituation(fireId,parseCursor(req.query.at),parseSource(req.query.source));
       if (!situation) {res.status(404).json({error:'unknown fireId'});return;}
       res.json(situation);
     } catch(err) {
@@ -100,7 +100,7 @@ export function createApp(metrics: () => Metrics = loadMetrics, forecasts = new 
       return;
     }
     try {
-      const evidence = await getFires(parseCursor(req.query.at));
+      const evidence = await getFires(parseCursor(req.query.at), parseSource(req.query.source));
       const body = growthFor(clusterId, evidence, new Date(evidence.asOf ?? evidence.fetchedAt), metrics);
       if (!body) {
         res.status(404).json({ error: 'cluster not found' });

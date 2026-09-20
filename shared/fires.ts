@@ -65,7 +65,14 @@ export interface ReplayTimeline {
   frames: string[]; // frame timestamps, ascending
 }
 
+export type FireSource = 'live' | 'replay' | 'drill' | 'configured';
+export type FireDataKind = 'observations' | 'exercise';
+
 export interface FiresResponse {
+  source?: FireSource;
+  requestedSource?: FireSource;
+  dataKind?: FireDataKind;
+  fallbackReason?: 'live_unavailable';
   provenance: 'live' | 'replay';
   fetchedAt: string;
   scenario: string | null; // snapshot id when replaying, null when live

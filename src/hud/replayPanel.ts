@@ -52,7 +52,8 @@ export function initReplayPanel(playback: FirePlayback, root: HTMLElement): void
     const timeline = replayTimeline(state.data);
     const position = replayPosition(state.data);
     const duration = timeline?.durationSeconds ?? 0;
-    const unavailable = !timeline;
+    const switchingSource = state.loading && state.source !== undefined && state.source !== state.data?.requestedSource;
+    const unavailable = !timeline || switchingSource;
     time.textContent = state.data?.asOf ? timestamp(state.data.asOf) : '';
     buttons.start.disabled = buttons.back.disabled = unavailable || position === 0;
     buttons.end.disabled = buttons.forward.disabled = unavailable || position >= duration;
@@ -71,7 +72,7 @@ export function initReplayPanel(playback: FirePlayback, root: HTMLElement): void
       ? 'Could not load observations. The map shows the last loaded time.'
       : 'Could not load observations. No fire data has been loaded.')
       : state.loading ? 'Loading observations…'
-      : timeline ? `${state.data!.hotspots.length.toLocaleString()} detections available · ${state.playing ? 'Playing' : 'Paused'} · recorded observations`
+      : timeline ? `${state.data!.hotspots.length.toLocaleString()} detections available · ${state.playing ? 'Playing' : 'Paused'} · ${state.data?.dataKind === 'exercise' ? 'simulated exercise' : 'recorded observations'}`
       : state.data?.provenance === 'live' ? 'Live observations · historical replay unavailable'
       : 'No observation timeline available';
     retry.hidden = !state.error;

@@ -8,7 +8,7 @@ import { FirePlayback, replayPosition, replayTimeline } from './playback';
 /** Commit evidence before layer notifications can request dependent reports. */
 export function connectFireViews(playback: FirePlayback, views: {
   entities: Pick<Viewer['entities'], 'suspendEvents' | 'resumeEvents'>;
-  hud: { setMode(mode: FiresResponse['provenance']): void };
+  hud: { setMode(mode: FiresResponse['provenance'], kind?: FiresResponse['dataKind']): void };
   hotspots: { setData(data: FiresResponse): void };
   fires: Pick<FireLayer, 'onStateChange' | 'setData'>;
   selection: Pick<FireSelectionLayer, 'track' | 'setData'>;
@@ -18,13 +18,13 @@ export function connectFireViews(playback: FirePlayback, views: {
   views.fires.onStateChange(({selectedId}) => {
     const at = replayTimeline(evidence) ? replayPosition(evidence) : undefined;
     const key = evidence?.asOf ?? evidence?.fetchedAt ?? 'latest';
-    views.selection.track(selectedId, at, key);
-    views.agent.track(selectedId, at, key);
+    views.selection.track(selectedId, at, key, evidence?.source);
+    views.agent.track(selectedId, at, key, evidence?.source);
   });
   playback.subscribe(({data}) => {
     if (!data || data === evidence) return;
     evidence = data;
-    views.hud.setMode(data.provenance);
+    views.hud.setMode(data.provenance, data.dataKind);
     views.entities.suspendEvents();
     try {
       views.hotspots.setData(data);

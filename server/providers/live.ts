@@ -134,11 +134,11 @@ export function requestInit(signal: AbortSignal): RequestInit {
   };
 }
 
-async function fetchPage<T>(base: string, path: string): Promise<T[]> {
+async function fetchPage<T>(base: string, path: string, signal: AbortSignal): Promise<T[]> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(`${base}${path}`, requestInit(controller.signal));
+    const res = await fetch(`${base}${path}`, requestInit(AbortSignal.any([controller.signal, signal])));
     if (!res.ok) throw new UpstreamError(res.status, `Deepfire ${path} returned ${res.status}`);
     return requireFeatures<T>(await res.json(), path);
   } finally {
@@ -164,16 +164,17 @@ export async function pageAll<T>(
   }
 }
 
-async function fetchPaged<T>(base: string, basePath: string): Promise<T[]> {
+async function fetchPaged<T>(base: string, basePath: string, signal: AbortSignal): Promise<T[]> {
   // Every path in the loop either returns or throws, so there is no trailing
   // fallback to reach.
   return pageAll<T>(async (start) => {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+      signal.throwIfAborted();
       try {
-        return await fetchPage<T>(base, `${basePath}&limit=${PAGE_LIMIT}&startIndex=${start}`);
+        return await fetchPage<T>(base, `${basePath}&limit=${PAGE_LIMIT}&startIndex=${start}`, signal);
       } catch (err) {
         // Retry only what can improve. A 4xx is a bad request and will not.
-        if (!isRetryable(err) || attempt === MAX_ATTEMPTS - 1) throw err;
+        if (signal.aborted || !isRetryable(err) || attempt === MAX_ATTEMPTS - 1) throw err;
         await sleep(500 * 2 ** attempt);
       }
     }
@@ -214,13 +215,12 @@ export function windowPath(collection: string, from: Date, to: Date): string {
   return `/${collection}/items?${params.toString()}`;
 }
 
-async function fetchWindowed<T>(base: string, collection: string): Promise<T[]> {
-  const now = new Date();
+async function fetchWindowed<T>(base: string, collection: string, signal: AbortSignal, now: Date): Promise<T[]> {
   const from = new Date(now.getTime() - WINDOW_HOURS * 60 * 60 * 1000);
   const all: T[] = [];
   // One day per request. A wide range returns 500 on the second page.
   for (const w of dayWindows(from, now)) {
-    all.push(...(await fetchPaged<T>(base, windowPath(collection, w.from, w.to))));
+    all.push(...(await fetchPaged<T>(base, windowPath(collection, w.from, w.to), signal)));
   }
   return all;
 }
@@ -234,12 +234,20 @@ export class LiveProvider implements FireDataProvider {
       throw new Error('DEEPFIRE_API_KEY is not set');
     }
     const base = collectionsBase();
-    const [hotspots, clusters, perimeters] = await Promise.all([
-      fetchWindowed<RawHotspot>(base, 'deepfire:hotspots'),
-      fetchWindowed<RawCluster>(base, 'deepfire:clusters'),
-      fetchWindowed<RawPerimeter>(base, 'deepfire:satellite-perimeters'),
-    ]);
-    const payload: RawFiresPayload = { hotspots, clusters, perimeters };
-    return normalize(payload, 'live', null);
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), 8000);
+    const now = new Date();
+    try {
+      const [hotspots, clusters, perimeters] = await Promise.all([
+        fetchWindowed<RawHotspot>(base, 'deepfire:hotspots', controller.signal, now),
+        fetchWindowed<RawCluster>(base, 'deepfire:clusters', controller.signal, now),
+        fetchWindowed<RawPerimeter>(base, 'deepfire:satellite-perimeters', controller.signal, now),
+      ]);
+      const payload: RawFiresPayload = { hotspots, clusters, perimeters };
+      return {...normalize(payload, 'live', null), dataKind: 'observations'};
+    } finally {
+      clearTimeout(deadline);
+      controller.abort();
+    }
   }
 }

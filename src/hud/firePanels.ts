@@ -33,7 +33,10 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
   const close = el('button', 'hud-scrubber-close', 'CLOSE');
   close.addEventListener('click', () => layer.deselect());
   titleRow.appendChild(scrubName);
-  titleRow.appendChild(close);
+  const reframe = el('button', 'hud-scrubber-close', 'REFRAME');
+  reframe.setAttribute('aria-label', 'Reframe selected fire');
+  reframe.onclick = () => { if (stateRef.selectedId) layer.select(stateRef.selectedId, {flyTo: true}); };
+  titleRow.append(reframe, close);
 
   const timeRow = el('div', 'hud-scrubber-time');
   const tPlus = el('span', 'hud-scrubber-tplus');
@@ -47,16 +50,23 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
   const play = el('button', 'hud-btn', 'PLAY');
   const stepFwd = el('button', 'hud-btn', '+1H');
   play.setAttribute('aria-label', 'Play spread forecast');
+  stepBack.setAttribute('aria-label', 'Back one forecast hour');
+  stepFwd.setAttribute('aria-label', 'Forward one forecast hour');
   stepBack.addEventListener('click', () => layer.setScrub(stateRef.scrubHours - 1));
   stepFwd.addEventListener('click', () => layer.setScrub(stateRef.scrubHours + 1));
   play.addEventListener('click', () => layer.setPlaying(!stateRef.playing));
   controlsRow.appendChild(stepBack);
   controlsRow.appendChild(play);
   controlsRow.appendChild(stepFwd);
+  const reset = el('button', 'hud-btn', 'RESET');
+  reset.setAttribute('aria-label', 'Reset spread forecast');
+  reset.onclick = () => layer.setScrub(0);
+  controlsRow.appendChild(reset);
 
   const sliderRow = el('div', 'hud-scrubber-slider');
   const slider = document.createElement('input');
   slider.type = 'range';
+  slider.setAttribute('aria-label', 'Forecast horizon');
   slider.min = '0';
   slider.step = String(SCRUB_SNAP);
   slider.addEventListener('input', () => layer.setScrub(Number(slider.value)));
@@ -88,26 +98,29 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
   let lastSelectedId: string | null = null;
 
   const renderList = (state: FireLayerState) => {
-    const selectedId = state.selectedCase?.cluster.id ?? null;
+    const selectedId = state.selectedId;
     if (state.cases === lastCases && selectedId === lastSelectedId) return;
     lastCases = state.cases;
     lastSelectedId = selectedId;
     listPanel.replaceChildren(el('div', 'hud-panel-title', 'FIRES'));
-    if (state.cases.length === 0) {
-      listPanel.appendChild(el('div', 'hud-fires-empty', 'NO ACTIVE PERIMETERS'));
+    const clusters = state.clusters ?? state.cases.map(c => c.cluster);
+    if (clusters.length === 0) {
+      listPanel.appendChild(el('div', 'hud-fires-empty', 'NO FIRE DETECTIONS'));
       return;
     }
-    for (const caseData of state.cases) {
+    const cases = new Map(state.cases.map(c => [c.cluster.id, c]));
+    for (const cluster of clusters) {
+      const caseData = cases.get(cluster.id);
       const row = el('button', 'hud-fire-row');
       row.classList.toggle(
         'hud-fire-row-selected',
-        caseData.cluster.id === state.selectedCase?.cluster.id,
+        cluster.id === state.selectedId,
       );
-      const name = el('span', 'hud-fire-name', clusterDisplayName(caseData.cluster));
-      const meta = el('span', 'hud-fire-meta', `${caseData.areaKm2.toFixed(1)} KM2`);
+      const name = el('span', 'hud-fire-name', clusterDisplayName(cluster));
+      const meta = el('span', 'hud-fire-meta', caseData ? `${caseData.areaKm2.toFixed(1)} KM2` : 'HOTSPOTS ONLY');
       row.appendChild(name);
       row.appendChild(meta);
-      row.addEventListener('click', () => layer.select(caseData.cluster.id, { flyTo: true }));
+      row.addEventListener('click', () => layer.select(cluster.id, { flyTo: true }));
       listPanel.appendChild(row);
     }
   };
@@ -115,10 +128,15 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
   const renderScrubber = (state: FireLayerState) => {
     const selected = state.selectedCase;
     if (!selected) {
-      scrubPanel.hidden = true;
+      scrubPanel.hidden = !state.selectedId;
+      scrubName.textContent = clusterDisplayName(state.clusters?.find(c => c.id === state.selectedId) ?? {id:state.selectedId ?? '', name:null});
+      availability.textContent = 'Hotspot observations only. No perimeter or spread forecast available.';
+      timeRow.hidden = sliderRow.hidden = tickRow.hidden = statsRow.hidden = true;
+      play.disabled = stepBack.disabled = stepFwd.disabled = reset.disabled = true;
       return;
     }
     scrubPanel.hidden = false;
+    statsRow.hidden = false;
 
     scrubName.textContent = clusterDisplayName(selected.cluster);
     tPlus.textContent = `T${state.scrubHours > 0 ? `+${state.scrubHours.toFixed(1)}H` : 'NOW'}`;
@@ -126,13 +144,16 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
       ? `VALID ${formatClock(state.projection.validAt)}`
       : '';
     play.textContent = state.playing ? 'PAUSE' : 'PLAY';
+    play.setAttribute('aria-label', state.playing ? 'Pause spread forecast' : 'Play spread forecast');
 
     const max = selected.maxHorizonHours;
     const canForecast = max > 0;
     availability.textContent = canForecast
-      ? `Forecast from ${formatClock(selected.basePerimeter.observedAt)} · not recorded observations`
+      ? `${state.dataKind === 'exercise' ? 'Exercise projection' : 'Forecast'} from ${formatClock(selected.basePerimeter.observedAt)} · ${state.dataKind === 'exercise' ? 'illustrative, not a validated prediction' : 'not recorded observations'}`
       : 'No spread forecast available at this observation time.';
-    play.disabled = stepBack.disabled = stepFwd.disabled = !canForecast;
+    play.disabled = reset.disabled = !canForecast;
+    stepBack.disabled = !canForecast || state.scrubHours <= 0;
+    stepFwd.disabled = !canForecast || state.scrubHours >= max;
     slider.disabled = !canForecast;
     sliderRow.hidden = tickRow.hidden = timeRow.hidden = !canForecast;
     if (!canForecast) play.textContent = 'PLAY';
@@ -160,14 +181,17 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
 
   // While the user drags the slider, its own position wins over state pushes.
   let dragging = false;
-  slider.addEventListener('pointerdown', () => {
+  slider.addEventListener('pointerdown', event => {
     dragging = true;
+    slider.setPointerCapture(event.pointerId);
   });
   const stopDrag = () => {
     dragging = false;
   };
   slider.addEventListener('pointerup', stopDrag);
   slider.addEventListener('pointercancel', stopDrag);
+  slider.addEventListener('lostpointercapture', stopDrag);
+  slider.addEventListener('blur', stopDrag);
 
   layer.onStateChange((state) => {
     Object.assign(stateRef, state);

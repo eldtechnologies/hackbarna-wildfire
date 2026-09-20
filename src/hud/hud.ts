@@ -13,7 +13,7 @@ import { LAYERS, LAYER_COLORS, isLayerVisible, setLayerVisible } from '../layers
 export interface HudHandle {
   sidePanels: HTMLElement;
   /** Update the LIVE/REPLAY badge from the API response provenance. */
-  setMode: (mode: 'live' | 'replay') => void;
+  setMode: (mode: 'live' | 'replay', kind?: 'observations' | 'exercise') => void;
 }
 
 function el(tag: string, className = '', text = ''): HTMLElement {
@@ -107,8 +107,8 @@ export function initHud(viewer: Viewer, root: HTMLElement): HudHandle {
 
   return {
     sidePanels,
-    setMode(mode) {
-      modeBadge.textContent = mode.toUpperCase();
+    setMode(mode, kind) {
+      modeBadge.textContent = kind === 'exercise' ? 'EXERCISE' : mode.toUpperCase();
       // Live gets the cyan accent; replay keeps the default amber.
       modeBadge.classList.toggle('hud-badge-live', mode === 'live');
     },

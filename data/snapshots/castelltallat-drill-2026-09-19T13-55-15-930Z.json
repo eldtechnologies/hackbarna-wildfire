@@ -4,7 +4,7 @@
  "intervalSeconds": 15,
  "frames": [
   {
-   "t": "2026-09-19T13:53:30.893Z",
+   "t": "2026-09-19T13:59:59.782Z",
    "hotspots": [
     {
      "type": "Feature",
@@ -23,7 +23,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 119.9,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T13:59:59.782Z"
      }
     },
     {
@@ -43,7 +44,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 97.4,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T13:59:59.782Z"
      }
     },
     {
@@ -63,7 +65,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 75.7,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T13:59:59.782Z"
      }
     },
     {
@@ -83,7 +86,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 62.3,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T13:59:59.782Z"
      }
     },
     {
@@ -103,7 +107,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 55.7,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T13:59:59.782Z"
      }
     },
     {
@@ -123,7 +128,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 43.2,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T13:59:59.782Z"
      }
     },
     {
@@ -143,7 +149,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 34.3,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T13:59:59.782Z"
      }
     },
     {
@@ -163,7 +170,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 22.7,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T13:59:59.782Z"
      }
     },
     {
@@ -183,7 +191,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 15.3,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T13:59:59.782Z"
      }
     },
     {
@@ -203,7 +212,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 8.7,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T13:59:59.782Z"
      }
     }
    ],
@@ -274,7 +284,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T13:59:59.782Z"
     },
     {
      "cluster_id": "cl-01",
@@ -322,7 +333,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T13:59:59.782Z"
     },
     {
      "cluster_id": "cl-01",
@@ -370,7 +382,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T13:59:59.782Z"
     },
     {
      "cluster_id": "cl-01",
@@ -418,7 +431,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T13:59:59.782Z"
     },
     {
      "cluster_id": "cl-01",
@@ -466,12 +480,14 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T13:59:59.782Z"
     }
-   ]
+   ],
+   "capturedAt": "2026-09-19T13:53:30.893Z"
   },
   {
-   "t": "2026-09-19T13:53:45.900Z",
+   "t": "2026-09-19T14:30:00.862Z",
    "hotspots": [
     {
      "type": "Feature",
@@ -490,7 +506,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 126.9,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T14:30:00.862Z"
      }
     },
     {
@@ -510,7 +527,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 103.1,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T14:30:00.862Z"
      }
     },
     {
@@ -530,7 +548,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 80.1,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T14:30:00.862Z"
      }
     },
     {
@@ -550,7 +569,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 65.9,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T14:30:00.862Z"
      }
     },
     {
@@ -570,7 +590,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 58.9,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T14:30:00.862Z"
      }
     },
     {
@@ -590,7 +611,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 45.8,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T14:30:00.862Z"
      }
     },
     {
@@ -610,7 +632,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 36.3,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T14:30:00.862Z"
      }
     },
     {
@@ -630,7 +653,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 24,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T14:30:00.862Z"
      }
     },
     {
@@ -650,7 +674,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 16.2,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T14:30:00.862Z"
      }
     },
     {
@@ -670,7 +695,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 9.2,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T14:30:00.862Z"
      }
     }
    ],
@@ -741,7 +767,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T14:30:00.862Z"
     },
     {
      "cluster_id": "cl-01",
@@ -789,7 +816,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T14:30:00.862Z"
     },
     {
      "cluster_id": "cl-01",
@@ -837,7 +865,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T14:30:00.862Z"
     },
     {
      "cluster_id": "cl-01",
@@ -885,7 +914,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T14:30:00.862Z"
     },
     {
      "cluster_id": "cl-01",
@@ -933,12 +963,14 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T14:30:00.862Z"
     }
-   ]
+   ],
+   "capturedAt": "2026-09-19T13:53:45.900Z"
   },
   {
-   "t": "2026-09-19T13:54:00.905Z",
+   "t": "2026-09-19T15:00:01.342Z",
    "hotspots": [
     {
      "type": "Feature",
@@ -957,7 +989,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 134.3,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:00:01.342Z"
      }
     },
     {
@@ -977,7 +1010,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 109.1,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:00:01.342Z"
      }
     },
     {
@@ -997,7 +1031,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 84.8,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:00:01.342Z"
      }
     },
     {
@@ -1017,7 +1052,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 69.7,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:00:01.342Z"
      }
     },
     {
@@ -1037,7 +1073,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 62.4,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:00:01.342Z"
      }
     },
     {
@@ -1057,7 +1094,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 48.4,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:00:01.342Z"
      }
     },
     {
@@ -1077,7 +1115,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 38.4,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:00:01.342Z"
      }
     },
     {
@@ -1097,7 +1136,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 25.4,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:00:01.342Z"
      }
     },
     {
@@ -1117,7 +1157,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 17.1,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:00:01.342Z"
      }
     },
     {
@@ -1137,7 +1178,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 9.8,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:00:01.342Z"
      }
     },
     {
@@ -1157,7 +1199,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 20,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:00:01.342Z"
      }
     }
    ],
@@ -1228,7 +1271,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T15:00:01.342Z"
     },
     {
      "cluster_id": "cl-01",
@@ -1276,7 +1320,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T15:00:01.342Z"
     },
     {
      "cluster_id": "cl-01",
@@ -1324,7 +1369,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T15:00:01.342Z"
     },
     {
      "cluster_id": "cl-01",
@@ -1372,7 +1418,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T15:00:01.342Z"
     },
     {
      "cluster_id": "cl-01",
@@ -1420,12 +1467,14 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T15:00:01.342Z"
     }
-   ]
+   ],
+   "capturedAt": "2026-09-19T13:54:00.905Z"
   },
   {
-   "t": "2026-09-19T13:54:15.912Z",
+   "t": "2026-09-19T15:30:02.182Z",
    "hotspots": [
     {
      "type": "Feature",
@@ -1444,7 +1493,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 142.1,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:30:02.182Z"
      }
     },
     {
@@ -1464,7 +1514,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 115.5,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:30:02.182Z"
      }
     },
     {
@@ -1484,7 +1535,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 89.8,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:30:02.182Z"
      }
     },
     {
@@ -1504,7 +1556,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 73.8,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:30:02.182Z"
      }
     },
     {
@@ -1524,7 +1577,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 66,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:30:02.182Z"
      }
     },
     {
@@ -1544,7 +1598,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 51.2,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:30:02.182Z"
      }
     },
     {
@@ -1564,7 +1619,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 40.7,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:30:02.182Z"
      }
     },
     {
@@ -1584,7 +1640,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 26.9,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:30:02.182Z"
      }
     },
     {
@@ -1604,7 +1661,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 18.1,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:30:02.182Z"
      }
     },
     {
@@ -1624,7 +1682,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 10.3,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:30:02.182Z"
      }
     },
     {
@@ -1644,7 +1703,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 20,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T15:30:02.182Z"
      }
     }
    ],
@@ -1715,7 +1775,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T15:30:02.182Z"
     },
     {
      "cluster_id": "cl-01",
@@ -1763,7 +1824,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T15:30:02.182Z"
     },
     {
      "cluster_id": "cl-01",
@@ -1811,7 +1873,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T15:30:02.182Z"
     },
     {
      "cluster_id": "cl-01",
@@ -1859,7 +1922,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T15:30:02.182Z"
     },
     {
      "cluster_id": "cl-01",
@@ -1907,12 +1971,14 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T15:30:02.182Z"
     }
-   ]
+   ],
+   "capturedAt": "2026-09-19T13:54:15.912Z"
   },
   {
-   "t": "2026-09-19T13:54:30.917Z",
+   "t": "2026-09-19T16:00:02.902Z",
    "hotspots": [
     {
      "type": "Feature",
@@ -1931,7 +1997,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 150.4,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:00:02.782Z"
      }
     },
     {
@@ -1951,7 +2018,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 122.2,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:00:02.782Z"
      }
     },
     {
@@ -1971,7 +2039,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 95,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:00:02.782Z"
      }
     },
     {
@@ -1991,7 +2060,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 78.1,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:00:02.782Z"
      }
     },
     {
@@ -2011,7 +2081,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 69.9,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:00:02.782Z"
      }
     },
     {
@@ -2031,7 +2102,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 54.2,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:00:02.782Z"
      }
     },
     {
@@ -2051,7 +2123,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 43.1,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:00:02.782Z"
      }
     },
     {
@@ -2071,7 +2144,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 28.5,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:00:02.782Z"
      }
     },
     {
@@ -2091,7 +2165,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 19.2,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:00:02.782Z"
      }
     },
     {
@@ -2111,7 +2186,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 10.9,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:00:02.782Z"
      }
     },
     {
@@ -2131,7 +2207,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 20,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:00:02.782Z"
      }
     },
     {
@@ -2151,7 +2228,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 30.5,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:00:02.782Z"
      }
     }
    ],
@@ -2222,7 +2300,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T16:00:02.902Z"
     },
     {
      "cluster_id": "cl-01",
@@ -2270,7 +2349,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T16:00:02.902Z"
     },
     {
      "cluster_id": "cl-01",
@@ -2318,7 +2398,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T16:00:02.902Z"
     },
     {
      "cluster_id": "cl-01",
@@ -2366,7 +2447,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T16:00:02.902Z"
     },
     {
      "cluster_id": "cl-01",
@@ -2414,12 +2496,14 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T16:00:02.902Z"
     }
-   ]
+   ],
+   "capturedAt": "2026-09-19T13:54:30.917Z"
   },
   {
-   "t": "2026-09-19T13:54:45.921Z",
+   "t": "2026-09-19T16:30:03.502Z",
    "hotspots": [
     {
      "type": "Feature",
@@ -2438,7 +2522,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 159.1,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:30:03.262Z"
      }
     },
     {
@@ -2458,7 +2543,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 129.3,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:30:03.262Z"
      }
     },
     {
@@ -2478,7 +2564,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 100.5,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:30:03.262Z"
      }
     },
     {
@@ -2498,7 +2585,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 82.7,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:30:03.262Z"
      }
     },
     {
@@ -2518,7 +2606,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 73.9,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:30:03.262Z"
      }
     },
     {
@@ -2538,7 +2627,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 57.4,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:30:03.262Z"
      }
     },
     {
@@ -2558,7 +2648,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 45.6,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:30:03.262Z"
      }
     },
     {
@@ -2578,7 +2669,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 30.1,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:30:03.262Z"
      }
     },
     {
@@ -2598,7 +2690,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 20.3,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:30:03.262Z"
      }
     },
     {
@@ -2618,7 +2711,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 11.6,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:30:03.262Z"
      }
     },
     {
@@ -2638,7 +2732,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 20,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:30:03.262Z"
      }
     },
     {
@@ -2658,7 +2753,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 30.5,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T16:30:03.262Z"
      }
     }
    ],
@@ -2729,7 +2825,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T16:30:03.382Z"
     },
     {
      "cluster_id": "cl-01",
@@ -2777,7 +2874,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T16:30:03.382Z"
     },
     {
      "cluster_id": "cl-01",
@@ -2825,7 +2923,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T16:30:03.382Z"
     },
     {
      "cluster_id": "cl-01",
@@ -2873,7 +2972,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T16:30:03.382Z"
     },
     {
      "cluster_id": "cl-01",
@@ -2921,12 +3021,14 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T16:30:03.382Z"
     }
-   ]
+   ],
+   "capturedAt": "2026-09-19T13:54:45.921Z"
   },
   {
-   "t": "2026-09-19T13:55:00.926Z",
+   "t": "2026-09-19T17:00:04.102Z",
    "hotspots": [
     {
      "type": "Feature",
@@ -2945,7 +3047,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 168.4,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:00:03.982Z"
      }
     },
     {
@@ -2965,7 +3068,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 136.9,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:00:03.982Z"
      }
     },
     {
@@ -2985,7 +3089,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 106.4,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:00:03.982Z"
      }
     },
     {
@@ -3005,7 +3110,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 87.5,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:00:03.982Z"
      }
     },
     {
@@ -3025,7 +3131,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 78.2,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:00:03.982Z"
      }
     },
     {
@@ -3045,7 +3152,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 60.7,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:00:03.982Z"
      }
     },
     {
@@ -3065,7 +3173,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 48.2,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:00:03.982Z"
      }
     },
     {
@@ -3085,7 +3194,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 31.9,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:00:03.982Z"
      }
     },
     {
@@ -3105,7 +3215,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 21.5,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:00:03.982Z"
      }
     },
     {
@@ -3125,7 +3236,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 12.2,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:00:03.982Z"
      }
     },
     {
@@ -3145,7 +3257,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 20,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:00:03.982Z"
      }
     },
     {
@@ -3165,7 +3278,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 30.5,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:00:03.982Z"
      }
     },
     {
@@ -3185,7 +3299,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 26,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:00:03.982Z"
      }
     }
    ],
@@ -3256,7 +3371,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T17:00:03.982Z"
     },
     {
      "cluster_id": "cl-01",
@@ -3304,7 +3420,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T17:00:03.982Z"
     },
     {
      "cluster_id": "cl-01",
@@ -3352,7 +3469,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T17:00:03.982Z"
     },
     {
      "cluster_id": "cl-01",
@@ -3400,7 +3518,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T17:00:03.982Z"
     },
     {
      "cluster_id": "cl-01",
@@ -3448,12 +3567,14 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T17:00:03.982Z"
     }
-   ]
+   ],
+   "capturedAt": "2026-09-19T13:55:00.926Z"
   },
   {
-   "t": "2026-09-19T13:55:15.930Z",
+   "t": "2026-09-19T17:30:04.582Z",
    "hotspots": [
     {
      "type": "Feature",
@@ -3472,7 +3593,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 178.3,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:30:04.462Z"
      }
     },
     {
@@ -3492,7 +3614,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 144.8,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:30:04.462Z"
      }
     },
     {
@@ -3512,7 +3635,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 112.6,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:30:04.462Z"
      }
     },
     {
@@ -3532,7 +3656,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 92.6,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:30:04.462Z"
      }
     },
     {
@@ -3552,7 +3677,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 82.8,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:30:04.462Z"
      }
     },
     {
@@ -3572,7 +3698,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 64.3,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:30:04.462Z"
      }
     },
     {
@@ -3592,7 +3719,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 51,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:30:04.462Z"
      }
     },
     {
@@ -3612,7 +3740,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 33.7,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:30:04.462Z"
      }
     },
     {
@@ -3632,7 +3761,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 22.7,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:30:04.462Z"
      }
     },
     {
@@ -3652,7 +3782,8 @@
       "confidence": "MEDIUM",
       "fire_radiative_power": 12.9,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:30:04.462Z"
      }
     },
     {
@@ -3672,7 +3803,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 20,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:30:04.462Z"
      }
     },
     {
@@ -3692,7 +3824,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 30.5,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:30:04.462Z"
      }
     },
     {
@@ -3712,7 +3845,8 @@
       "confidence": "HIGH",
       "fire_radiative_power": 26,
       "country": "ES",
-      "active": true
+      "active": true,
+      "available_at": "2026-09-19T17:30:04.462Z"
      }
     }
    ],
@@ -3783,7 +3917,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T17:30:04.582Z"
     },
     {
      "cluster_id": "cl-01",
@@ -3831,7 +3966,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T17:30:04.582Z"
     },
     {
      "cluster_id": "cl-01",
@@ -3879,7 +4015,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T17:30:04.582Z"
     },
     {
      "cluster_id": "cl-01",
@@ -3927,7 +4064,8 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T17:30:04.582Z"
     },
     {
      "cluster_id": "cl-01",
@@ -3975,9 +4113,14 @@
         ]
        ]
       ]
-     }
+     },
+     "issued_at": "2026-09-19T17:30:04.582Z"
     }
-   ]
+   ],
+   "capturedAt": "2026-09-19T13:55:15.930Z"
   }
- ]
+ ],
+ "dataKind": "exercise",
+ "timeBasis": "simulation",
+ "description": "Synthetic exercise generated by scripts/mock-deepfire.mjs. Frame t follows simulated evidence time; capturedAt preserves the original wall-clock recording. Not a real fire or model validation."
 }

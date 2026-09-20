@@ -31,6 +31,8 @@ import { buildFireCases, projectAt, type FireCase, type Projection } from './spr
 import { isLayerVisible, onVisibilityChanged } from '../layers/registry';
 
 export interface FireLayerState {
+  clusters?: FiresResponse['clusters'];
+  dataKind?: FiresResponse['dataKind'];
   cases: FireCase[];
   selectedCase: FireCase | null;
   selectedId: string | null;
@@ -100,6 +102,7 @@ export class FireLayer {
   private readonly listeners = new Set<StateListener>();
 
   private cases: FireCase[] = [];
+  private dataKind: FiresResponse['dataKind'];
   private clusters: FiresResponse["clusters"] = [];
   private perimeterEntries: PerimeterEntry[] = [];
   private selectedId: string | null = null;
@@ -143,6 +146,7 @@ export class FireLayer {
     this.perimeterEntries = [];
     this.cases = buildFireCases(response);
     this.clusters = response.clusters;
+    this.dataKind = response.dataKind;
 
     for (const caseData of this.cases) {
       const primitive = new GroundPrimitive({
@@ -254,6 +258,8 @@ export class FireLayer {
     const selectedCase = this.getSelectedCase();
     return {
       cases: this.cases,
+      clusters: this.clusters,
+      dataKind: this.dataKind,
       selectedCase,
       selectedId:this.selectedId,
       scrubHours: this.scrubHours,

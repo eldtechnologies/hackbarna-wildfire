@@ -73,10 +73,9 @@ export function buildFireCases(response: FiresResponse): FireCase[] {
       (a, b) => a.horizonHours - b.horizonHours,
     );
     const centroid = ringCentroid(perimeter.polygon);
-    const driftBearingDeg =
-      steps.length > 0
-        ? bearingDeg(centroid, ringCentroid(steps[steps.length - 1].polygon))
-        : null;
+    const target = steps.length ? ringCentroid(steps[steps.length - 1].polygon) : null;
+    const driftBearingDeg = target && (target.lat !== centroid.lat || target.lon !== centroid.lon)
+      ? bearingDeg(centroid, target) : null;
     cases.push({
       cluster,
       basePerimeter: perimeter,

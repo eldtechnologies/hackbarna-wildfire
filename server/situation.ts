@@ -8,7 +8,7 @@
 import { getFires } from './providers';
 import {FactNarrator, type NarrationFact} from './narration';
 import { getThreats, latestPerimeter, futureSpreadSteps } from './threats';
-import type { LatLon } from '../shared/fires';
+import type { FireSource, LatLon } from '../shared/fires';
 import { CATEGORY_LABEL, RING_SEVERITY } from '../shared/threats';
 import type {
   EvacuationRecommendation,
@@ -141,7 +141,7 @@ export function situationFacts(packet: SituationPacket): NarrationFact[] {
         + ` (bearing ${Math.round(packet.spreadBearingDeg) % 360} deg), a geometric projection rather than measured wind.`;
   }
 
-  const detectionFacts = ` ${packet.hotspotCount} recorded satellite hotspots, recorded FRP sum ${packet.totalFrpMw != null ? Math.round(packet.totalFrpMw) : 'unmeasured'} MW`;
+  const detectionFacts = ` ${packet.hotspotCount} ${packet.dataKind === 'exercise' ? 'simulated hotspots' : 'recorded satellite hotspots'}, recorded FRP sum ${packet.totalFrpMw != null ? Math.round(packet.totalFrpMw) : 'unmeasured'} MW`;
   const detected = detectionFacts + (packet.firstDetectedAt != null
     ? `, first detected ${packet.firstDetectedAt.slice(0, 10)}.` : '.');
 
@@ -194,11 +194,11 @@ const narrator=new FactNarrator({
 
 // --- Packet assembly -------------------------------------------------
 
-export async function getSituation(fireId: string, atSeconds?: number): Promise<SituationResponse | null> {
+export async function getSituation(fireId: string, atSeconds?: number, source?: FireSource): Promise<SituationResponse | null> {
   // One fires fetch for both the packet and the threat analysis, so the
   // figures cannot come from different snapshots. atSeconds scrubs a recorded
   // timeline (same semantics as /api/fires?at=); absent serves the live edge.
-  const fires = await getFires(atSeconds);
+  const fires = await getFires(atSeconds, source);
   const cluster = fires.clusters.find((c) => c.id === fireId);
   if (!cluster) return null;
   const threats = await getThreats(fireId, fires);
@@ -233,6 +233,7 @@ export async function getSituation(fireId: string, atSeconds?: number): Promise<
     fireId,
     fireName: cluster.name,
     dataProvenance: fires.provenance,
+    dataKind: fires.dataKind,
     hasPerimeter: threats.hasPerimeter,
     perimeterAreaKm2: areaKm2,
     perimeterObservedAt: perimeter?.observedAt ?? null,
@@ -257,7 +258,7 @@ export async function getSituation(fireId: string, atSeconds?: number): Promise<
   const facts=situationFacts(packet);
   const order=await narrator.order(facts);
   const sentences=(order??facts.map(f=>f.id)).map(id=>facts.find(f=>f.id===id)!.text);
-  const summary=`Situation report for fire ${packet.fireName??packet.fireId}. ${sentences.join(' ')} `
+  const summary=`${packet.dataKind === 'exercise' ? 'SIMULATED EXERCISE. ' : ''}Situation report for fire ${packet.fireName??packet.fireId}. ${sentences.join(' ')} `
     + 'Proximity screening only. These priorities are not evacuation orders or road-access decisions.';
 
   const recommendations = recommendationsFor(packet).sort(

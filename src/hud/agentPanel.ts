@@ -1,3 +1,4 @@
+import type { FireSource } from '../../shared/fires';
 import { clusterDisplayName } from '../fires/display';
 import { fetchSituation } from '../data/api';
 import { CATEGORY_LABEL } from '../../shared/threats';
@@ -10,8 +11,8 @@ export class AgentPanel {
   constructor(private panel: HTMLElement) {}
 
   /** The app owns selection and evidence time; this panel only renders them. */
-  track(fireId: string | null, atSeconds?: number, evidenceKey='latest'): void {
-    const key=fireId===null ? null : JSON.stringify([fireId,atSeconds,evidenceKey]);
+  track(fireId: string | null, atSeconds?: number, evidenceKey='latest', source?: FireSource): void {
+    const key=fireId===null ? null : JSON.stringify([fireId,atSeconds,evidenceKey,source]);
     if (key===this.trackedKey) return;
     this.trackedKey=key;
     this.controller?.abort();
@@ -23,14 +24,14 @@ export class AgentPanel {
     }
     const controller=this.controller=new AbortController();
     this.renderLoading();
-    fetchSituation(fireId,atSeconds,controller.signal)
+    fetchSituation(fireId,atSeconds,controller.signal,source)
       .then((situation) => {
         if (!controller.signal.aborted) this.render(situation);
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
         console.error('[agent-panel] situation fetch failed:', err);
-        this.renderError(fireId,atSeconds,evidenceKey);
+        this.renderError(fireId,atSeconds,evidenceKey,source);
       });
   }
 
@@ -40,13 +41,13 @@ export class AgentPanel {
     this.panel.append(this.title('SITUATION AGENT'), this.body('ANALYZING...'));
   }
 
-  private renderError(fireId: string, atSeconds?:number,evidenceKey?:string): void {
+  private renderError(fireId: string, atSeconds?:number,evidenceKey?:string,source?:FireSource): void {
     this.panel.classList.add('open');
     this.panel.replaceChildren();
     this.panel.append(this.title(`SITUATION AGENT / ${fireId}`), this.body('REPORT UNAVAILABLE'));
     const retry=document.createElement('button');
     retry.className='hud-btn';retry.textContent='RETRY REPORT';
-    retry.addEventListener('click',()=>{this.trackedKey=null;this.track(fireId,atSeconds,evidenceKey);});
+    retry.addEventListener('click',()=>{this.trackedKey=null;this.track(fireId,atSeconds,evidenceKey,source);});
     this.panel.appendChild(retry);
   }
 
@@ -145,7 +146,7 @@ export class AgentPanel {
 
       const list = document.createElement('div');
       list.className = 'agent-list';
-      situation.recommendations.forEach((rec, i) => {
+      const appendRecommendation = (rec: SituationResponse['recommendations'][number], i: number) => {
         const row = document.createElement('div');
         row.className =
           'agent-rec' + (rec.priority === 1 ? ' urgent' : rec.priority === 2 ? ' elevated' : '');
@@ -161,13 +162,29 @@ export class AgentPanel {
         right.textContent = `${CATEGORY_LABEL[rec.category].toUpperCase()} / ${dist}${rec.inSpreadCorridor ? ' / CORRIDOR' : ''}`;
         row.append(rank, left, right);
         list.appendChild(row);
-      });
+      };
+      situation.recommendations.slice(0, 8).forEach(appendRecommendation);
       this.panel.appendChild(list);
+      if (situation.recommendations.length > 8) {
+        const more = document.createElement('button');
+        more.className = 'hud-btn agent-more';
+        more.textContent = `SHOW ALL ${situation.recommendations.length} PRIORITIES`;
+        let expanded = false;
+        more.onclick = () => {
+          expanded = !expanded;
+          if (expanded) situation.recommendations.slice(8).forEach((rec, i) => appendRecommendation(rec, i + 8));
+          else while (list.children.length > 8) list.lastElementChild!.remove();
+          more.textContent = expanded ? 'SHOW TOP 8' : `SHOW ALL ${situation.recommendations.length} PRIORITIES`;
+          more.setAttribute('aria-expanded', String(expanded));
+        };
+        more.setAttribute('aria-expanded', 'false');
+        this.panel.appendChild(more);
+      }
     }
 
     const footer = document.createElement('div');
     footer.className = 'agent-footer';
-    const provenance = packet.dataProvenance === 'live' ? 'LIVE' : 'REPLAY';
+    const provenance = packet.dataKind === 'exercise' ? 'SIMULATED EXERCISE' : packet.dataProvenance === 'live' ? 'LIVE' : 'REPLAY';
     footer.textContent = `${provenance} DATA / EVIDENCE ${packet.evidenceAsOf??'TIME UNAVAILABLE'} / ${packet.availabilityPolicy??'PROVIDER OBSERVATIONS'} / PROXIMITY SCREENING, NOT EVACUATION ORDERS`;
     this.panel.appendChild(footer);
   }

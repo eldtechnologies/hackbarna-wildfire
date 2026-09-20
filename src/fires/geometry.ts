@@ -16,11 +16,14 @@ export function ringCentroid(points: LatLon[]): LatLon {
   if (points.length === 0) return { lat: 0, lon: 0 };
   let lat = 0;
   let lon = 0;
-  for (const p of points) {
+  // The closing vertex is the first vertex again, not extra geometry.
+  const closed = points.length > 1 && points[0].lat === points.at(-1)!.lat && points[0].lon === points.at(-1)!.lon;
+  const vertices = closed ? points.slice(0, -1) : points;
+  for (const p of vertices) {
     lat += p.lat;
     lon += p.lon;
   }
-  return { lat: lat / points.length, lon: lon / points.length };
+  return { lat: lat / vertices.length, lon: lon / vertices.length };
 }
 
 // Resample a ring into `count` evenly spaced (by arc length in degrees)

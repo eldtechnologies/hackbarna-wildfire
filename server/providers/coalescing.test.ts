@@ -13,11 +13,11 @@ test('same-cursor provider reads share in-flight work and failed work can retry'
   finish(frame);
   const results=await Promise.all([first,second]);
   assert.equal(results[0],results[1]);
-  assert.equal(await getFires(987654321),frame);
+  assert.equal(await getFires(987654321),results[0]);
   assert.equal(calls,1);
   t.mock.method(getProvider(),'getFires',async()=>{calls++;throw new Error('temporary fixture failure');});
   await assert.rejects(getFires(987654322),/temporary fixture failure/);
   t.mock.method(getProvider(),'getFires',async()=>{calls++;return frame;});
-  assert.equal(await getFires(987654322),frame);
+  assert.equal((await getFires(987654322)).scenario,frame.scenario);
   assert.equal(calls,3);
 });
