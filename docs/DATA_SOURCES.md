@@ -21,11 +21,11 @@ Companion to the analysis in [`last-safe-departure.md`](last-safe-departure.md) 
 | 10 | **Google WeatherNext 3** | Hourly global ensemble, 5 km temp/hum, 10 km wind | Google Cloud (BigQuery / Earth Engine / GCS) | hackathon-provided | Not used yet — better wind for spread |
 | 11 | **Copernicus DEM GLO-30** | 30 m elevation → slope | AWS Open Data, no key | have | Slope for the fallback model (A8, A15) |
 | 12 | **ESA WorldCover** | 10 m land cover → fuel proxy | AWS Open Data, no key | have | Fuel for the fallback model (A8, A15) |
-| 13 | **OpenStreetMap (local Overpass)** | Roads (incl. `track`), buildings, power lines, places | Local instance, no key | have | Road graph (14,819 nodes), cut times, buildings (A10, A11, A13) |
+| 13 | **OpenStreetMap** | Roads (incl. `track`), buildings, power lines, places | OSM `/map` API or Overpass, no key | have | Road graph (13,069 nodes / 29,834 edges in the committed fixture), cut times, buildings (A10, A11, A13) |
 | 14 | **Catastro INSPIRE** | Building footprints + `currentUse`, per municipality | WFS, free | have | Values at risk — **solved** (A13) |
 | 15 | **INE padrón** | Population + foreign nationality by municipality | Free download | have | Pocket population; alert languages — **solved** (A13) |
 | 16 | **Generalitat de Catalunya** | Fire perimeters, emergency regions, firefighter stations, Pla Alfa | Free | have | Catalan demo context; infrastructure |
-| 17 | **OpenCelliD** | Cell tower positions | Free key, CC-BY-SA | key | ES-Alert footprint simulation (over-alerting) |
+| 17 | **OpenCelliD** | Cell tower positions | Free key, CC-BY-SA | have (committed fixture) | ES-Alert footprint simulation (over-alerting) |
 | 18 | **REGA** | Livestock holdings | Public registry | blocked (no open endpoint found) | People who return for animals |
 | 19 | **TypeSafe / Jev** | Typed-answer verification of alert phrasings | Bearer key (waitlist) | key | Selection + verification gate for message text |
 | 20 | **Pyronear `pyro-sdis`** | 33.6 k tower-camera images, YOLO smoke boxes | HuggingFace, Apache-2.0 | hackathon-provided | Early-detection track only (French towers) |
@@ -45,29 +45,49 @@ Companion to the analysis in [`last-safe-departure.md`](last-safe-departure.md) 
 | What drove the fire? | Open-Meteo ERA5 — southerly gusting 54 km/h, RH 10 % |
 | Which road closed first? | OSM road graph + Deepfire hotspots — AL-6109 at 19:38 CEST |
 | Where are the people? | Catastro buildings + INE padrón |
-| Was the alert reachable? | OpenCelliD towers (planned) |
+| Was the alert reachable? | OpenCelliD towers — 625 cells, 12,041 over-alerted (`/api/reach`) |
 
 ## 3. What we actually have on disk
 
+The first block is on the author's machine and is **not reproducible from a checkout**. The second
+block is committed, and a clone has it.
+
+Raw corpora (author machine only):
+
 | Asset | Path | Size |
 | --- | --- | --- |
-| MTG 2026 archive (73,630 files / 36,815 scans) | `~/Documents/Codex/2026-09-19/file-users-ola-downloads-hackbarna-20/outputs/LSA_SAF_MTFRPPixel_2026/` | 77 GB |
+| MTG 2026 archive (73,630 files / 36,815 scans) | under `~/Documents/Codex/2026-09-19/…/LSA_SAF_MTFRPPixel_2026/` | 77 GB |
 | — Iberia extract (246,528 obs) | `…/analysis/iberia_bbox_hotspots.csv.gz` | 11 MB |
 | — Los Gallardos extract (1,932 obs) | `…/analysis/los_gallardos_2026-07-09_12.geojson` | 0.9 MB |
-| Deepfire replay snapshot | `data/snapshots/los-gallardos-2026-07-09.json` | — |
 | Andalucía OSM extract | `/tmp/df/osm/andalucia.osm.pbf` | 194 MB |
-| Local Overpass DB | docker volume `opdb` | ~4.5 GB |
+
+Committed to the repository:
+
+| Asset | Path |
+| --- | --- |
+| Deepfire replay snapshot (2,743 hotspots) | `data/snapshots/los-gallardos-2026-07-09.json` |
+| Road graph (13,069 nodes / 29,834 edges) | `data/graph/los-gallardos.json` |
+| Infrastructure bundle (8,079 features: 6,523 points and 1,556 power lines, across Catalonia and eastern Almería) | `data/infrastructure/*.geojson` |
+| Catastro footprints and INE population | `data/pockets/` |
+| OpenCelliD cells (625) | `data/reach/cells.json` |
+| Corpus metrics and fixtures | `data/model/` |
 
 ## 4. Local services we run
 
 | Service | How | Endpoint |
 | --- | --- | --- |
-| Overpass API (Andalucía) | `docker start ovp` | `http://127.0.0.1:12345/api/interpreter` |
 | Express proxy + Vite client | `npm run dev` | `http://localhost:5173` |
+
+The local Overpass instance this document was written against is gone, and every public mirror was
+unreachable or serving canned empties when the graph was rebuilt. The committed graph records
+`api.openstreetmap.org` as its source and `scripts/fetch-roads.mjs` documents the fallback.
 
 ## 5. Keys still needed
 
-**Deepfire** · **AEMET** · **OpenCelliD** · **Copernicus Data Space** · **EUMETSAT Data Store** · **TypeSafe/Jev** (waitlist).
+**Deepfire** · **AEMET** · **Copernicus Data Space** · **EUMETSAT Data Store** · **TypeSafe/Jev** (waitlist).
+
+OpenCelliD is off this list: its cells are fetched once by `scripts/fetch-reach.mjs` into a
+committed fixture, and the running server never reads the token.
 
 ## 6. Traps and limits (read before you build on a source)
 

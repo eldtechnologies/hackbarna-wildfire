@@ -1,28 +1,30 @@
 # Three work streams
 
-Proposal · 19 Sep 2026 · for the three of us
+Internal plan · 19 September 2026
 
-## Current status amendment — 20 September 2026
+> An internal working document: the allocation, the decision record and the verification gates the
+> three streams worked to. For what the service does today, use the [README](../README.md); for
+> the routes, the [API reference](API.md).
 
-The sections below preserve the original allocation and schedule. Their future-tense
-client rewrite and interface-freeze tasks are historical, not outstanding work.
-The real DeepFire client, captured July data, engine and corrected baseline harness
-have since landed. This amendment supersedes any claim below that corpus area scores
-validate the served motion vector or that thermal forecasts provide physical arrival.
+## Status
 
-Ola's current deliverables are implemented as: causal replay and shared issue time;
-a serving-path diagnostic plus fire-bootstrap baseline error bars; shared native
-training/inference inputs and a checksum-validated forecast handoff. See
-[model-proposal.md](model-proposal.md) for the measured findings and revised sequence,
-[forecast-contract.md](forecast-contract.md) for integration, and
-[thermal-evaluation.md](thermal-evaluation.md) for promotion criteria.
+The foundation window is complete. The real DeepFire client, the captured July data, the egress
+engine and the corrected baseline harness are all landed, and three things follow from that:
 
-The active RunPod pilot and its frozen dataset stay unchanged. Training completion
-alone does not approve deployment. Remaining evidence is the declared held-out
-thermal evaluation and, for road-arrival use, independent contemporaneous physical
-progression/arrival references. Magnus retains UI ownership; Daniel retains egress
-and CAP. The thermal API must not be converted into road-cut times without that
-additional modelling and validation.
+- **The served motion vector is descriptive only.** Corpus area scores do not validate it, and
+  thermal forecasts do not provide physical arrival.
+- **Causal replay and a shared issue time are implemented**, with a serving-path diagnostic and
+  fire-bootstrap baseline error bars published beside the corpus numbers.
+- **Native training and inference share one input builder**, and the forecast handoff is
+  checksum-validated.
+
+See [model-proposal.md](model-proposal.md) for the measured findings, [forecast-contract.md](forecast-contract.md)
+for integration, and [thermal-evaluation.md](thermal-evaluation.md) for promotion criteria.
+
+The active RunPod pilot and its frozen dataset are unchanged, and training completion alone does
+not approve deployment. The remaining evidence is the declared held-out thermal evaluation and,
+for road-arrival use, independent contemporaneous physical progression references. The thermal API
+must not be converted into road-cut times without that additional modelling and validation.
 
 ## What we are building
 
@@ -43,7 +45,8 @@ perimeters, direction, movement.
 
 ## The decisions
 
-Recorded here so nobody re-litigates them at hour 30.
+Recorded here, with the date of any later change, so the reasoning behind each is readable after
+the fact.
 
 | # | Decision |
 | --- | --- |
@@ -56,7 +59,7 @@ Recorded here so nobody re-litigates them at hour 30.
 | 7 | **The road graph comes from the OSM `/map` API, bbox only** — one tiled, rate-limited fetch, committed to JSON so the demo never depends on the network or the container. Amended 2026-09-20: the local Overpass it named is gone — nothing listens on `127.0.0.1:12345`, no `opdb` volume exists, and `/tmp/df/osm/andalucia.osm.pbf` is absent — and the committed graph records `api.openstreetmap.org` as its source. Geofabrik's andalucia PBF stays the fallback if the bbox ever widens |
 | 8 | **The unification refactor lands on `main` first**, then each open branch rebases onto it — one conflict resolution per branch, done once |
 | 9 | **The falsification test is re-run with the calibrated mask**, and whatever it shows goes on the slide |
-| 10 | **CAP is one `<alert>` per pocket, one `<info>` per language.** Sender, status and scope are configurable, defaulting to a fictional demo sender with `status=Test`, `scope=Private` |
+| 10 | **CAP is one `<alert>` per pocket, one `<info>` per language.** Sender, status and scope are configurable, defaulting to a fictional demo sender with `status=Test`, `scope=Public` (`server/engine/alerts.ts`) |
 | 11 | **The harness tests both targets** — bearing/rate and burned area — so we can say which quantity a model helps with |
 | 12 | **The July replay snapshot is recorded with the replay tooling** once item 0 lands, so the two validate each other |
 | 13 | **Jev is out of scope.** The verification gate is deterministic OSM checks with a visible rejection log |
@@ -67,19 +70,10 @@ Recorded here so nobody re-litigates them at hour 30.
 
 ## The frozen interfaces
 
-`shared/egress.ts`, `shared/alerts.ts` and `shared/growth.ts` are drafted in this PR. The H0–4
-session ratifies them rather than authoring them from a blank page; three people writing a contract
-from scratch under time pressure produce three different mental models.
-
-They follow the convention already in `shared/fires.ts`: type-only, ISO strings and never `Date`,
-`LatLon` objects and no GeoJSON inside the app, ids as strings.
-
-**Until the freeze, treat them as proposal, not contract** — but treat them as the thing to argue
-with, because everything else depends on them.
-
-**Then each engine stream publishes a stub endpoint returning fixture data in the frozen shape.**
-Stream 1 builds the client against those immediately. Without this, Stream 1 waits on Stream 2 and
-two-thirds of the team idles.
+`shared/egress.ts`, `shared/alerts.ts` and `shared/growth.ts` were ratified in the H0–4 window and
+now back working endpoints — see `server/engine/routes.ts` and the tests beside it. They follow the
+convention already in `shared/fires.ts`: type-only, ISO strings and never `Date`, `LatLon` objects
+and no GeoJSON inside the app, ids as strings.
 
 ## Stream 1 — Console and integration
 
@@ -151,9 +145,8 @@ to 0.5x moves 2,429 of the 4,225 cut segments by more than half an hour and 1,10
 while varying the source set at a fixed footprint moves 2,184 and 509. Both counts are load-bearing,
 which is why the band is the envelope of whole solves rather than a point estimate.
 
-An earlier draft of this paragraph said the radius axis was "nearly flat from 200 m to 1 km", which
-came from the spike's fixed-radius table — one flat buffer at 100/200/500 m — and does not describe
-this sweep, where the radius scale multiplies each sensor's own footprint. On the Bédar exit road the
+The radius axis multiplies each sensor's own footprint rather than applying one flat buffer, so a
+fixed-radius table does not describe this sweep. On the Bédar exit road the
 two axes move the cut by the same 4 h 25 m: `all-1x` reads 19:38 CEST and `all-0.5x` receives the
 00:03 CEST that the source axis alone had been credited with.
 
@@ -199,18 +192,17 @@ held out by **fire, not by time**, with `shippedBaseline` saying which one is on
 "persistence wins, here is its error" is a stronger answer to the accuracy criterion than a model
 that loses and is not reported.
 
-## Foundation window — H0–4
+## Foundation window — H0–4 (complete)
 
-| What | Who |
-| --- | --- |
-| Ratify the three shared type files | All three |
-| Item 0 — the Deepfire client and the July snapshot | Ola, reviewed by Magnus |
-| The unification refactor on `main` | Magnus |
-| Stub endpoints in the frozen shapes | Daniel |
-| Harness scaffolding on the data box | Ola |
+| What | Who | Status |
+| --- | --- | --- |
+| Ratify the three shared type files | All three | done |
+| Item 0 — the Deepfire client and the July snapshot | Ola, reviewed by Magnus | done |
+| The unification refactor on `main` | Magnus | done |
+| Stub endpoints in the frozen shapes | Daniel | done |
+| Harness scaffolding on the data box | Ola | done |
 
-Stream 3 is independent of the others and starts immediately regardless — its work happens on
-another machine.
+Stream 3 ran independently of the other two, on another machine.
 
 ## Scope and cut order
 
@@ -225,9 +217,12 @@ analysis. That still demonstrates the insight and still beats a dashboard.
 
 ## Verification
 
-There is no test framework; `npm run typecheck` is the only gate. Add `node --test` — built into
-Node 26, no new dependencies — for the pure functions: cut times, egress, CAP escaping, mask
-accumulation, and the OSM name resolver.
+`npm run typecheck`, `npm test` and `npm run build` are the gates, and CI runs all three on Linux,
+macOS and Windows across Node 22.9 and 24. The test suite is `node --test` — built in, no extra
+dependency — and covers the pure functions the plan called out: cut times, egress, CAP escaping
+and schema validation, mask accumulation, and the OSM name resolver. Twenty-eight test files, 333
+tests. The Cesium client has one jsdom suite over the situation panel's request lifecycle and no
+automated coverage of what it draws; that is a known gap, not a passed gate.
 
 End to end, in order:
 
@@ -241,14 +236,22 @@ End to end, in order:
 
 ## Open
 
-- **Whether a model beats the baselines on bearing and rate.** The harness will say. Until it does,
-  the baseline is what ships.
-- **How much the SEVIRI band actually widens — closed** (2026-09-20, issue #27). The July Los
-  Gallardos capture carries no SEVIRI detections, so the question cannot be answered from what is
-  committed, and the mask no longer claims to include the instrument. It is closed rather than left
-  standing: reopening it needs a capture that carries a SEVIRI series, at which point decision 5 is
-  amended again and the family joins the mask with its measured 3.0 × 4.2 km Iberian footprint
-  rather than a nominal 3 km.
+- **Whether a model beats the baselines on bearing and rate — closed** (20 September 2026). The
+  harness measured both targets leave-one-fire-out over PT-FireSprd and FireSpread_MedEU. The
+  learned model improves rate R² over persistence but worsens bearing error in both corpora, so
+  the served model slot ships `null` and the baseline remains the shipped answer. Decision 2
+  therefore holds on a measurement rather than on a default.
+
+  The scope is narrow and worth stating: it covers bearing and rate, on two historical corpora,
+  with the tabular features the harness supplies. It does not establish that a model given
+  weather, terrain or fuel inputs could not win. Full numbers in
+  [stream3-baselines.md](stream3-baselines.md).
+
+- **How much the SEVIRI band actually widens — closed** (20 September 2026, issue #27). The July
+  Los Gallardos capture carries no SEVIRI detections, so the question cannot be answered from what
+  is committed, and the mask no longer claims to include the instrument. Reopening it needs a
+  capture that carries a SEVIRI series, at which point decision 5 is amended and the family joins
+  the mask with its measured 3.0 × 4.2 km Iberian footprint rather than a nominal 3 km.
 
 ## One thing to say out loud, early
 
