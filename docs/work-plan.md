@@ -123,10 +123,17 @@ every response reports what each family contributed to the cut field — includi
 contributed nothing — so a missing instrument is visible in the answer rather than only by reading
 this document against the code. Adding a family is a new capture and an amendment here.
 
-Four families means four footprints and four latencies in the sweep, which widens the band, and the
-source axis is what moves it: across the recorded families the same road reads 19:38 CEST or 00:03
-CEST, while the radius axis is nearly flat from 200 m to 1 km. The band is what ships, so a wider
-one that is true beats a narrow one that is not.
+Four families means four footprints and four latencies in the sweep, which widens the band, and both
+sweep axes move it. Measured over the committed capture: scaling the per-sensor footprints from 1x
+to 0.5x moves 2,429 of the 4,225 cut segments by more than half an hour and 1,109 by more than six,
+while varying the source set at a fixed footprint moves 2,184 and 509. Both counts are load-bearing,
+which is why the band is the envelope of whole solves rather than a point estimate.
+
+An earlier draft of this paragraph said the radius axis was "nearly flat from 200 m to 1 km", which
+came from the spike's fixed-radius table — one flat buffer at 100/200/500 m — and does not describe
+this sweep, where the radius scale multiplies each sensor's own footprint. On the Bédar exit road the
+two axes move the cut by the same 4 h 25 m: `all-1x` reads 19:38 CEST and `all-0.5x` receives the
+00:03 CEST that the source axis alone had been credited with.
 
 A segment is cut at the first timestep whose accumulated mask intersects it. This replaces the
 point-radius cut that read 19:38, 21:18 or 00:03 for the same road depending on buffer and sensor

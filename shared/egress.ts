@@ -40,11 +40,6 @@ export interface RoadSegment {
 }
 
 /**
- * When the fire reaches a segment — the first timestep whose accumulated,
- * sensor-calibrated mask intersects it. `cutAt: null` means never, within the
- * modelled window, which is a different statement from "not yet".
- */
-/**
  * What one sensor family contributed to the cut field.
  *
  * Published because the omission of a family is otherwise discoverable only by reading the code
@@ -84,6 +79,11 @@ export interface SensorFamilyRow {
   cutSegments: number;
 }
 
+/**
+ * When the fire reaches a segment — the first timestep whose accumulated,
+ * sensor-calibrated mask intersects it. `cutAt: null` means never, within the
+ * modelled window, which is a different statement from "not yet".
+ */
 export interface CutTime {
   segmentId: string;
   cutAt: string | null;

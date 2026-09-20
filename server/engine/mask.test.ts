@@ -90,10 +90,14 @@ test('the mask reproduces the spike\'s published cut times for the Bedar exit ro
 });
 
 test('the source set moves the answer further than a tenfold radius change', () => {
-  // The plan's claim about the sweep, corrected against measurement. The radius is
-  // flat from 200 m to 750 m and then drifts earlier slowly; the source set moves the
-  // same road by hours. Measured, all sources: 100 m -> 21:18, 200-750 m -> 19:38,
-  // 1000-1500 m -> 19:28, 2000 m -> 19:18.
+  // Scope: a SINGLE FLAT buffer at every distance, which is what the spike's reproduction table
+  // varies. This is not the sweep's radius axis, where the scale multiplies each sensor's own
+  // footprint — measured across those configurations the radius moves 2,429 of 4,225 cut segments
+  // by more than half an hour, more than the source axis does. Reading this result as being about
+  // "the sweep" is what put a false sentence into `docs/work-plan.md`, so the distinction is
+  // written here rather than left to the next reader to notice.
+  //
+  // Measured, all sources: 100 m -> 21:18, 200-750 m -> 19:38, 1000-1500 m -> 19:28, 2000 m -> 19:18.
   const at200 = firstCut(config({ fixedRadiusM: 200 }), fireDetections);
   for (const r of [300, 500, 750]) {
     assert.equal(firstCut(config({ fixedRadiusM: r }), fireDetections), at200, `flat at ${r} m`);
@@ -223,10 +227,17 @@ test('decision 5 names exactly the sensor families the footprint table covers', 
   const fromTable = [...new Set(Object.keys(SENSOR_FOOTPRINT_M).map(familyOf))].sort();
   assert.deepEqual(fromPlan, fromTable, 'the plan and the footprint table name the same families');
 
+  // The two tables must cover the same SOURCES, not merely agree on family names. The family-level
+  // check above cannot see a source-level removal: deleting one feed of a multi-feed family leaves
+  // the family name intact, so the plan and the table still "agree" while that feed's detections
+  // silently take the 1,000 m default — measured by removing a VIIRS series, which left 242 of 242
+  // tests green, moved 32 published cut times, flipped 20 segments from uncut to cut, and took the
+  // VIIRS row's cut count from 2 to 34. `SENSOR_FOOTPRINT_M` is what the radii come from, so a
+  // source missing there is a source the mask mis-sizes.
   assert.deepEqual(
-    Object.keys(SENSOR_FOOTPRINT_M).filter((s) => SENSOR_FAMILY[s] === undefined),
-    [],
-    'and every source in the table has a family, so neither can drift from the other',
+    Object.keys(SENSOR_FAMILY).sort(),
+    Object.keys(SENSOR_FOOTPRINT_M).sort(),
+    'the two tables cover the same sources',
   );
 });
 
