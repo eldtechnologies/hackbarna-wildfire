@@ -33,16 +33,62 @@ body,
   z-index: 10;
 }
 
-/* Corner brackets */
+/* Faint scanlines over the whole console, display only. Sits below the
+   bracket glow and panel chrome, never captures input. */
+#hud::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(79, 216, 232, 0.03) 0px,
+    rgba(79, 216, 232, 0.03) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+/* Ambient vignette so the console reads as seen through an instrument. */
+#hud::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 55%,
+    rgba(4, 6, 9, 0.55) 100%
+  );
+  pointer-events: none;
+}
+
+/* Screen corner brackets: thin frame + amber tick accent at each corner. */
 .bracket {
   position: absolute;
   width: 28px;
   height: 28px;
   border: 1px solid var(--line);
 }
+.bracket::before {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--amber);
+  opacity: 0.85;
+}
 .bracket-tl {
   top: 12px;
   left: 12px;
+  border-right: none;
+  border-bottom: none;
+}
+.bracket-tl::before {
+  top: -1px;
+  left: -1px;
   border-right: none;
   border-bottom: none;
 }
@@ -52,15 +98,33 @@ body,
   border-left: none;
   border-bottom: none;
 }
+.bracket-tr::before {
+  top: -1px;
+  right: -1px;
+  border-left: none;
+  border-bottom: none;
+}
 .bracket-bl {
   bottom: 12px;
   left: 12px;
   border-right: none;
   border-top: none;
 }
+.bracket-bl::before {
+  bottom: -1px;
+  left: -1px;
+  border-right: none;
+  border-top: none;
+}
 .bracket-br {
   bottom: 12px;
   right: 12px;
+  border-left: none;
+  border-top: none;
+}
+.bracket-br::before {
+  bottom: -1px;
+  right: -1px;
   border-left: none;
   border-top: none;
 }
@@ -100,9 +164,57 @@ body,
   font-size: 10px;
 }
 
+/* Provenance badge breathes when live: the fire feed is actively refreshing,
+   display only, not simulated. */
+@keyframes hud-badge-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 4px rgba(79, 216, 232, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 9px rgba(79, 216, 232, 0.55);
+  }
+}
+
 .hud-badge-live {
   color: #4fd8e8;
   border-color: #4fd8e8;
+  animation: hud-badge-pulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-badge-live {
+    animation: none;
+  }
+}
+
+/* Sensor-look toggle in the header. Amber when engaged. The header is under
+   #hud's pointer-events: none, so the button re-enables it itself. */
+.hud-sensor-btn {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--dim);
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 1px 8px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.hud-sensor-btn:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+.hud-sensor-btn.on {
+  color: var(--amber);
+  border-color: var(--amber);
+}
+
+.hud-sensor-btn:focus-visible {
+  outline: 1px solid var(--amber);
+  outline-offset: 2px;
 }
 
 .hud-clock {
@@ -124,12 +236,64 @@ body,
   right: 52px;
 }
 
-/* Shared panel chrome */
+/* Shared panel chrome with corner brackets. The L-shaped accents sit just
+   outside the border so they read as bracket framing, not a glow. */
 .hud-panel {
   border: 1px solid var(--line);
   padding: 8px 12px;
   background: rgba(10, 14, 18, 0.7);
   pointer-events: auto;
+}
+
+.hud-panel::before,
+.hud-panel::after {
+  content: '';
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--amber);
+  opacity: 0.7;
+}
+.hud-panel::before {
+  top: -4px;
+  left: -4px;
+  border-right: none;
+  border-bottom: none;
+}
+.hud-panel::after {
+  bottom: -4px;
+  right: -4px;
+  border-left: none;
+  border-top: none;
+}
+
+/* One-off panels (threat, hotspot) get the same bracket accents. The threat
+   panel must stay overflow:hidden for its scrollable body, so its brackets
+   are drawn inside the border box, flush with the top edge. */
+.threat-panel::before,
+.threat-panel::after,
+.hotspot-panel::before,
+.hotspot-panel::after {
+  content: '';
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--amber);
+  opacity: 0.7;
+}
+.threat-panel::before,
+.hotspot-panel::before {
+  top: -1px;
+  left: -1px;
+  border-right: none;
+  border-bottom: none;
+}
+.threat-panel::after,
+.hotspot-panel::after {
+  bottom: -1px;
+  right: -1px;
+  border-left: none;
+  border-top: none;
 }
 
 .hud-panel-title {
@@ -607,4 +771,17 @@ body,
   color: #ff6b5e;
   font-size: 10px;
   letter-spacing: 0.05em;
+}
+
+/* Sensor look active: dim the HUD chrome so the filter owns the frame.
+   Text stays readable, but the chrome recedes behind the imagery. */
+#hud.sensor-active .hud-panel,
+#hud.sensor-active .hotspot-panel,
+#hud.sensor-active .threat-panel {
+  background: rgba(10, 14, 18, 0.82);
+}
+
+#hud.sensor-active::before {
+  /* Post-process scanlines take over while the sensor is engaged. */
+  opacity: 0;
 }

@@ -71,6 +71,7 @@ async function loadFires(): Promise<void> {
   try {
     const response = await fetchFires();
     hud.setMode(response.provenance);
+    hud.setData({ fetchedAt: response.fetchedAt, scenario: response.scenario });
     evidence=response;
     fireLayer.setData(response);
   } catch (err) {

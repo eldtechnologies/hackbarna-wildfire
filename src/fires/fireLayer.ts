@@ -7,15 +7,19 @@
 // re-uploading geometry).
 
 import {
+  BoundingSphere,
   CallbackProperty,
   Cartesian3,
   Color,
   ColorMaterialProperty,
   CustomDataSource,
+  EasingFunction,
   GeometryInstance,
   GroundPrimitive,
+  HeadingPitchRange,
   Material,
   MaterialAppearance,
+  Math as CesiumMath,
   PolygonGeometry,
   PolygonHierarchy,
   PolylineArrowMaterialProperty,
@@ -401,9 +405,19 @@ export class FireLayer {
     const heightM = Math.max(latSpan, lonSpan) * 111_000 * 2.2;
     const centerLat = (minLat + maxLat) / 2;
     const centerLon = (minLon + maxLon) / 2;
-    this.viewer.camera.flyTo({
-      destination: Cartesian3.fromDegrees(centerLon, centerLat, heightM),
-      duration: 1.2,
+
+    // Cinematic tracked flight: camera comes in from the south at a 35 deg
+    // tilt so the fire sits in the upper half of the frame and the HUD
+    // chrome (scrubber, threat panel) keeps the lower half. Reduced motion
+    // keeps the same destination with no flight theatrics.
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const center = Cartesian3.fromDegrees(centerLon, centerLat);
+    const radius = Math.max(latSpan, lonSpan) * 111_000 * 0.5;
+    const boundingSphere = new BoundingSphere(center, radius);
+    this.viewer.camera.flyToBoundingSphere(boundingSphere, {
+      duration: reduceMotion ? 0 : 1.8,
+      offset: new HeadingPitchRange(0, CesiumMath.toRadians(-35), heightM * 1.1),
+      easingFunction: EasingFunction.QUADRATIC_IN_OUT,
     });
   }
 
