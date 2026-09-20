@@ -15,20 +15,13 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
 
 export async function fetchFires(atSeconds?: number, signal?: AbortSignal): Promise<FiresResponse> {
   const data = await getJson<Partial<FiresResponse>>(`/api/fires${atSeconds == null ? '' : `?at=${atSeconds}`}`, signal);
-  // Boundary guard: a partial payload defaults to empty lists instead of
-  // throwing inside the layer.
-  return {
-    provenance: data.provenance === 'live' ? 'live' : 'replay',
-    fetchedAt: typeof data.fetchedAt === 'string' ? data.fetchedAt : new Date().toISOString(),
-    scenario: typeof data.scenario === 'string' ? data.scenario : null,
-    hotspots: Array.isArray(data.hotspots) ? data.hotspots : [],
-    clusters: Array.isArray(data.clusters) ? data.clusters : [],
-    perimeters: Array.isArray(data.perimeters) ? data.perimeters : [],
-    spread: Array.isArray(data.spread) ? data.spread : [],
-    timeline: data.timeline,
-    asOf:data.asOf,
-    availability:data.availability,
-  };
+  // Missing collections are unavailable evidence, not an empty observation window.
+  if (!data || (data.provenance !== 'live' && data.provenance !== 'replay') ||
+      typeof data.fetchedAt !== 'string' || !Number.isFinite(Date.parse(data.fetchedAt)) ||
+      ![data.hotspots, data.clusters, data.perimeters, data.spread].every(Array.isArray)) {
+    throw new Error('Fire observations are unavailable: invalid response');
+  }
+  return data as FiresResponse;
 }
 
 export function fetchInfrastructure(): Promise<InfrastructureResponse> {

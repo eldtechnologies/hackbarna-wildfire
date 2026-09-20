@@ -147,3 +147,42 @@ test('a server that ignores the seek cannot relabel the latest frame as history'
   assert.equal(replayPosition(playback.getState().data),7200);
   assert.match(playback.getState().error!,/different observation time/);
 });
+
+test('client rejects success-shaped failures but accepts genuinely empty observations', async t => {
+  let payload: unknown;
+  t.mock.method(globalThis,'fetch',async()=>Response.json(payload));
+  for(payload of [null,{}, {error:'upstream timed out'}, {provenance:'replay'},
+    {...frame(),hotspots:undefined}, {...frame(),provenance:'unknown'}, {...frame(),fetchedAt:'bad'}]) {
+    await assert.rejects(fetchFires(),/invalid response/);
+  }
+  payload=frame();
+  assert.deepEqual((await fetchFires()).hotspots,[]);
+});
+
+test('live responses cannot fulfill a replay seek, and retry preserves its cursor', async t => {
+  let live=false;
+  const requests:(number|undefined)[]=[];
+  const playback=new FirePlayback(async at=>{requests.push(at);return {...frame(at),provenance:live?'live':'replay'};});
+  t.after(()=>playback.dispose());
+  await playback.start();
+  const committed=playback.getState().data;
+  live=true;await playback.seek(1800);
+  assert.equal(playback.getState().data,committed);
+  assert.match(playback.getState().error!,/different observation time/);
+  live=false;await playback.retry();
+  assert.equal(playback.getState().error,null);
+  assert.equal(replayPosition(playback.getState().data),1800);
+  assert.deepEqual(requests,[undefined,1800,1800]);
+});
+
+test('fractional recording bounds round up and inconsistent timeline duration disables replay', () => {
+  const data=frame();
+  data.timeline={...data.timeline!,start:'2026-07-09T00:00:00.893Z',end:'2026-07-09T02:00:00.100Z'};
+  data.asOf=data.timeline.end;
+  assert.ok(replayTimeline(data));
+  assert.equal(replayPosition(data),7200);
+  data.asOf='2026-07-09T00:00:01.100Z';
+  assert.equal(replayPosition(data),1);
+  data.timeline.durationSeconds=7199;
+  assert.equal(replayTimeline(data),null);
+});

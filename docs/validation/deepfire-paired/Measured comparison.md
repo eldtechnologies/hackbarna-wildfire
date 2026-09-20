@@ -82,7 +82,7 @@ The original model's strongest held-out evaluation and this comparison have diff
 
 Two independent executions produce **exactly equal aggregate scores and all 114 array files** (38 inputs/predictions + 76 horizon labels). Input parity is exact for the original held-out sample. See `verification.json`.
 
-`frozen-benchmark.zip` holds fixed inputs, predictions, labels, weather, simulation records, protocol, case selection and source snapshots. `SHA256SUMS.json` records file identities. Raw MTG archives, original training data and original checkpoint are local prerequisites for a full reconstruction; their hashes and locations are recorded in the protocol/manifest. The zip is sufficient to rescore cached predictions and reuse the fixed evaluation target. It contains no API credentials.
+[frozen-benchmark.zip](frozen-benchmark.zip) holds fixed inputs, predictions, labels, weather, simulation records, protocol, case selection and source snapshots. [SHA256SUMS.json](SHA256SUMS.json) records file identities. Raw MTG archives, original training data and original checkpoint are local prerequisites for a full reconstruction; their hashes and locations are recorded in the protocol/manifest. The zip is sufficient to rescore cached predictions and reuse the fixed evaluation target. It contains no API credentials.
 
 For a full reconstruction, use the scientific Python environment with the original trainer and data-work root, and make a fresh directory containing `protocol.json`, `eligible.json` and `weather/` from the bundle:
 

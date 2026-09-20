@@ -5,6 +5,9 @@ import { EntityCollection, type Viewer } from 'cesium';
 import { FireLayer } from '../src/fires/fireLayer';
 import { createFireLayer } from '../src/layers/fireLayer';
 import { FireSelectionLayer } from '../src/layers/fireSelection';
+import { FirePlayback } from '../src/data/playback';
+import { connectFireViews } from '../src/data/fireSession';
+import { AgentPanel } from '../src/hud/agentPanel';
 import type { FiresResponse } from '../shared/fires';
 
 function frame(at = 0): FiresResponse {
@@ -50,6 +53,9 @@ test('threat refresh shares the committed cursor without reselecting or moving t
   t.after(()=>selection.destroy());
   selection.setData(frame()); selection.track('c1',0,'first');
   await new Promise(resolve=>setImmediate(resolve));
+  selection.track('c1',0,'first');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(calls.length,1,'the same selection and evidence must not fetch again');
   selection.setData(frame(3600)); selection.track('c1',3600,'next');
   await new Promise(resolve=>setImmediate(resolve));
   assert.deepEqual(calls,['/api/threats?fireId=c1&at=0','/api/threats?fireId=c1&at=3600']);
@@ -80,4 +86,31 @@ test('selected cluster survives new observations without a perimeter or camera m
   layer.setPlaying(true);assert.equal(layer.getState().playing,false);
   layer.setData({...frame(),clusters:[],hotspots:[]});
   assert.equal(layer.getState().selectedId,null);
+});
+
+
+test('application wiring commits one cursor before selection and report requests on every frame',async t=>{
+  const dom=new JSDOM('<canvas></canvas><main></main><aside></aside>');
+  Object.defineProperty(globalThis,'document',{value:dom.window.document,configurable:true});
+  t.after(()=>{delete (globalThis as {document?:Document}).document;dom.window.close();});
+  const calls:string[]=[];
+  t.mock.method(globalThis,'fetch',async url=>{calls.push(String(url));return new Response('',{status:502});});
+  const viewer={entities:new EntityCollection(),dataSources:{add:()=>{},remove:()=>{}},camera:{flyTo:()=>{}},
+    scene:{canvas:dom.window.document.querySelector('canvas'),pick:()=>undefined,
+      preRender:{addEventListener:()=>()=>{}}}} as unknown as Viewer;
+  const fires=new FireLayer(viewer);
+  const selection=new FireSelectionLayer(viewer,dom.window.document.querySelector('main')!,()=>{});
+  const agent=new AgentPanel(dom.window.document.querySelector('aside')!);
+  const playback=new FirePlayback(async at=>frame(at));
+  t.after(()=>{playback.dispose();fires.dispose();selection.destroy();});
+  connectFireViews(playback,{entities:viewer.entities,hud:{setMode:()=>{}},
+    hotspots:createFireLayer(viewer,dom.window.document.querySelector('main')!),fires,selection,agent});
+  await playback.start();fires.select('c1');
+  await new Promise(resolve=>setImmediate(resolve));
+  await playback.seek(3600);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(calls,['/api/threats?fireId=c1&at=0','/api/situation?fireId=c1&at=0',
+    '/api/threats?fireId=c1&at=3600','/api/situation?fireId=c1&at=3600']);
+  playback.pause();
+  assert.equal(calls.length,4,'loading and pause notifications do not fetch again');
 });

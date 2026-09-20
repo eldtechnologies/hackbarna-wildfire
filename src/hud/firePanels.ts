@@ -130,7 +130,7 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
     const max = selected.maxHorizonHours;
     const canForecast = max > 0;
     availability.textContent = canForecast
-      ? `Forecast from ${selected.basePerimeter.observedAt ?? 'unknown observation time'} · not recorded observations`
+      ? `Forecast from ${formatClock(selected.basePerimeter.observedAt)} · not recorded observations`
       : 'No spread forecast available at this observation time.';
     play.disabled = stepBack.disabled = stepFwd.disabled = !canForecast;
     slider.disabled = !canForecast;

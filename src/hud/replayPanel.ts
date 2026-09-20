@@ -23,6 +23,12 @@ export function initReplayPanel(playback: FirePlayback, root: HTMLElement): void
     <div class="replay-status" role="status"></div>
     <button class="hud-btn replay-retry" hidden>RETRY</button>`;
   root.appendChild(panel);
+  const errorBanner = document.createElement('div');
+  errorBanner.className = 'hud-error';
+  errorBanner.setAttribute('role', 'alert');
+  errorBanner.textContent = 'FIRE DATA UNAVAILABLE';
+  errorBanner.hidden = true;
+  root.appendChild(errorBanner);
   const time = panel.querySelector<HTMLElement>('.replay-time')!;
   const status = panel.querySelector<HTMLElement>('.replay-status')!;
   const slider = panel.querySelector<HTMLInputElement>('input')!;
@@ -60,7 +66,10 @@ export function initReplayPanel(playback: FirePlayback, root: HTMLElement): void
     slider.setAttribute('aria-valuetext', time.textContent);
     range[0].textContent = timeline ? timestamp(timeline.start) : '';
     range[1].textContent = timeline ? timestamp(timeline.end) : '';
-    status.textContent = state.error ? 'Could not load observations. The map shows the last loaded time.'
+    errorBanner.hidden = !state.error || state.data !== null;
+    status.textContent = state.error ? (state.data
+      ? 'Could not load observations. The map shows the last loaded time.'
+      : 'Could not load observations. No fire data has been loaded.')
       : state.loading ? 'Loading observations…'
       : timeline ? `${state.data!.hotspots.length.toLocaleString()} detections available · ${state.playing ? 'Playing' : 'Paused'} · recorded observations`
       : state.data?.provenance === 'live' ? 'Live observations · historical replay unavailable'

@@ -9,7 +9,9 @@ The importer preserves the Catalonia assets. Coverage remains two separate recta
 Reproduce with Python 3.12+, osmium 4.3.1 and Shapely 2.x:
 
 ```sh
-python scripts/import-almeria-infrastructure.py --pbf /path/to/andalucia.osm.pbf
+python scripts/import-almeria-infrastructure.py --pbf /path/to/andalucia.osm.pbf --out work/almeria-bundle
 ```
+
+The importer requires all four existing baseline collections. It writes a complete bundle, including provenance, to a fresh directory and publishes it with one directory rename. A failed import leaves the baseline unchanged and publishes no partial bundle. Review the generated bundle before replacing the committed data files together. Existing output directories are rejected.
 
 The app serves the bundled files offline. It does not call Overpass at runtime. This adds map/proximity context and makes no change to the road graph, road accessibility or routing decisions. Proximity matches are not evacuation instructions.

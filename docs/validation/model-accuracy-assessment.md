@@ -1,6 +1,6 @@
 # Is the model good enough?
 
-**Recommendation: keep it as an explicitly experimental thermal-probability layer; do not replace the spread simulation or use it as the default predictor. There is no measured evidence that it beats DeepFire.**
+**Recommendation: keep it as an explicitly experimental thermal-probability layer; do not replace the spread simulation or use it as the default predictor. The later [paired comparison](deepfire-paired/Measured%20comparison.md) also does not establish superiority to DeepFire.**
 
 This audit found a real ranking improvement over fixed baselines on previously held-out geography, but the model misses most newly observed detections at ordinary probability thresholds. That is useful research evidence, not sufficient product accuracy.
 
@@ -44,7 +44,7 @@ The legacy five-fold split holds out episode IDs but shares 16–25 spatial clus
 
 [DeepFire’s documented simulation endpoint](https://docs.deepfire.co/api/fire-spread) supports ELMFIRE/ForeFire, point or cluster ignition, 1–24 hours and hourly spread polygons. Our model returns a 64×64 native-pixel probability raster for thermal detection within 1, 3 and 6 hours. These are different targets.
 
-No matched DeepFire-versus-model benchmark was available or run here. Starting a simulation now would not establish performance at the historical test issue time; the documented request does not expose a historical weather/issue-time parameter. To claim a winner we need matched issue times, available inputs and independent time-resolved perimeter/arrival labels, then score both predictions on the same spatial target. Neither the AP numbers above nor a plausible-looking simulation proves superiority.
+No matched DeepFire-versus-model benchmark was available for this initial audit. The subsequent [paired thermal comparison](deepfire-paired/Measured%20comparison.md) uses archived simulations on a common target and reports its limits. Starting a simulation now would not establish performance at the historical test issue time; the documented request does not expose a historical weather/issue-time parameter. To claim a winner we need matched issue times, available inputs and independent time-resolved perimeter/arrival labels, then score both predictions on the same spatial target. Neither the AP numbers above nor a plausible-looking simulation proves superiority.
 
 ## Visual output
 
@@ -54,4 +54,7 @@ The probabilities can be rendered as a time-slider heatmap. They do not directly
 
 ## Reproduction and evidence
 
-The owned integration branch contains `tools/validation/novel_detection.py`, `input_audit.py`, unit tests and the frozen audit protocol. Run with the existing full-v1 directory, frozen checkpoint and the exact pinned trainer source specified in the protocol. `full-results.json` includes all event metrics and operating points; the accompanying input and legacy audit JSON files contain the checks above.
+The owned integration branch contains `tools/validation/novel_detection.py`, `input_audit.py`, unit tests and the frozen audit protocol. Run with the existing full-v1 directory, frozen checkpoint and the exact pinned trainer source specified in the protocol. [full-results.json](full-results.json) includes all event metrics and operating points; the accompanying input and legacy audit JSON files contain the checks above.
+
+
+The original protocols remain unchanged. `trainer-source-lock.json` pins all source modules of the original trainer; audit commands copy only these verified bytes into a private import directory before running them. Both checkpoint paths use PyTorch's restricted weights loader. The paired command also checks its input adapter and the frozen case, weather and simulation inventory before inference.

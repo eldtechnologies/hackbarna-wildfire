@@ -99,7 +99,7 @@ export class FirePlayback {
       const data = await this.loadFires(seconds, request.signal);
       if (generation !== this.generation || this.disposed) return;
       const timeline = replayTimeline(data);
-      if (seconds !== undefined && data.provenance === 'replay' &&
+      if (seconds !== undefined &&
           (!timeline || Date.parse(data.asOf!) !== Math.min(Date.parse(timeline.start) + seconds * 1000, Date.parse(timeline.end)))) {
         throw new Error('The server returned a different observation time');
       }
