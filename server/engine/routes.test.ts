@@ -328,8 +328,11 @@ test('GET /api/reach serves the over-alerting figure with what it rests on', asy
     measuredFraction: number | null;
     threatenedSettlementIds: string[];
     totalOverAlerted: number;
-    rows: Array<{ settlementId: string; population: number; coveringCells: number; threatened: boolean; overAlerted: number }>;
+    rows: Array<{ settlementId: string; population: number | null; coveringCells: number; threatened: boolean; overAlerted: number | null }>;
     fetchedAt: string;
+    surveyScope: string;
+    unknownPopulation: string[];
+    unusableSettlements: Array<{ id: string; reason: string }>;
   };
 
   // The committed fetch: 625 cells over 88 tiles, none failed. Asserted as a floor rather than
@@ -344,6 +347,9 @@ test('GET /api/reach serves the over-alerting figure with what it rests on', asy
   // answer must not silently omit the villages nobody can broadcast to.
   assert.equal(body.rows.length, 5, 'every settlement in the fixture has a row');
   for (const row of body.rows) {
+    // Every committed population is known, so a null here is itself a failure — and saying so keeps
+    // the formula below the plain one rather than one that would also pass for two nulls.
+    assert.equal(typeof row.population, 'number', `${row.settlementId}: the committed population is known`);
     assert.equal(
       row.overAlerted,
       row.threatened || row.coveringCells === 0 ? 0 : row.population,
@@ -351,16 +357,29 @@ test('GET /api/reach serves the over-alerting figure with what it rests on', asy
     );
   }
 
-  const expected = body.rows.filter((r) => !r.threatened && r.coveringCells > 0).reduce((s, r) => s + r.population, 0);
-  assert.equal(body.totalOverAlerted, expected, 'the total is the sum of the rows, and of nothing else');
-
   // The fraction is published and is neither absent nor a clean 1. A version that counted the
   // fallback as measured would report exactly 1 here; one that reported nothing would be null.
   assert.ok(body.measuredFraction !== null && body.measuredFraction > 0 && body.measuredFraction < 1,
     `expected a fraction strictly inside (0, 1), got ${String(body.measuredFraction)}`);
 
-  // And the threat set reaches this route from the engine rather than being empty. An empty
-  // one makes every covered settlement over-alerted, which is the whole population.
-  assert.ok(body.threatenedSettlementIds.length > 0, 'the fire reaches at least one settlement');
-  assert.ok(body.threatenedSettlementIds.length < 5, 'and not all of them, or nothing is over-alerted');
+  // Named EXACTLY, not by size. A handler publishing the complement of the engine's set — Turre
+  // and Mojácar threatened, 5,497 over-alerted — satisfied every assertion above: the per-row
+  // formula, the sum, the fraction, and both length bounds. Nothing here pinned WHICH settlements
+  // were threatened, which is the thing the route could get wrong.
+  assert.deepEqual(
+    [...body.threatenedSettlementIds].sort(),
+    ['bedar', 'los-gallardos', 'lubrin'],
+    'the three settlements the fire reaches, named rather than counted',
+  );
+  // The figure against the two INE populations directly — Turre 4,361 + Mojácar 7,680 — rather
+  // than against a re-derivation of the same formula the response uses, which would restate the
+  // implementation instead of checking it.
+  assert.equal(body.totalOverAlerted, 4361 + 7680, 'the over-alerted population is the two villages the fire misses');
+
+  // And what the figure rests on travels with it. The survey scope is not decoration: the box
+  // bounds the cells' own positions, so a coverage column read without it can be read as a fact
+  // about towers rather than about towers that were asked about.
+  assert.ok(body.surveyScope.includes('own coordinates'), 'the survey scope says what the box bounds');
+  assert.deepEqual(body.unknownPopulation, [], 'the committed settlements all have a known population');
+  assert.deepEqual(body.unusableSettlements, [], 'and all of them have a usable position');
 });

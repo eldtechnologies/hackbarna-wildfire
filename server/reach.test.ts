@@ -35,6 +35,25 @@ const settlement = (over: Partial<ReachSettlement> = {}): ReachSettlement => ({
   id: 'bedar', name: 'Bédar', lat: 37.1909, lon: -1.9806, population: 953, ...over,
 });
 
+/**
+ * The provenance every fixture must carry.
+ *
+ * Named as a constant because `loadFixture` refuses a fixture without it, so each test that wants
+ * a readable fixture spreads this rather than restating nine fields — and each test that wants to
+ * check a missing one deletes exactly one key from it.
+ */
+const PROVENANCE = {
+  source: 'OpenCelliD',
+  endpoint: 'https://opencellid.org/cell/getInArea',
+  fetchedAt: '2026-09-20T10:00:00.000Z',
+  region: { south: 37.12, west: -2.062, north: 37.264, east: -1.831 },
+  maxAreaM2: 4_000_000,
+  tilesRequested: 88,
+  tilesFailed: 0,
+  failures: [],
+  measuredRangeCells: 1,
+} satisfies Omit<ReachFixture, 'cells'>;
+
 test('a cell whose range is the OpenCelliD fallback is marked as a fallback, not counted as measured', () => {
   // The risk map's first row, and the one that decides whether the published figure reads as a
   // measurement. `range: 1000` is what OpenCelliD returns when it holds no measurement for the
@@ -154,23 +173,43 @@ test('a degenerate range does not become a zero-radius or infinite-radius footpr
     cell({ cellid: 3, range: -5 }),
     cell({ cellid: 4, range: 'big' }),
     cell({ cellid: 5, range: Number.NaN }),
-    // The two below are what separate a TYPE CHECK from a coercion, and the five above do not.
-    // `Number('250')` is 250 and `Number(true)` is 1, so a version that tested the coerced value
-    // would accept both — building a 250 m footprint out of a string and a 1 m one out of a
-    // boolean. Whereas `Number(undefined)`, `Number('big')` and `Number(NaN)` are all NaN, and
-    // `Number(0)`/`Number(-5)` fail the positivity test either way: measured by planting the
-    // coercion mutant, all five passed it.
+    // These four are what separate a TYPE CHECK from a coercion; the five above do not. `Number()`
+    // maps `'250'` to 250 and `true` to 1 — so a version that tested the coerced value builds a
+    // 250 m footprint out of a string and a 1 m one out of a boolean — and maps `null` and `''`
+    // to 0, which it then refuses only by accident, via the positivity test rather than by type.
+    // Measured by planting exactly that mutant: all five of the originals passed it.
     cell({ cellid: 7, range: '250' }),
     cell({ cellid: 8, range: true }),
+    cell({ cellid: 9, range: null }),
+    cell({ cellid: 10, range: '' }),
     cell({ cellid: 6, range: 250 }),
   ]);
 
   assert.equal(cells.length, 1, 'only the usable cell becomes a footprint');
   assert.equal(cells[0].rangeM, 250);
-  assert.equal(unusable.length, 7, 'and every refused cell is reported with a reason');
+  // Named exactly, rather than counted or suffix-matched. The previous assertion here was
+  // `unusable.some((u) => u.id.endsWith('-1'))`, which cell 1, cell 11 and any other id ending in
+  // 1 all satisfy — so it never pinned the input its comment named.
+  assert.deepEqual(
+    unusable.map((u) => u.id),
+    [1, 2, 3, 4, 5, 7, 8, 9, 10].map((n) => `214-7-404-${n}`),
+    'every refused cell is named, in the order it was given',
+  );
   for (const u of unusable) assert.ok(u.reason.length > 0, `${u.id} carries a reason`);
-  // `Number(null)` is 0, so an absent range must be caught by type rather than by coercion.
-  assert.ok(unusable.some((u) => u.id.endsWith('-1')), 'the absent range is among them');
+});
+
+test('a null or primitive entry is refused by position, not thrown', () => {
+  // `cellId` reads four properties off each entry, so a `null` in the array reached `cell.mcc` and
+  // threw a bare TypeError out of the whole endpoint — reporting nothing about which entry was
+  // bad, where every other malformed shape is reported per cell. The entry's index is the only
+  // identifier available for something that is not an object.
+  const { cells, unusable } = servedFootprints([
+    cell({ cellid: 1 }),
+    null as unknown as RawCell,
+    'cell' as unknown as RawCell,
+  ]);
+  assert.equal(cells.length, 1, 'the well-formed cell still becomes a footprint');
+  assert.deepEqual(unusable.map((u) => u.id), ['#1', '#2'], 'the bad entries are named by position');
 });
 
 test('a cell whose position is not a pair of numbers is refused too', () => {
@@ -196,7 +235,53 @@ test('a threatened settlement contributes nothing to the over-alerting figure', 
   assert.equal(threatened.rows.find((r) => r.settlementId === 'b')?.overAlerted, 200, 'an unthreatened one is');
 
   const none = overAlertingBy(set, people, new Set());
-  assert.equal(none.rows.reduce((sum, r) => sum + r.overAlerted, 0), 300, 'with nothing threatened, everyone is');
+  assert.equal(none.totalOverAlerted, 300, 'with nothing threatened, everyone is');
+});
+
+test('an unknown population is carried as null, never folded into a zero', () => {
+  // `Settlement.population` is `number | null` so that null means unknown and zero means nobody
+  // lives there. `?? 0` collapsed the two, and a covered village of unknown size then reported
+  // `population: 0, overAlerted: 0` — indistinguishable from an empty one, silently absent from
+  // the total, and wrong in the reassuring direction. The egress engine renders the same value as
+  // "unknown clearance is not zero clearance"; this module was the one place in the repo that
+  // collapsed it.
+  const set = servedFootprints([cell({ lat: 37.1909, lon: -1.9806, range: 5000 })]);
+  const { rows, totalOverAlerted, unknownPopulation } = overAlertingBy(
+    set,
+    [
+      settlement({ id: 'known', population: 300 }),
+      settlement({ id: 'unknown', population: null, lat: 37.1909, lon: -1.9807 }),
+    ],
+    new Set<string>(),
+  );
+
+  const unknown = rows.find((r) => r.settlementId === 'unknown');
+  assert.equal(unknown?.population, null, 'the null population is carried through, not defaulted');
+  assert.equal(unknown?.overAlerted, null, 'and the contribution is unknown, not zero');
+  assert.equal(totalOverAlerted, 300, 'so the total counts only what it can');
+  assert.deepEqual(unknownPopulation, ['unknown'], 'and names what it could not count, so 300 cannot read as complete');
+});
+
+test('a settlement with no usable position is reported, not counted as uncovered', () => {
+  // The same `typeof`-first rule the cells get: `Number(null)` is 0, so a missing coordinate would
+  // be read as the point (0, 0), and the village would then be tested against footprints 3,000 km
+  // away and report `coveringCells: 0` — which this module publishes as the fact "no cell covers
+  // this village". An absent value must not become a finding.
+  const set = servedFootprints([cell({ lat: 37.1909, lon: -1.9806, range: 5000 })]);
+  const { rows, unusableSettlements, totalOverAlerted } = overAlertingBy(
+    set,
+    [
+      settlement({ id: 'placed', population: 100 }),
+      settlement({ id: 'unplaceable', population: 200, lat: null as unknown as number, lon: -1.98 }),
+    ],
+    new Set<string>(),
+  );
+
+  assert.deepEqual(unusableSettlements.map((u) => u.id), ['unplaceable']);
+  assert.ok(unusableSettlements[0].reason.length > 0, 'with a reason');
+  const row = rows.find((r) => r.settlementId === 'unplaceable');
+  assert.equal(row?.overAlerted, null, 'not zero, and not a made-up covering count');
+  assert.equal(totalOverAlerted, 100, 'the total counts only the settlement it could place');
 });
 
 test('a settlement is counted wholly or not at all, by its centre', () => {
@@ -253,19 +338,40 @@ test('a missing or cell-less fixture is refused rather than served as an empty r
   );
 
   const dir = mkdtempSync(join(tmpdir(), 'reach-fixture-'));
-  const noCells = join(dir, 'no-cells.json');
-  writeFileSync(noCells, JSON.stringify({ source: 'OpenCelliD', tilesFailed: 3, failures: [] }));
+  const write = (name: string, body: unknown): string => {
+    const path = join(dir, name);
+    writeFileSync(path, JSON.stringify(body));
+    return path;
+  };
+
   assert.throws(
-    () => loadFixture(noCells),
+    () => loadFixture(write('no-cells.json', { ...PROVENANCE, tilesFailed: 3 })),
     /no cells array/,
-    'and a fixture without cells is refused even though its other fields parse',
+    'a fixture without cells is refused even though its other fields parse',
   );
 
-  // An empty array IS a valid fixture and must not be refused: it is a region that was asked
-  // about and holds no towers, which is a different statement from a region nobody asked about.
-  const empty = join(dir, 'empty.json');
-  writeFileSync(empty, JSON.stringify({ source: 'OpenCelliD', cells: [], tilesRequested: 88, tilesFailed: 0 }));
-  assert.equal(loadFixture(empty).cells.length, 0, 'a real empty fetch reads as empty');
+  // An EMPTY array is refused too — the case the guard above was written for and did not cover.
+  // A survey of 88 tiles over a populated region that found no towers has failed; served, it
+  // publishes `cells: 0` and `totalOverAlerted: 0`, read as "nobody is woken up for nothing".
+  // An earlier revision accepted this and a test asserted the acceptance, both wrongly.
+  assert.throws(
+    () => loadFixture(write('empty.json', { ...PROVENANCE, cells: [] })),
+    /no cells/,
+    'an empty survey is refused rather than served as a region with no coverage',
+  );
+
+  // Provenance is refused rather than defaulted, because each field is a claim the response
+  // publishes. `tilesFailed: 0` is the strongest of them — that every tile completed — and a
+  // missing region would be published beside the figure as `{0,0,0,0}`.
+  for (const field of ['source', 'endpoint', 'fetchedAt', 'maxAreaM2', 'tilesRequested', 'tilesFailed', 'measuredRangeCells', 'region', 'failures'] as const) {
+    const partial: Record<string, unknown> = { ...PROVENANCE, cells: [cell()] };
+    delete partial[field];
+    assert.throws(
+      () => loadFixture(write(`no-${field}.json`, partial)),
+      /no usable|no failures array/,
+      `a fixture missing \`${field}\` is refused rather than given a default`,
+    );
+  }
 });
 
 test('the assembled figure sums the rows and carries what it rests on', () => {
@@ -273,15 +379,9 @@ test('the assembled figure sums the rows and carries what it rests on', () => {
   // other one's population and not the sum of both — the wrong version ignores the threat set
   // and publishes 300, which is the number that makes the feature argue for itself.
   const fixture: ReachFixture = {
-    source: 'OpenCelliD',
-    endpoint: 'https://opencellid.org/cell/getInArea',
-    fetchedAt: '2026-09-20T10:00:00.000Z',
-    region: { south: 37.12, west: -2.062, north: 37.264, east: -1.831 },
-    maxAreaM2: 4_000_000,
-    tilesRequested: 88,
+    ...PROVENANCE,
     tilesFailed: 2,
     failures: [{ bbox: '37.12,-2.06,37.15,-2.03', reason: 'HTTP 429' }],
-    measuredRangeCells: 1,
     cells: [
       { mcc: 214, mnc: 7, lac: 404, cellid: 1, lat: 37.1909, lon: -1.9806, range: 5174 },
       { mcc: 214, mnc: 7, lac: 404, cellid: 2, lat: 37.1909, lon: -1.9807, range: FALLBACK_RANGE_M },
@@ -305,4 +405,66 @@ test('the assembled figure sums the rows and carries what it rests on', () => {
   assert.deepEqual(response.failures, fixture.failures, 'the failed boxes are named, not just counted');
   assert.equal(response.fetchedAt, '2026-09-20T10:00:00.000Z', 'and the vintage of the fetch');
   assert.equal(response.cells, 2);
+});
+
+test('a threat id that names no settlement is refused, not read as nothing threatened', () => {
+  // The engine's settlement ids and this module's come from different places. A case difference or
+  // a trailing space makes every id match nothing, so no settlement is threatened, every covered
+  // village counts its whole population, and the total silently becomes the largest number the
+  // model can produce — with every field on the response still well-formed. Same shape as the
+  // node-index bug one layer down: an empty match that reads as a finding instead of an error.
+  const fixture: ReachFixture = { ...PROVENANCE, cells: [cell()] };
+  const settlements = [settlement({ id: 'bedar' })];
+
+  assert.throws(
+    () => assembleReach(fixture, settlements, new Set(['bedar '])),
+    /absent from the settlement list/,
+    'a trailing space does not pass as "this fire threatens nobody"',
+  );
+  assert.throws(
+    () => assembleReach(fixture, settlements, new Set(['LOS-GALLARDOS'])),
+    /absent from the settlement list/,
+    'and neither does a case difference',
+  );
+
+  // An EMPTY threat set is not refused. A fire that reaches no settlement is a real thing, and the
+  // response states it by publishing an empty list rather than by inflating the figure silently.
+  assert.deepEqual(
+    assembleReach(fixture, settlements, new Set()).threatenedSettlementIds,
+    [],
+    'an empty threat set is served, and visible',
+  );
+});
+
+test('the committed fixture and the tiling agree on the region and the request count', () => {
+  // The tiling arithmetic is duplicated: `scripts/fetch-reach.mjs` is .mjs, so it carries its own
+  // copy rather than importing the TypeScript module. Nothing crossed the two, which meant the
+  // fixture could stop matching the code that claims to produce it and every gate would still
+  // pass — the region could be moved in one copy, or the tile size changed in the other, and
+  // `tilesRequested` would quietly become a number no current code produces.
+  const fixture = loadFixture();
+
+  assert.equal(
+    tileBounds(fixture.region, fixture.maxAreaM2).length,
+    fixture.tilesRequested,
+    "the committed request count is the one this module's tiling produces for the committed region",
+  );
+
+  // Every committed cell lies inside the box that was surveyed — the property the script's
+  // `getInArea` filter is supposed to guarantee, and which nothing previously checked.
+  for (const c of fixture.cells) {
+    const lat = c.lat as number;
+    const lon = c.lon as number;
+    assert.ok(
+      lat >= fixture.region.south && lat <= fixture.region.north &&
+        lon >= fixture.region.west && lon <= fixture.region.east,
+      `cell at ${lat},${lon} lies outside the surveyed region`,
+    );
+  }
+
+  // And the survey scope names the box it actually bounds, so the response's own description
+  // cannot drift from the fixture it describes.
+  const scope = assembleReach(fixture, [], new Set()).surveyScope;
+  assert.ok(scope.includes(fixture.region.south.toFixed(3)), 'the scope names the southern edge');
+  assert.ok(scope.includes(fixture.region.east.toFixed(3)), 'and the eastern one');
 });

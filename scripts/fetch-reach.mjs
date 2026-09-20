@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Fetch OpenCelliD cells for the demo region into a committed fixture.
 //
 // Reach is the over-alerting number: how many people a cell broadcast would wake for a fire
@@ -85,6 +84,30 @@ const areaOf = (t) => {
 
 const cellId = (c) => [c.mcc, c.mnc, c.lac, c.cellid].map((v) => String(v ?? '?')).join('-');
 
+// The token rides in the query string, and upstream transport text comes back through every
+// failure path: `reason` -> `failures` -> the COMMITTED fixture -> the unauthenticated
+// `/api/reach` response, and to stderr. Reproduced against the live API: a 401 returns
+// `{"error":"API Key not known: <key>","code":2}`, so an expired, revoked or simply wrong key
+// puts itself in the repository and in its history with no misconfiguration required. A
+// malformed base URL throws a TypeError quoting the whole URL, key included.
+//
+// Scrubbed at the one place a reason is built, rather than at each of the places one is stored,
+// so a new caller cannot reintroduce the leak. Both encodings, because an upstream may echo
+// either form back.
+function safeText(text, token) {
+  let out = String(text);
+  for (const form of [token, encodeURIComponent(token)]) {
+    if (form) out = out.split(form).join('<redacted>');
+  }
+  // Control characters would let an upstream — or a mirror set through OPENCELLID_BASE_URL —
+  // write terminal escapes into a CI log from inside the fixture.
+  out = out.replace(/[\u0000-\u001f\u007f]/g, ' ');
+  return out.length > 160 ? `${out.slice(0, 160)}...` : out;
+}
+
+/** The statuses that mean the credential was refused rather than this one request failing. */
+const isAuthFailure = (status) => status === 401 || status === 403;
+
 async function fetchTile(tile, token, base) {
   const bbox = [tile.south, tile.west, tile.north, tile.east].map((v) => v.toFixed(5)).join(',');
   const url = `${base}/cell/getInArea?key=${encodeURIComponent(token)}&BBOX=${bbox}&format=json`;
@@ -93,21 +116,40 @@ async function fetchTile(tile, token, base) {
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
       const body = await res.text();
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${body.slice(0, 120)}`);
+      if (!res.ok) {
+        const detail = safeText(body.slice(0, 120), token);
+        // A refused credential fails every tile identically. Retrying the other 87 and then
+        // writing what they returned produces a fixture with no cells that reads as "this region
+        // has no towers" — the empty-reads-as-fact inversion, plus a key in the file.
+        if (isAuthFailure(res.status)) {
+          return { ok: false, bbox, reason: `HTTP ${res.status}: ${detail}`, fatal: true };
+        }
+        throw new Error(`HTTP ${res.status}: ${detail}`);
+      }
       const parsed = JSON.parse(body);
       // The API reports refusals in the body with a 200 in some deployments, so a body-level
       // error is treated as a failure rather than as an empty tile.
       if (parsed && typeof parsed === 'object' && parsed.error) {
-        throw new Error(`API refused: ${parsed.error}`);
+        // Bounded and scrubbed like the body path: `parsed.error` is an upstream-controlled
+        // string, and a mirror configured through OPENCELLID_BASE_URL controls it entirely.
+        throw new Error(`API refused: ${safeText(parsed.error, token)}`);
       }
-      if (!Array.isArray(parsed.cells)) throw new Error(`no cells array: ${body.slice(0, 120)}`);
+      if (!Array.isArray(parsed.cells)) {
+        throw new Error(`no cells array: ${safeText(body.slice(0, 120), token)}`);
+      }
       return { ok: true, cells: parsed.cells };
     } catch (err) {
       lastError = err;
       if (attempt < RETRIES) await new Promise((r) => setTimeout(r, 500 * attempt));
     }
   }
-  return { ok: false, bbox, reason: lastError instanceof Error ? lastError.message : String(lastError) };
+  // Scrubbed again here rather than only at the construction sites above, because a fetch-level
+  // TypeError carries the whole URL and is built by the runtime, not by this file.
+  return {
+    ok: false,
+    bbox,
+    reason: safeText(lastError instanceof Error ? lastError.message : String(lastError), token),
+  };
 }
 
 async function main() {
@@ -130,6 +172,14 @@ async function main() {
     if (result.ok) {
       for (const cell of result.cells) byId.set(cellId(cell), cell);
       process.stdout.write(`\r[reach] ${index + 1}/${tiles.length} tiles, ${byId.size} cells, ${failed.length} failed`);
+    } else if (result.fatal) {
+      // Abort here rather than fail 88 tiles and write what is left. A refused credential is not a
+      // coverage fact about the region, and writing the result would replace a good fixture with
+      // an empty one that reads as "these villages have no towers".
+      throw new Error(
+        `the API refused the credential at tile ${index + 1}/${tiles.length}: ${result.reason}\n` +
+          '        check OPENCELLID_TOKEN in .env. No fixture was written.',
+      );
     } else {
       failed.push(result);
     }
@@ -155,6 +205,17 @@ async function main() {
     measuredRangeCells: measured,
   };
 
+  // Refusing to write is the point here, not a nicety. A zero-cell fixture makes `loadFixture`
+  // throw and the endpoint answer 502, which is the loud failure this module wants — but the
+  // fixture on disk would already have replaced a good one. Fail before the write, so the bad
+  // survey never lands.
+  if (cells.length === 0) {
+    throw new Error(
+      `the fetch returned no cells from any of ${tiles.length} tiles; refusing to overwrite ` +
+        `${OUT_PATH} with a survey that would read as "no coverage"`,
+    );
+  }
+
   mkdirSync(dirname(OUT_PATH), { recursive: true });
   writeFileSync(OUT_PATH, `${JSON.stringify(payload, null, 1)}\n`);
   console.log(
@@ -164,6 +225,11 @@ async function main() {
   if (failed.length > 0) {
     console.warn(`[reach] ${failed.length} tiles could not be fetched — coverage in those boxes is UNKNOWN, not empty`);
     for (const f of failed) console.warn(`[reach]   ${f.bbox}: ${f.reason}`);
+    // The fixture records the failures, but a caller reads the exit code, not the JSON. Exiting 0
+    // made a partial re-run indistinguishable from a complete one, and it silently replaced a
+    // full survey with a partial one.
+    process.exitCode = 1;
+    console.warn('[reach] exiting non-zero: the fixture is PARTIAL');
   }
 }
 
