@@ -85,6 +85,8 @@ def assess(reports, protocol):
     if not reports:
         reasons.append("no final evaluation results")
     for r in reports:
+        if r.get('evaluation_domain','all')!='all':
+            reasons.append('restricted-domain evaluation cannot establish full-domain acceptance')
         for h in map(str, HORIZONS):
             s = r.get("scores", {}).get(h)
             if not isinstance(s, dict):

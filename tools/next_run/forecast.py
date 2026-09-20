@@ -17,25 +17,29 @@ from .quality import GEOS,Quality
 from .terrain import Terrain
 from .weather import Weather
 from .inputs import InputFrame
-from .train import UNet,calibrate,training_sources
+from .train import UNet,build_model,calibrate,training_sources
 from .acceptance import POLICY,is_hash
 
 # Audited legacy trainers use identical Block/UNet/logit/calibration definitions.
 # Pin both source identities so another inference change cannot silently pass.
 COMPATIBLE_TRAINERS = {
-    '83a42e470850d3c9961805e3603a0b14db8207219e06eccc38503b57a4cfb6f6': '162bf595a71925b4c23052da6e2e6b2210fe291309e1767ad4fafdb1ee524e68',
-    '5582241583b9323d6adb0fe68ca24fc3982cd0668927a8748754cd0c3cd8906e': '162bf595a71925b4c23052da6e2e6b2210fe291309e1767ad4fafdb1ee524e68',
+    '83a42e470850d3c9961805e3603a0b14db8207219e06eccc38503b57a4cfb6f6': '0575bb1ae0b4f5514a0c94e368c4afc601225b66250e84d173ad1147a0f657db',
+    '5582241583b9323d6adb0fe68ca24fc3982cd0668927a8748754cd0c3cd8906e': '0575bb1ae0b4f5514a0c94e368c4afc601225b66250e84d173ad1147a0f657db',
 }
 
+
+LEGACY_LEARNING_SHA256 = '3e4d160cb6f7953a8be27db3aa5a9e94a2c1ffa655b41279e038c3fe1f3084d7'
 
 def validate_trainer(saved_hash):
     runtime_hash=file_hash(Path(__file__).with_name('train.py'))
     if saved_hash!=runtime_hash and COMPATIBLE_TRAINERS.get(saved_hash)!=runtime_hash:
         raise ValueError('Checkpoint trainer differs from verified inference runtime')
+    if saved_hash!=runtime_hash and file_hash(Path(__file__).with_name('learning.py'))!=LEGACY_LEARNING_SHA256:
+        raise ValueError('Legacy trainer inference dependency changed')
 
 
 def producer_hash():
-    names=['forecast','inputs','common','quality','weather','terrain','train','loading','acceptance']
+    names=['forecast','inputs','common','quality','weather','terrain','train','learning','domains','loading','acceptance']
     return digest({name:file_hash(Path(__file__).with_name(name+'.py')) for name in names})
 
 
@@ -64,6 +68,7 @@ def artifact(event,issue,x,previous,identity,checkpoint=None,acceptance=None,dev
         else:
             saved=torch.load(checkpoint,map_location=device,weights_only=False)
             if saved['manifest_sha256']!=identity:raise ValueError('Checkpoint dataset mismatch')
+            if saved.get('target','all')!='all':raise ValueError('Novel-only checkpoint cannot supply a full-domain forecast')
             validate_trainer(saved.get('trainer_sha256'))
             if (saved.get('trainer_sha256')==file_hash(Path(__file__).with_name('train.py')) or 'runtime_sources' in saved) and saved.get('runtime_sources')!=training_sources():
                 raise ValueError('Checkpoint training dependencies changed')
@@ -73,7 +78,7 @@ def artifact(event,issue,x,previous,identity,checkpoint=None,acceptance=None,dev
             if calibration is None or not np.isfinite([calibration['slope'],calibration['intercept']]).all() or calibration['slope']<=0:
                 raise ValueError('Missing monotonic calibration')
             trainer_sha=saved['trainer_sha256']
-            model=UNet(len(CHANNELS),saved['base']).to(device);model.load_state_dict(saved['state']);model.eval()
+            model=build_model(len(CHANNELS),saved.get('model_config',dict(base=saved['base']))).to(device);model.load_state_dict(saved['state']);model.eval()
             with torch.no_grad():prediction=model(torch.from_numpy(x.astype(np.float32))[None].to(device))[0].cpu().numpy()
             prediction=calibrate(prediction,calibration);predictor='model'
     else:reasons.append('no_accepted_checkpoint')
