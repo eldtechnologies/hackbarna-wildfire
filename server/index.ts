@@ -1,5 +1,6 @@
 import express from 'express';
-import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LEDGER_PATH, SERVER_HOST, SERVER_PORT } from './config';
 import { openLedger } from './engine/ledger';
@@ -130,6 +131,22 @@ export function createApp(metrics: () => Metrics = loadMetrics, forecasts = new 
       res.status(502).json({error:'forecast artifact unavailable'});
     }
   });
+
+  // Serve the built frontend from the same process, so a container deployment
+  // (Coolify/Docker) is one service on one port rather than a split proxy.
+  //
+  // Mounted AFTER the API routes so /api/* always wins; the SPA fallback only
+  // catches non-API GETs. Guarded by the dist/ build existing: in `npm run dev`
+  // Vite serves the client and proxies /api here, so there is no build to serve
+  // and this stays inert. `express.static` handles real asset paths; anything
+  // else falls through to index.html for client-side routing.
+  const clientDist = resolve(dirname(fileURLToPath(import.meta.url)), '../dist');
+  if (existsSync(clientDist)) {
+    app.use(express.static(clientDist));
+    app.get(/^(?!\/api\/).*/, (_req, res) => {
+      res.sendFile(resolve(clientDist, 'index.html'));
+    });
+  }
 
   return app;
 }
