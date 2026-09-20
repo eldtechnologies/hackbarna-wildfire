@@ -114,6 +114,7 @@ but "when does the road out close, and can this village still leave".
 | `GET /api/egress/field` | The cut-time field over the road network. Cursor-independent — fetch it once |
 | `GET /api/alerts?at=<seconds>` | The alert packages, the rejection log and the decision ledger |
 | `GET /api/cap/:pocketId?at=<seconds>` | One CAP 1.2 XML document for that pocket |
+| `GET /api/ledger?limit=<n>` | The whole recommendation history, in the order it was recorded. No cursor: the point is reading the incident without already knowing which moments to ask for. `limit` takes the most recent n; `total` reports what the store holds |
 
 `?at=` is seconds since the scenario origin, matching `/api/fires`. Responses publish the
 origin they resolved, because the client's globe and this engine have to agree on what

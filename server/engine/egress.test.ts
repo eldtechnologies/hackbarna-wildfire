@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { buildEgress, extremesBy, loadContext, routeBasisFor } from './egress';
 import { buildAlerts } from './alerts';
 import { nearestNode } from './graph';
@@ -7,6 +10,18 @@ import { ASSUMPTION_PROFILES, withAssumedSpeeds } from './assumptions';
 import { allNodesSafe, bottleneckOf, latestDeparture } from './solve';
 import { SWEEP_CONFIGS } from './sweep';
 import { DEFAULT_LATENCY_SECONDS } from './time';
+
+/**
+ * A ledger path in a temporary directory.
+ *
+ * Every call gets its own by default, because the store makes a repeated cursor return the
+ * RECORDED entry rather than a fresh computation — so a shared path would turn any test
+ * that asks for a cursor twice into a test of the store, and would make the suite's result
+ * depend on what an earlier run left behind in the working tree.
+ */
+function tmpLedger(): string {
+  return join(mkdtempSync(join(tmpdir(), 'alerts-ledger-')), 'recommendations.jsonl');
+}
 
 const ctx = loadContext();
 
@@ -109,7 +124,7 @@ test('nothing observed is its own verdict, not an all-clear', () => {
 
   // And the alert layer must not compose an evacuation out of it. At 17:00 a real route
   // is known and the sentence names a real road; at 00:00 there is no route to name.
-  const silent = buildAlerts({ atSeconds: 0 });
+  const silent = buildAlerts({ atSeconds: 0, ledgerPath: tmpLedger() });
   for (const pkg of silent.response.packages) {
     assert.equal(pkg.instruction, 'no_verified_action', 'no evacuation is composed before anything is observed');
   }
@@ -130,7 +145,7 @@ test('a pocket with no observation says so in every artifact of the same respons
 
   // The audit line has to describe the search that happened, which was none. "No route
   // survived the sweep" would read as a search that came up empty.
-  const ledger = buildAlerts({ atSeconds: 0 }).ledger[0];
+  const ledger = buildAlerts({ atSeconds: 0, ledgerPath: tmpLedger() }).ledger[0];
   assert.match(ledger.evidence[0], /no detection had arrived/, `ledger says: ${ledger.evidence[0]}`);
   assert.doesNotMatch(ledger.evidence[0], /no route survived the sweep/);
 });
@@ -182,8 +197,8 @@ test('the timeline is three states with two transitions', () => {
 
   // The verdict is not decoration: it is what the message layer gates on, so each state
   // has to carry a different instruction or the third state would buy nothing.
-  assert.equal(buildAlerts({ atSeconds: 17 * 3600 }).response.packages[0]?.instruction, 'evacuate_alternate');
-  assert.equal(buildAlerts({ atSeconds: 19 * 3600 }).response.packages[0]?.instruction, 'no_verified_action');
+  assert.equal(buildAlerts({ atSeconds: 17 * 3600, ledgerPath: tmpLedger() }).response.packages[0]?.instruction, 'evacuate_alternate');
+  assert.equal(buildAlerts({ atSeconds: 19 * 3600, ledgerPath: tmpLedger() }).response.packages[0]?.instruction, 'no_verified_action');
 });
 
 // ---------------------------------------------------------------------------------------

@@ -1,7 +1,8 @@
 import express from 'express';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SERVER_HOST, SERVER_PORT } from './config';
+import { LEDGER_PATH, SERVER_HOST, SERVER_PORT } from './config';
+import { openLedger } from './engine/ledger';
 import { getFires } from './providers';
 import { getInfrastructure } from './infrastructure';
 import { getThreats } from './threats';
@@ -104,6 +105,15 @@ const isEntryPoint =
   process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isEntryPoint) {
+  // Preserve main's startup check before creating the app or accepting requests.
+  try {
+    openLedger(LEDGER_PATH);
+  } catch (err) {
+    console.error(
+      `[server] refusing to start: the recommendation ledger is unusable: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    process.exit(1);
+  }
   const app = createApp();
   app.listen(SERVER_PORT, SERVER_HOST, () => {
     console.log(`[server] ojo-de-fuego server listening on http://${SERVER_HOST}:${SERVER_PORT}`);
