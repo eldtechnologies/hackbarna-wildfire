@@ -136,11 +136,10 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
     slider.disabled = !canForecast;
     sliderRow.hidden = tickRow.hidden = timeRow.hidden = !canForecast;
     if (!canForecast) play.textContent = 'PLAY';
-    if (ticksForId !== selected) {
-      // Rebuild the horizon ticks only when the selected fire changes.
-      ticksForId = selected;
+    if (ticksForCase !== selected) {
+      // A new observation can change horizons for the same fire.
+      ticksForCase = selected;
       slider.max = String(max);
-      slider.disabled = max === 0;
       tickRow.replaceChildren();
       for (const step of selected.steps) {
         const pct = max > 0 ? (step.horizonHours / max) * 100 : 0;
@@ -156,8 +155,8 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
     driftStat.textContent = drift ? `DRIFT ${drift}` : '';
   };
 
-  // Which cluster the horizon ticks were built for.
-  let ticksForId: FireLayerState['selectedCase'] = null;
+  // The observation-specific case used to build the horizon ticks.
+  let ticksForCase: FireLayerState['selectedCase'] = null;
 
   // While the user drags the slider, its own position wins over state pushes.
   let dragging = false;
