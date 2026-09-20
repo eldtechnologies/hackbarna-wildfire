@@ -9,6 +9,8 @@ updated_at: 2026-09-19T09:50:56Z
 
 # Ojo de Fuego — Wildfire Intelligence Console for Spain
 
+> Historical concept brief. This describes the original ambition, not the implemented feature set. For the current architecture, evidence limits, and delivery plan, use [work-plan.md](work-plan.md) and [DESIGN.md](DESIGN.md). Sensor effects and weather-driven spread in this brief are not delivered by the HUD polish PR.
+
 ## Overview
 
 **Ojo de Fuego** ("Fire Eye") is a God's-Eye-View-style real-time intelligence console for wildfires in Spain, built for HackBarna 2026 (Sep 19–20, Norrsken House Barcelona).
