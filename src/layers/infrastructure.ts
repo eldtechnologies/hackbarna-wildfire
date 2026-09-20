@@ -1,6 +1,8 @@
-// Infrastructure layer: cyan point assets (hospitals, schools, towns) plus
-// power line paths, fetched once from /api/infrastructure. Visibility per
-// category follows the layer registry toggles.
+// Infrastructure layer: point assets (hospitals, schools, towns) plus power
+// line paths, fetched once from /api/infrastructure. Colors come from
+// LAYER_COLORS in the registry, shared with the HUD legend so the globe and
+// the legend cannot drift apart. Visibility per category follows the layer
+// registry toggles.
 
 import {
   Cartesian3,
@@ -16,17 +18,27 @@ import { fetchInfrastructure } from '../data/api';
 import type { InfrastructureAsset, InfrastructureResponse } from '../../shared/threats';
 import {
   INFRA_CATEGORY_LAYERS,
+  LAYER_COLORS,
   isLayerVisible,
   onVisibilityChanged,
 } from './registry';
 
-const CYAN = Color.fromCssColorString('#4fd8e8');
+// One Color per category, converted once at module scope rather than per
+// asset, matching the hoisted Color constants in FireLayer.ts.
+const CATEGORY_COLORS: Record<InfrastructureAsset['category'], Color> = {
+  hospital: Color.fromCssColorString(LAYER_COLORS[INFRA_CATEGORY_LAYERS.hospital]),
+  school: Color.fromCssColorString(LAYER_COLORS[INFRA_CATEGORY_LAYERS.school]),
+  town: Color.fromCssColorString(LAYER_COLORS[INFRA_CATEGORY_LAYERS.town]),
+  'power-line': Color.fromCssColorString(
+    LAYER_COLORS[INFRA_CATEGORY_LAYERS['power-line']],
+  ),
+};
 
 // Per-category marker scale, so hospitals read larger than schools/towns at
 // the same zoom. Display only, not simulated.
 const CATEGORY_SCALE: Record<InfrastructureAsset['category'], number> = {
-  hospital: 7,
-  school: 4,
+  hospital: 8,
+  school: 5,
   town: 4,
   'power-line': 5,
 };
@@ -70,11 +82,14 @@ export class InfrastructureLayer {
 
     for (const asset of data.assets) {
       if (asset.category === 'power-line') continue;
+      const isHospital = asset.category === 'hospital';
       const p = this.points.add({
         position: Cartesian3.fromDegrees(asset.position.lon, asset.position.lat),
         pixelSize: CATEGORY_SCALE[asset.category],
-        color: CYAN.withAlpha(asset.category === 'hospital' ? 0.95 : 0.7),
-        outlineColor: Color.BLACK.withAlpha(0.6),
+        color: CATEGORY_COLORS[asset.category].withAlpha(isHospital ? 0.95 : 0.7),
+        outlineColor: isHospital
+          ? Color.WHITE.withAlpha(0.9)
+          : Color.BLACK.withAlpha(0.6),
         outlineWidth: 1,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
         id: asset.id,
@@ -88,7 +103,9 @@ export class InfrastructureLayer {
           positions: path.map((p) => Cartesian3.fromDegrees(p.lon, p.lat)),
           width: 1.5,
           // PolylineCollection takes Material instances, not bare Colors.
-          material: Material.fromType('Color', { color: CYAN.withAlpha(0.5) }),
+          material: Material.fromType('Color', {
+            color: CATEGORY_COLORS['power-line'].withAlpha(0.5),
+          }),
           clampToGround: true,
         }),
       });

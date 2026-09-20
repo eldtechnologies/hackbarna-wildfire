@@ -113,3 +113,19 @@ test('flat and recorded replay reject malformed observations before deriving val
     assert.equal(result.asOf,'2026-07-09T18:00:00.000Z',kind);
   }
 });
+
+test('causal cluster rebuild preserves supplied names without restoring future geometry',()=>{
+  const raw=structuredClone(source);
+  const issue=Date.parse('2026-07-09T18:00:00Z');
+  for(const c of raw.clusters) {
+    c.properties.name='  ';c.properties.label='Supplied fire label';
+    c.geometry.coordinates=[80,80];c.properties.first_observed='2099-01-01T00:00:00Z';
+  }
+  const result=causalResponse(raw,'test',issue);
+  assert.ok(result.clusters.length>0);
+  for(const c of result.clusters) {
+    assert.equal(c.name,'Supplied fire label');
+    assert.notEqual(c.centroid.lat,80);
+    assert.ok(Date.parse(c.firstDetectedAt!)<=issue);
+  }
+});

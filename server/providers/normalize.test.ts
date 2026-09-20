@@ -429,3 +429,11 @@ test('a clean payload warns about nothing', () => {
   const warnings = captureWarnings(() => run({ perimeters: [perimeter()] }));
   assert.deepEqual(warnings, []);
 });
+
+test('cluster names use supplied names, then labels, then null',()=>{
+  const c=cluster('c1');
+  for(const [name,label,expected] of [['Named fire','Other','Named fire'],['  ','Label','Label'],['','',''],[undefined,undefined,null]]) {
+    const out=run({clusters:[{...c,properties:{...c.properties,name:name??undefined,label:label??undefined}}]});
+    assert.equal(out.clusters[0].name,expected===''?null:expected);
+  }
+});

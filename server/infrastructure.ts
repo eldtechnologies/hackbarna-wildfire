@@ -51,15 +51,19 @@ interface RawLineFeature {
   geometry: { type: 'LineString'; coordinates: [number, number][] };
 }
 
-function toAsset(f: RawPointFeature): InfrastructureAsset | null {
-  const [lon, lat] = f.geometry.coordinates;
+export function toAsset(f: RawPointFeature): InfrastructureAsset | null {
+  const coords = f?.geometry?.coordinates;
+  const category = f?.properties?.category;
+  if (f?.geometry?.type !== 'Point' || !Array.isArray(coords)
+    || (category !== 'hospital' && category !== 'school' && category !== 'town')) return null;
+  const [lon, lat] = coords;
   if (!f.properties?.id || !f.properties.name || !Number.isFinite(lat) || !Number.isFinite(lon)) {
     return null;
   }
   return {
     id: f.properties.id,
     name: f.properties.name,
-    category: f.properties.category as InfrastructureAsset['category'],
+    category,
     position: { lat, lon },
     municipality: f.properties.municipality ?? null,
     county: f.properties.county ?? null,
@@ -68,9 +72,10 @@ function toAsset(f: RawPointFeature): InfrastructureAsset | null {
   };
 }
 
-function lineToAsset(f: RawLineFeature): { asset: InfrastructureAsset; path: LatLon[] } | null {
-  const coords = f.geometry.coordinates;
-  if (!f.properties?.id || coords.length < 2) return null;
+export function lineToAsset(f: RawLineFeature): { asset: InfrastructureAsset; path: LatLon[] } | null {
+  const coords = f?.geometry?.coordinates;
+  if (f?.geometry?.type !== 'LineString' || !Array.isArray(coords) || !f.properties?.id
+    || coords.length < 2 || !coords.every(p => Array.isArray(p) && p.length >= 2 && p.slice(0,2).every(Number.isFinite))) return null;
   const path = coords.map(([lon, lat]) => ({ lat, lon }));
   const mid = path[Math.floor(path.length / 2)];
   return {

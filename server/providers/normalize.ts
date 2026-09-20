@@ -72,6 +72,9 @@ export interface RawClusterProps {
   first_observed: string;
   last_observed: string;
   active: boolean;
+  // The live API has no cluster name; mocks and recordings may carry one.
+  name?: string;
+  label?: string;
 }
 
 export interface RawPerimeterProps {
@@ -263,7 +266,7 @@ export function normalize(
       .filter((v): v is number => v !== null);
     clusters.push({
       id,
-      name: null,
+      name: firstNonBlank(p.name, p.label),
       centroid,
       hotspotIds: members.map((h) => h.id),
       // The real cluster carries no geometry of its own beyond its centroid and
