@@ -29,6 +29,18 @@ API endpoints:
 - `GET /api/infrastructure`: all bundled infrastructure assets (point assets + power line paths).
 - `GET /api/threats?fireId=<clusterId>`: server-side turf.js analysis. For the fire's perimeter, lists every asset inside the perimeter, inside the 5/10/20 km buffer rings, or inside the projected spread corridor, with per-asset distance and category.
 
+## Growth model
+
+`GET /api/growth?clusterId=<id>` returns a cluster's observed advance, both naive baselines for the same cluster, and every held-out score behind them. `docs/stream3-baselines.md` is the writeup.
+
+The scores live in `data/model/metrics.json`, produced by `tools/model/harness.py` against corpora that stay on the data box. Each `data/model/*.json` carries `source` and `generator`. Regenerate with:
+
+```bash
+STREAM3_DATA_DIR=<corpora> uv run --with geopandas --with pandas --with scikit-learn python tools/model/harness.py
+```
+
+The harness writes nothing unless every corpus scored, so a run without the data cannot overwrite the committed artifact.
+
 ## Data modes
 
 The server has two data sources, selected with `DATA_MODE`:
