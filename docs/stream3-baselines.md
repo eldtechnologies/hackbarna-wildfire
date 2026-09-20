@@ -1,6 +1,6 @@
 # Growth baselines and their evaluation scope
 
-`GET /api/growth?clusterId=...` exposes observed detection-centroid motion, two
+`GET /api/growth?clusterId=...&at=<seconds>` exposes observed detection-centroid motion, two
 baseline vectors and offline corpus scores. Its `scoreScope` is
 `offline_corpus_baselines`: those scores do **not** validate this online centroid
 estimator or establish a safe evacuation route. The response labels each vector's
@@ -63,7 +63,9 @@ quantization step in another dataset is not a 45° lower bound on bearing error 
 
 ## Serving and failure behaviour
 
-Detection motion uses chronological halves sorted by parsed UTC instants. Position
+Detection motion uses the past six hours, split at the temporal midpoint of parsed
+UTC instants. It keeps simultaneous observations together and requires at least
+30 minutes between weighted time centroids. Position
 and time centroids use identical FRP weights. Invalid timestamps are excluded from
 both calculations. Sparse or coincident observations return a null direction/rate.
 This remains a sensor-dependent motion estimate, not a measured advancing fire front.
@@ -92,3 +94,16 @@ Tests reproduce the baseline metrics from committed fixtures and exercise unit
 conversion, CRS equivalence, missing data, fold eligibility, HTTP errors and startup.
 The raw corpora remain external; the compact derived fixtures and scores are committed
 under `data/model/`. The console has not yet wired this endpoint into its display.
+
+## Serving-path diagnostic and uncertainty
+
+The July replay through the actual estimator has 94.9° / 108.3° / 100.9° median
+bearing error at 1/3/6h on 14/13/14 computable comparisons. This is one incident
+already used in development and a detection-motion target, not physical front truth.
+`data/model/serving-replay-validation.json` retains the rows and exclusions. The API
+therefore labels the result `diagnostic_only`; it does not select a motion predictor
+using unrelated scalar-area scores.
+
+`data/model/baseline-uncertainty.json` adds fire-balanced mean errors with bootstrap
+95% intervals using the same primary seven-day gap filter. This statistic differs
+from the pooled medians above. Reproduce both via [thermal-evaluation.md](thermal-evaluation.md).

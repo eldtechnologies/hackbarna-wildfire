@@ -13,6 +13,9 @@ const R_EARTH_KM = 6371.0088;
 
 // Below this the two centroids are the same point and the bearing is noise.
 const MIN_DISPLACEMENT_KM = 0.1;
+// A swath's sequential pixel acquisition is not a fire trajectory. Require
+// separation across observation cycles, not seconds within one overpass.
+const MIN_CENTROID_INTERVAL_MS = 30 * 60 * 1000;
 
 function haversineKm(a: LatLon, b: LatLon): number {
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -69,9 +72,12 @@ function datedDetections(detections: Hotspot[]): { detection: Hotspot; time: num
 export function timeSplit(detections: Hotspot[]): [Hotspot[], Hotspot[]] | null {
   const dated = datedDetections(detections);
   if (dated.length < 4) return null;
-  const ordered = dated.sort((a, b) => a.time - b.time).map((d) => d.detection);
-  const mid = Math.floor(ordered.length / 2);
-  return [ordered.slice(0, mid), ordered.slice(mid)];
+  const ordered = dated.sort((a, b) => a.time - b.time);
+  const first=ordered[0].time,last=ordered[ordered.length-1].time;
+  if(last-first<MIN_CENTROID_INTERVAL_MS) return null;
+  const midpoint=first+(last-first)/2;
+  return [ordered.filter(d=>d.time<=midpoint).map(d=>d.detection),
+    ordered.filter(d=>d.time>midpoint).map(d=>d.detection)];
 }
 
 /**
@@ -99,7 +105,7 @@ export function advanceBetween(
   const tB = meanStampMs(later);
   if (tA === null || tB === null) return null;
   const hours = (tB - tA) / 3_600_000;
-  if (!Number.isFinite(hours) || hours <= 0) return null;
+  if (!Number.isFinite(hours) || hours * 3_600_000 < MIN_CENTROID_INTERVAL_MS) return null;
   return { bearingDeg: bearingDeg(a, b), rateKmh: distanceKm / hours };
 }
 
@@ -113,7 +119,8 @@ function meanStampMs(detections: Hotspot[]): number | null {
   const dated = datedDetections(detections);
   if (dated.length === 0) return null;
   const weight = dated.reduce((sum, d) => sum + positionWeight(d.detection), 0);
-  return dated.reduce((sum, d) => sum + d.time * positionWeight(d.detection), 0) / weight;
+  const origin=Math.min(...dated.map(d=>d.time));
+  return origin + dated.reduce((sum, d) => sum + (d.time-origin) * positionWeight(d.detection), 0) / weight;
 }
 
 export function sourceMixOf(detections: Hotspot[]): Record<string, number> {
@@ -146,6 +153,11 @@ export function observedGrowth(
   detections: Hotspot[],
   now: Date,
 ): GrowthVector {
+  const end = now.getTime();
+  detections = detections.filter(d => {
+    const t = d.detectedAt === null ? NaN : Date.parse(d.detectedAt);
+    return Number.isFinite(t) && t <= end && t >= end - 6 * 3_600_000;
+  });
   const split = timeSplit(detections);
   const advance = split ? advanceBetween(split[0], split[1]) : null;
   return {

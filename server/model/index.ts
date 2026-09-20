@@ -9,7 +9,7 @@ import type { FiresResponse, Hotspot } from '../../shared/fires';
 import type { GrowthResponse } from '../../shared/growth';
 import { baselinesFor } from './baselines';
 import { observedGrowth } from './growth';
-import { loadMetrics, shippedPredictor, type Metrics } from './metrics';
+import { loadMetrics, type Metrics } from './metrics';
 
 /** Detections that belong to a cluster. */
 export function detectionsOf(response: FiresResponse, clusterId: string): Hotspot[] {
@@ -34,15 +34,22 @@ export function growthFor(
   const metrics = loadMetricsFn();
   const detections = detectionsOf(response, clusterId);
   const observed = observedGrowth(clusterId, detections, now);
-  const shipped = shippedPredictor(metrics.scores);
+  const shipped = 'persistence' as const; // Corpus area scores cannot select an online motion predictor.
   return {
     clusterId,
     at: now.toISOString(),
+    provenance: response.provenance,
+    scenario: response.scenario,
+    target: 'detection_centroid_motion',
+    validation: 'diagnostic_only',
+    roadUse: 'unsupported',
+    availabilityPolicy: response.availability?.policy ?? 'provider_response_time',
+    evidenceWindowHours: 6,
     model: null,
     baselines: baselinesFor(observed, metrics.meanRateKmh),
     scores: metrics.scores,
     scoreScope: 'offline_corpus_baselines',
-    shippedBaseline: shipped !== 'model',
+    shippedBaseline: true,
     shipped,
   };
 }

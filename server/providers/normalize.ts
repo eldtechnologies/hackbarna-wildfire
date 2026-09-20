@@ -59,6 +59,7 @@ export interface RawHotspotProps {
   id: string;
   cluster_id: string | null;
   observed_at: string;
+  available_at?: string;
   source: string;
   confidence: string;
   fire_radiative_power: number | null;
@@ -97,6 +98,7 @@ export type RawPerimeter = OgcFeature<
 export interface RawSpreadStep {
   cluster_id?: string | number | null;
   valid_time?: string;
+  issued_at?: string;
   horizon_hours?: number;
   area_km2?: number;
   geometry?: PolygonGeometry | null;

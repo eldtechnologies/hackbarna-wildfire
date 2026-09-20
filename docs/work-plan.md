@@ -2,6 +2,28 @@
 
 Proposal · 19 Sep 2026 · for the three of us
 
+## Current status amendment — 20 September 2026
+
+The sections below preserve the original allocation and schedule. Their future-tense
+client rewrite and interface-freeze tasks are historical, not outstanding work.
+The real DeepFire client, captured July data, engine and corrected baseline harness
+have since landed. This amendment supersedes any claim below that corpus area scores
+validate the served motion vector or that thermal forecasts provide physical arrival.
+
+Ola's current deliverables are implemented as: causal replay and shared issue time;
+a serving-path diagnostic plus fire-bootstrap baseline error bars; shared native
+training/inference inputs and a checksum-validated forecast handoff. See
+[model-proposal.md](model-proposal.md) for the measured findings and revised sequence,
+[forecast-contract.md](forecast-contract.md) for integration, and
+[thermal-evaluation.md](thermal-evaluation.md) for promotion criteria.
+
+The active RunPod pilot and its frozen dataset stay unchanged. Training completion
+alone does not approve deployment. Remaining evidence is the declared held-out
+thermal evaluation and, for road-arrival use, independent contemporaneous physical
+progression/arrival references. Magnus retains UI ownership; Daniel retains egress
+and CAP. The thermal API must not be converted into road-cut times without that
+additional modelling and validation.
+
 ## What we are building
 
 An alert-first product: **hotspot → road cut → last safe departure → CAP package.** The unit of

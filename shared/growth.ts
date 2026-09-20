@@ -61,6 +61,13 @@ export interface GrowthScore {
 }
 
 export interface GrowthResponse {
+  provenance: 'live' | 'replay';
+  scenario: string | null;
+  target: 'detection_centroid_motion';
+  validation: 'diagnostic_only';
+  roadUse: 'unsupported';
+  availabilityPolicy: string;
+  evidenceWindowHours: number;
   clusterId: string;
   at: string;
   /** The model's estimate, or null when it did not beat the baselines. */

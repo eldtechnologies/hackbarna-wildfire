@@ -31,9 +31,11 @@ API endpoints:
 
 ## Growth model
 
-`GET /api/growth?clusterId=<id>` returns a cluster's observed advance, both naive baselines for the same cluster, and every held-out score behind them. `docs/stream3-baselines.md` is the writeup.
+`GET /api/growth?clusterId=<id>&at=<seconds>` returns descriptive detection-centroid motion and corpus baseline scores. Its `validation=diagnostic_only` and `roadUse=unsupported` fields are explicit: those scores do not validate fire-front arrival. See [the current architecture decision](docs/model-proposal.md).
 
-The scores live in `data/model/metrics.json`, produced by `tools/model/harness.py` against corpora that stay on the data box. Each `data/model/*.json` carries `source` and `generator`. Regenerate with:
+`GET /api/forecasts` lists prepared native-grid thermal forecasts; `?eventId=<id>&issue=<ISO timestamp>` serves one validated artifact. The [handoff contract](docs/forecast-contract.md) includes coverage, provenance, calibration and fallback semantics. Set `FORECAST_DIR=data/forecasts/example` to serve the real archived persistence example. Model promotion follows the [prospective evaluation gate](docs/thermal-evaluation.md).
+
+The scores live in `data/model/metrics.json`, produced by `tools/model/harness.py` against corpora that stay on the data box. The corpus metrics carry `source` and `generator`; separate diagnostic and uncertainty artifacts name their targets and limitations. Regenerate with:
 
 ```bash
 STREAM3_DATA_DIR=<corpora> uv run --with geopandas --with pandas --with scikit-learn python tools/model/harness.py
