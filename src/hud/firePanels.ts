@@ -35,7 +35,7 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
   titleRow.appendChild(scrubName);
   const reframe = el('button', 'hud-scrubber-close', 'REFRAME');
   reframe.setAttribute('aria-label', 'Reframe selected fire');
-  reframe.onclick = () => { if (stateRef.selectedId) layer.select(stateRef.selectedId, {flyTo: true}); };
+  reframe.onclick = () => layer.reframe();
   titleRow.append(reframe, close);
 
   const timeRow = el('div', 'hud-scrubber-time');

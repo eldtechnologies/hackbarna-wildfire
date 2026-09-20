@@ -87,3 +87,31 @@ test('recording helper preserves capture time and reconstructs the committed exe
   `], {encoding:'utf8', timeout:5000});
   assert.equal(result.status, 0, result.stderr);
 });
+
+test('the default one-frame exercise recorder preserves forecasts whose issue follows the last hotspot', async t => {
+  const {mkdtemp,readFile,readdir,rm}=await import('node:fs/promises');
+  const {tmpdir}=await import('node:os');
+  const {join,resolve}=await import('node:path');
+  const {promisify}=await import('node:util');
+  const {execFile}=await import('node:child_process');
+  const run=promisify(execFile);
+  const fixture=JSON.parse(await readFile('data/snapshots/castelltallat-drill-2026-09-19T13-55-15-930Z.json','utf8')).frames[7];
+  assert.ok(Date.parse(fixture.spread[0].issued_at)>Math.max(...fixture.hotspots.map((h:{properties:{observed_at:string}})=>Date.parse(h.properties.observed_at))));
+  const folder=await mkdtemp(join(tmpdir(),'wildfire-record-test-'));
+  t.after(()=>rm(folder,{recursive:true,force:true}));
+  const server=createServer((req,res)=>{res.setHeader('content-type','application/json');res.end(JSON.stringify(fixture[req.url!.slice(1)]));});
+  await new Promise<void>(done=>server.listen(0,'127.0.0.1',done));
+  t.after(()=>new Promise<void>(done=>server.close(()=>done())));
+  await run(process.execPath,[resolve('scripts/record-snapshot.mjs'),'--scenario','single'],{
+    cwd:folder,timeout:5000,env:{...process.env,DEEPFIRE_API_KEY:'',DEEPFIRE_BASE_URL:`http://127.0.0.1:${(server.address() as {port:number}).port}`},
+  });
+  const [file]=await readdir(join(folder,'data/snapshots'));
+  const stored=JSON.parse(await readFile(join(folder,'data/snapshots',file),'utf8'));
+  assert.equal(stored.frames.length,1);
+  assert.equal(stored.dataKind,'exercise');
+  const script=`import {ReplayProvider} from ${JSON.stringify(resolve('server/providers/replay.ts'))};
+    const value=await new ReplayProvider(${JSON.stringify(file)}).getFires();
+    console.log(JSON.stringify({perimeters:value.perimeters.length,spread:value.spread.length,asOf:value.asOf,kind:value.dataKind}));`;
+  const replay=await run(process.execPath,['--import',resolve('node_modules/tsx/dist/loader.mjs'),'--input-type=module','-e',script],{cwd:folder,timeout:5000});
+  assert.deepEqual(JSON.parse(replay.stdout),{perimeters:1,spread:4,asOf:stored.frames[0].t,kind:'exercise'});
+});

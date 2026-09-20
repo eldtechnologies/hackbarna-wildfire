@@ -169,8 +169,8 @@ test('hotspot-only clusters stay selectable and forecast reset and reframe are i
   Object.defineProperty(globalThis,'document',{value:dom.window.document,configurable:true});
   t.after(()=>{delete (globalThis as {document?:Document}).document;dom.window.close();});
   let render!:(state:FireLayerState)=>void;
-  const selections:string[]=[]; const scrubs:number[]=[];
-  const layer={onStateChange:(listener:typeof render)=>{render=listener;},select:(id:string)=>selections.push(id),
+  let reframes=0; const scrubs:number[]=[];
+  const layer={onStateChange:(listener:typeof render)=>{render=listener;},select:()=>{},reframe:()=>{reframes++;},
     deselect:()=>{},setScrub:(value:number)=>scrubs.push(value),setPlaying:()=>{}} as unknown as FireLayer;
   const root=dom.window.document.querySelector('main')!;
   initFirePanels(layer,root);
@@ -180,7 +180,7 @@ test('hotspot-only clusters stay selectable and forecast reset and reframe are i
   render(state);
   assert.match(root.textContent!,/Hotspot clusterHOTSPOTS ONLY/);
   root.querySelector<HTMLButtonElement>('[aria-label="Reframe selected fire"]')!.click();
-  assert.deepEqual(selections,['detection']);
+  assert.equal(reframes,1);
   assert.equal(root.querySelector<HTMLButtonElement>('[aria-label="Play spread forecast"]')!.disabled,true);
   const forecast={...cases[0],maxHorizonHours:8};
   render({...state,cases:[forecast],selectedCase:forecast,selectedId:'fire',scrubHours:3,dataKind:'exercise'});

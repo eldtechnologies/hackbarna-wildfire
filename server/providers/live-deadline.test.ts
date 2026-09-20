@@ -22,3 +22,22 @@ test('an eight-second live deadline aborts all collection requests and does not 
   await Promise.resolve();
   assert.equal(signals.length, 3);
 });
+
+test('the live deadline also cancels a retry backoff entered just before eight seconds', {timeout:5000}, async t => {
+  const { LiveProvider } = await import('./live');
+  t.mock.timers.enable({apis:['setTimeout']});
+  const resolveResponses: ((value:Response)=>void)[]=[];
+  t.mock.method(globalThis,'fetch',()=>new Promise<Response>(resolve=>resolveResponses.push(resolve)));
+  const pending=new LiveProvider().getFires();
+  let settled=false;
+  void pending.catch(()=>{settled=true;});
+  assert.equal(resolveResponses.length,3);
+  t.mock.timers.tick(7900);
+  for(const resolve of resolveResponses) resolve(new Response('',{status:503}));
+  await new Promise(resolve=>setImmediate(resolve));
+  t.mock.timers.tick(100);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(settled,true,'fallback must not wait for the remaining retry backoff');
+  await assert.rejects(pending,/abort/i);
+  assert.equal(resolveResponses.length,3);
+});

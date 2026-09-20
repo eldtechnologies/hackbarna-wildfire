@@ -141,8 +141,9 @@ DEEPFIRE_BASE_URL=http://localhost:4590 npm run record:snapshot -- --scenario <n
 Files are written as `data/snapshots/<scenario>-<UTCstamp>.json`. The mock's fire grows on an accelerated clock, so you can capture hours of fire growth in under two minutes.
 
 The recorder defaults to `--kind exercise`, using simulated observation times for
-frame selection and retaining wall-clock `capturedAt`. Only use `--kind observations`
-for genuine observations; that mode does not invent delivery or forecast issue times.
+frame selection and retaining wall-clock `capturedAt`, even with a single frame. Only use `--kind observations`
+for genuine observations; that mode does not invent delivery or forecast issue times
+and retains the legacy flat format for a one-frame capture.
 
 ### Replaying a recorded event as a timeline
 

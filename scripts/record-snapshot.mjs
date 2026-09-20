@@ -15,7 +15,7 @@
 //
 // Args:
 //   --scenario <name>  snapshot name, file becomes <name>-<UTCstamp>.json (default: capture)
-//   --frames <n>       number of frames to record (default: 1 = flat snapshot)
+//   --frames <n>       number of frames to record (default: 1; exercises retain the frame clock)
 //   --interval <sec>   seconds between frames (default: 30)
 
 import { writeFile, mkdir } from 'node:fs/promises';
@@ -108,17 +108,16 @@ const outDir = path.resolve(process.cwd(), 'data/snapshots');
 try {
   await mkdir(outDir, { recursive: true });
 
-  if (args.frames === 1) {
+  if (args.frames === 1 && args.kind === 'observations') {
     // Flat snapshot: same shape as the other files in data/snapshots/.
-    const payload = await captureFrame();
-    const frame = args.kind === 'exercise' ? exerciseFrame(payload) : payload;
+    const frame = await captureFrame();
     const file = path.join(outDir, `${args.scenario}-${timestamp()}.json`);
     await writeFile(file, JSON.stringify({ scenario: args.scenario, dataKind: args.kind, ...frame }, null, 2));
     console.log(`[record] wrote ${file}`);
     process.exit(0);
   }
 
-  // Multi-frame recording for accelerated timeline replay.
+  // Synthetic recordings always retain their frame clock, including one-frame captures.
   const frames = [];
   for (let i = 0; i < args.frames; i++) {
     if (i > 0) await new Promise((r) => setTimeout(r, args.intervalSec * 1000));

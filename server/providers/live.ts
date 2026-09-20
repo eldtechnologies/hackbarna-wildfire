@@ -1,3 +1,4 @@
+import {setTimeout as delay} from 'node:timers/promises';
 // Live provider: fetches hotspots, clusters and observed perimeters from the
 // Deepfire OGC API Features collections, through this server, so the API key
 // never reaches the browser.
@@ -109,8 +110,6 @@ export function isRetryable(err: unknown): boolean {
     : err instanceof TypeError; // fetch failed (DNS, connection reset, TLS)
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 // `features` is required on an OGC FeatureCollection. Anything else — an error
 // envelope, a truncated proxy response, a bare array — is a broken upstream, not
 // an empty page. Reading it as empty would resolve with zero of everything and
@@ -175,7 +174,7 @@ async function fetchPaged<T>(base: string, basePath: string, signal: AbortSignal
       } catch (err) {
         // Retry only what can improve. A 4xx is a bad request and will not.
         if (signal.aborted || !isRetryable(err) || attempt === MAX_ATTEMPTS - 1) throw err;
-        await sleep(500 * 2 ** attempt);
+        await delay(500 * 2 ** attempt, undefined, {signal});
       }
     }
     throw new Error('unreachable');
