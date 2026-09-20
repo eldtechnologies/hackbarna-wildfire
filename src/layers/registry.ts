@@ -33,6 +33,15 @@ export const INFRA_CATEGORY_LAYERS: Record<InfrastructureCategory, LayerId> = {
   'power-line': 'power-lines',
 };
 
+// Marker color per infrastructure layer, shared by the globe and the HUD
+// legend so they always agree. Display only, not simulated.
+export const LAYER_COLORS: Partial<Record<LayerId, string>> = {
+  hospitals: '#ff5a5e',
+  schools: '#ffc857',
+  towns: '#4fd8e8',
+  'power-lines': '#4fd8e8',
+};
+
 const visibility = new Map<LayerId, boolean>(LAYERS.map((l) => [l.id, true]));
 
 type VisibilityListener = (id: LayerId, visible: boolean) => void;
