@@ -4132,7 +4132,7 @@
   "deployment": "research_only",
   "eventId": "f2236085fb7b93e9ff94261e",
   "fallbackReason": "no_accepted_checkpoint",
-  "generatedAt": "2026-09-20T03:09:45.234759+00:00",
+  "generatedAt": "2026-09-20T03:29:55.391706+00:00",
   "grid": {
     "centreTransform": [
       2037500.0,
@@ -16464,7 +16464,7 @@
     "checkpointSha256": null,
     "datasetSha256": "6a892f380242c2a253393daf59e92c0b84326b7171355db860cae1080e78e31e",
     "inputSha256": "6ef4ef960baaad83be3e4afe6af5bcdd649c278820130727cf41f6454efa64ed",
-    "producerSha256": "1a7cbab691144351c9ae3699a431da297d565e45175468cbdc33d8f18af693ec",
+    "producerSha256": "42da90d7baa961907f2f3713d9e81a1450a896861a0a2ac53f262cd2732a3439",
     "trainerSha256": null
   },
   "issuedAt": "2026-07-01T11:00:00+00:00",

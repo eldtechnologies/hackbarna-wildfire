@@ -9,3 +9,4 @@ rasterio>=1.4
 requests>=2.32
 torch>=2.4
 pytest>=8
+threadpoolctl>=3.1

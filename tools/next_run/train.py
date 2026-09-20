@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import argparse
-from functools import lru_cache
 import json
+from time import perf_counter
 from pathlib import Path
 
 import numpy as np
@@ -13,9 +13,11 @@ from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, brier_score_loss
 from scipy.ndimage import distance_transform_edt
+from threadpoolctl import threadpool_limits
 
 from .common import file_hash, write_json, SCHEMA, CHANNELS, HORIZONS, validation_role
 from .build import verify_event
+from .loading import EventArrayCache, LoaderOptions, make_loader
 
 
 def finite(x, name):
@@ -25,8 +27,9 @@ def finite(x, name):
 
 
 class FireDataset(Dataset):
-    def __init__(self, root, split, role=None):
+    def __init__(self, root, split, role=None, cache_events=16):
         self.root = Path(root)
+        self.cache = EventArrayCache(self.root, max_events=cache_events)
         self.manifest = json.loads((self.root/"manifest.json").read_text())
         if (self.manifest["schema"]!=SCHEMA or self.manifest["channels"]!=CHANNELS
                 or self.manifest["horizons"]!=HORIZONS):raise ValueError("Unsupported tensor schema")
@@ -39,10 +42,8 @@ class FireDataset(Dataset):
         if not self.rows:
             raise ValueError(f"Empty {split}/{role} split")
 
-    @lru_cache(maxsize=2)
     def load(self, filename):
-        return {k:np.load(self.root/filename/f"{k}.npy",mmap_mode="r",allow_pickle=False)
-                for k in ["X","Y","M","P"]}
+        return self.cache[filename]
 
     def __len__(self):
         return len(self.rows)
@@ -77,9 +78,9 @@ class UNet(nn.Module):
         return log_survival if return_log_survival else -torch.expm1(log_survival)
 
 
-def masked_loss(log_survival,y,mask,pos_weight):
+def masked_loss(log_survival,y,mask,pos_weight, *, known_nonempty=False):
     finite(log_survival,"log survival")
-    if not mask.any():
+    if not known_nonempty and not mask.any():
         return None
     # Probability rounds to 1 at large hazards in float32. Computing BCE from
     # that rounded probability kills the gradient on confident false alarms.
@@ -101,46 +102,58 @@ def train_class_weight(dataset):
     return min(50.0,max(1.0,(valid-positive)/positive))
 
 
-def selection_ap(model,dataset,device,batch_size):
-    """Keep only one event's six-hour predictions during checkpoint selection."""
+def selection_ap(model,dataset,device,batch_size, *, loader=None, timings=None):
+    """Exact whole-episode six-hour AP; supplied loader must preserve row order."""
     model.eval();values=[];previous=None;ys=[];ps=[]
+    phase=dict(loader_wait_seconds=0.0,inference_seconds=0.0,ap_seconds=0.0)
     def finish():
+        start=perf_counter()
         if ys:
             y=np.concatenate(ys);p=np.concatenate(ps)
             if y.any():values.append(float(average_precision_score(y,p)))
+        phase['ap_seconds']+=perf_counter()-start
+    if loader is None:loader=make_loader(dataset,batch_size,LoaderOptions())
+    ready=perf_counter()
     with torch.no_grad():
-        for x,y,m,idx in DataLoader(dataset,batch_size=batch_size,shuffle=False):
-            p=model(x.to(device))[:,-1].cpu().numpy();finite(p,"selection prediction")
+        for x,y,m,idx in loader:
+            phase['loader_wait_seconds']+=perf_counter()-ready
+            start=perf_counter()
+            p=model(x.to(device,non_blocking=loader.pin_memory))[:,-1].cpu().numpy();finite(p,"selection prediction")
+            phase['inference_seconds']+=perf_counter()-start
             y=y[:,-1].numpy();m=m[:,-1].numpy().astype(bool)
             for j,k in enumerate(idx.tolist()):
                 event=dataset.rows[k][0]["event_id"]
                 if event!=previous:
                     finish();ys=[];ps=[];previous=event
                 ys.append(y[j][m[j]]);ps.append(p[j][m[j]])
+            ready=perf_counter()
     finish()
+    if timings is not None:timings.update(phase)
     return float(np.mean(values)) if values else None
 
 
-def collect(model,dataset,device,batch_size=16,calibrator=None):
+def collect(model,dataset,device,batch_size=16,calibrator=None, *, loader=None, include_baselines=True):
     model.eval();result={}
+    if loader is None:loader=make_loader(dataset,batch_size,LoaderOptions())
+    observable=[i for i,name in enumerate(CHANNELS) if name.endswith("observable_fraction")]
     with torch.no_grad():
-        for x,y,m,idx in DataLoader(dataset,batch_size=batch_size,shuffle=False):
-            p=model(x.to(device)).cpu().numpy();finite(p,"evaluation predictions")
+        for x,y,m,idx in loader:
+            p=model(x.to(device,non_blocking=loader.pin_memory)).cpu().numpy();finite(p,"evaluation predictions")
             if calibrator is not None:
                 p=calibrate(p,calibrator)
             y=y.numpy();m=m.numpy().astype(bool)
             for j,k in enumerate(idx.tolist()):
-                e,sample=dataset.rows[k];old=dataset.load(e["file"])["P"][sample].astype(np.float32)
-                # Fixed, stronger persistence alternatives travel with the results.
-                distance=distance_transform_edt(old<=0)
-                baseline=np.exp(-distance/2).astype(np.float32) if (old>0).any() else np.zeros_like(old)
-                observable=[i for i,name in enumerate(CHANNELS) if name.endswith("observable_fraction")]
-                known=x[j,observable].numpy().max(axis=0)>0
+                e,sample=dataset.rows[k]
+                if include_baselines:
+                    old=dataset.load(e["file"])["P"][sample].astype(np.float32)
+                    distance=distance_transform_edt(old<=0)
+                    baseline=np.exp(-distance/2).astype(np.float32) if (old>0).any() else np.zeros_like(old)
+                    known=x[j,observable].numpy().max(axis=0)>0
                 record=result.setdefault(e["event_id"],dict(group=e["spatial_group"],h=[[] for _ in HORIZONS]))
                 for h in range(len(HORIZONS)):
                     use=m[j,h]
-                    record["h"][h].append((y[j,h][use],p[j,h][use],old[use],baseline[use],
-                                           ((old<=0)&known)[use]))
+                    extras=(old[use],baseline[use],((old<=0)&known)[use]) if include_baselines else (None,None,None)
+                    record["h"][h].append((y[j,h][use],p[j,h][use],*extras))
     return result
 
 
@@ -241,6 +254,15 @@ def smoke(data,out):
                         note="Two-example CPU smoke check, not a training result"))
 
 
+def training_sources():
+    names=['train','loading','common','build','inputs','quality','weather','terrain']
+    return {name:file_hash(Path(__file__).with_name(name+'.py')) for name in names}
+
+
+def synchronize(device):
+    if torch.device(device).type=='cuda':torch.cuda.synchronize(device)
+
+
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("mode",choices=["smoke","train","test"])
@@ -250,30 +272,53 @@ def main():
     ap.add_argument("--batch-size",type=int,default=16);ap.add_argument("--base",type=int,default=32)
     ap.add_argument("--device",default="cuda");ap.add_argument("--seed",type=int,default=0)
     ap.add_argument("--unlock-final-test",action="store_true")
+    ap.add_argument("--workers",type=int,default=2)
+    ap.add_argument("--prefetch-factor",type=int,default=2)
+    ap.add_argument("--cache-events",type=int,default=16)
+    ap.add_argument("--cpu-threads",type=int,default=2)
+    ap.add_argument("--pin-memory",action=argparse.BooleanOptionalAction,default=None)
+    ap.add_argument("--persistent-workers",action=argparse.BooleanOptionalAction,default=True)
     a=ap.parse_args()
+    if a.mode!='test' and a.checkpoint is not None:ap.error('train/smoke does not resume from --checkpoint; use a new declared experiment')
+    if a.cpu_threads<1 or a.cache_events<1 or a.epochs<1 or a.patience<0:ap.error('thread/cache/epoch counts must be positive; patience must be nonnegative')
+    torch.set_num_threads(a.cpu_threads)
+    torch.set_num_interop_threads(1)
+    with threadpool_limits(limits=a.cpu_threads):run(a)
+
+
+def run(a):
     if a.mode=="smoke":smoke(a.data,a.out);return
     manifest=json.loads((a.data/"manifest.json").read_text())
     if manifest["smoke_only"]:raise ValueError("A smoke dataset cannot support a real training/test result")
     sha=file_hash(a.data/"manifest.json")
+    options=LoaderOptions(workers=a.workers,prefetch_factor=a.prefetch_factor,
+                          pin_memory=torch.device(a.device).type=='cuda' if a.pin_memory is None else a.pin_memory,
+                          persistent_workers=a.persistent_workers and a.workers>0,seed=a.seed)
+    sources=training_sources()
     if a.mode=="test":
         if not a.unlock_final_test or a.checkpoint is None:raise ValueError("Final test requires a frozen checkpoint and --unlock-final-test")
         if a.out.exists():raise FileExistsError("Refusing to overwrite final test result")
         saved=torch.load(a.checkpoint,map_location=a.device,weights_only=False)
         if saved["manifest_sha256"]!=sha:raise ValueError("Checkpoint/dataset mismatch")
-        if saved["trainer_sha256"]!=file_hash(__file__):raise ValueError("Frozen trainer source changed")
+        if saved["trainer_sha256"]!=file_hash(__file__):raise ValueError("Frozen trainer source changed; evaluate with its pinned source version")
+        if saved.get("runtime_sources")!=sources:raise ValueError("Frozen training dependencies changed")
         model=UNet(len(manifest["channels"]),saved["base"]).to(a.device);model.load_state_dict(saved["state"])
-        scores=score(collect(model,FireDataset(a.data,"test"),a.device,a.batch_size,saved["calibration"]))
+        dataset=FireDataset(a.data,"test",cache_events=a.cache_events)
+        scores=score(collect(model,dataset,a.device,a.batch_size,saved["calibration"],loader=make_loader(dataset,a.batch_size,options)))
         write_json(a.out,dict(checkpoint_sha256=file_hash(a.checkpoint),manifest_sha256=sha,scores=scores))
         return
     if a.out.exists():raise FileExistsError("Use a new run directory")
     a.out.mkdir(parents=True)
     write_json(a.out/"run.json",dict(arguments=vars(a),trainer_sha256=file_hash(__file__),
                                     torch_version=torch.__version__,numpy_version=np.__version__,
-                                    manifest_sha256=sha))
+                                    manifest_sha256=sha,runtime_sources=sources,loader=options.to_dict(),
+                                    cpu_threads=torch.get_num_threads(),precision='float32'))
     torch.manual_seed(a.seed);np.random.seed(a.seed)
-    train=FireDataset(a.data,"train")
-    selection=FireDataset(a.data,"validation","selection")
-    calibration=FireDataset(a.data,"validation","calibration")
+    initialization_start=perf_counter()
+    train=FireDataset(a.data,"train",cache_events=a.cache_events)
+    selection=FireDataset(a.data,"validation","selection",cache_events=a.cache_events)
+    calibration=FireDataset(a.data,"validation","calibration",cache_events=a.cache_events)
+    initialization_seconds=perf_counter()-initialization_start
     # No test tensors are loaded by training or checkpoint selection.
     model=UNet(len(manifest["channels"]),a.base).to(a.device)
     optimizer=torch.optim.AdamW(model.parameters(),lr=1e-3,weight_decay=1e-3)
@@ -281,38 +326,55 @@ def main():
     weights=[1/e["samples"] for e,_ in train.rows]
     sampler=WeightedRandomSampler(weights,len(train),replacement=True,
                                    generator=torch.Generator().manual_seed(a.seed))
-    loader=DataLoader(train,batch_size=a.batch_size,sampler=sampler)
+    loader=make_loader(train,a.batch_size,options,sampler=sampler)
+    selection_loader=make_loader(selection,a.batch_size,options)
     history=[];best=-float("inf");stale=0
     for epoch in range(a.epochs):
-        model.train();total=steps=0
+        synchronize(a.device);start=perf_counter();ready=start;wait_seconds=0.0
+        model.train();total=torch.zeros((),dtype=torch.float64,device=a.device);steps=empty_batches=0
         for x,y,m,_ in loader:
+            wait_seconds+=perf_counter()-ready
+            if not bool(m.any()):
+                empty_batches+=1;ready=perf_counter();continue
             optimizer.zero_grad(set_to_none=True)
-            loss=masked_loss(model(x.to(a.device),return_log_survival=True),y.to(a.device),m.to(a.device),weight)
-            if loss is None:continue
+            transfer=lambda v:v.to(a.device,non_blocking=options.pin_memory)
+            loss=masked_loss(model(transfer(x),return_log_survival=True),transfer(y),transfer(m),weight,known_nonempty=True)
             loss.backward()
             norm=nn.utils.clip_grad_norm_(model.parameters(),5,error_if_nonfinite=True)
-            optimizer.step();total+=float(loss.detach());steps+=1
+            optimizer.step();total+=loss.detach();steps+=1;ready=perf_counter()
+        synchronize(a.device);train_seconds=perf_counter()-start
         if not steps:raise ValueError("No valid training batches")
-        value=selection_ap(model,selection,a.device,a.batch_size)
+        start=perf_counter();selection_timing={}
+        value=selection_ap(model,selection,a.device,a.batch_size,loader=selection_loader,timings=selection_timing)
+        selection_seconds=perf_counter()-start
         if value is None:raise ValueError("Selection set has no positive events")
-        history.append(dict(epoch=epoch+1,loss=total/steps,selection_mean_event_ap=value))
+        history.append(dict(epoch=epoch+1,loss=float(total)/steps,selection_mean_event_ap=value,
+                            train_seconds=train_seconds,loader_wait_seconds=wait_seconds,
+                            selection_seconds=selection_seconds,selection_timing=selection_timing,
+                            train_examples_per_second=len(train)/train_seconds,optimizer_steps=steps,empty_batches=empty_batches))
         if value>best:
             best=value;stale=0
             torch.save(dict(state=model.state_dict(),base=a.base,epoch=epoch+1,seed=a.seed,
-                            manifest_sha256=sha,trainer_sha256=file_hash(__file__),class_weight=weight,
+                            manifest_sha256=sha,trainer_sha256=file_hash(__file__),runtime_sources=sources,class_weight=weight,
                             selection_geographic_groups=sorted({e["spatial_group"] for e in selection.events})),
                        a.out/"best_uncalibrated.pt")
         else:stale+=1
         write_json(a.out/"curve.json",history)
         print(history[-1],flush=True)
         if a.patience and stale>=a.patience:break
+    del loader,selection_loader
     saved=torch.load(a.out/"best_uncalibrated.pt",map_location=a.device,weights_only=False)
     model.load_state_dict(saved["state"])
-    saved["calibration"]=fit_calibrator(collect(model,calibration,a.device,a.batch_size))
+    start=perf_counter()
+    saved["calibration"]=fit_calibrator(collect(model,calibration,a.device,a.batch_size,
+        loader=make_loader(calibration,a.batch_size,options),include_baselines=False))
+    calibration_seconds=perf_counter()-start
     saved["calibration_geographic_groups"]=sorted({e["spatial_group"] for e in calibration.events})
     torch.save(saved,a.out/"frozen.pt")
     write_json(a.out/"summary.json",dict(best_epoch=saved["epoch"],selection_mean_event_ap=best,
-                                         calibration=saved["calibration"],final_test_evaluated=False))
+                                         calibration=saved["calibration"],final_test_evaluated=False,
+                                         initialization_seconds=initialization_seconds,calibration_seconds=calibration_seconds,
+                                         stopping_policy='fixed_budget' if a.patience==0 else 'early_stopping'))
 
 
 if __name__=="__main__":main()

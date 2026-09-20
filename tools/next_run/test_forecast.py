@@ -95,7 +95,8 @@ def test_accepted_checkpoint_matches_training_inference(tmp_path):
     calibration=dict(slope=1.2,intercept=-.3)
     path=tmp_path/'frozen.pt'
     torch.save(dict(state=model.state_dict(),base=8,seed=0,calibration=calibration,
-                    manifest_sha256='a'*64,trainer_sha256=file_hash(training_module.__file__)),path)
+                    manifest_sha256='a'*64,trainer_sha256=file_hash(training_module.__file__),
+                    runtime_sources=training_module.training_sources()),path)
     checkpoint=file_hash(path)
     acceptance=dict(schema=POLICY['schema'],policy=POLICY,decision='research_model_eligible',reasons=[],
                     protocol_sha256='d'*64,checkpoint_sha256=[checkpoint],manifest_sha256='a'*64,

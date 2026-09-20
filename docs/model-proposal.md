@@ -122,3 +122,12 @@ field used for routing.
 More parameters, more epochs, or a double-descent-shaped curve are not acceptance
 criteria. We can make a stronger product by narrowing its claim until these tests
 succeed. We have not established that the new model beats DeepFire.
+
+## Training-runtime follow-up
+
+The runtime audit found severe CPU oversubscription on the H100 container as well as
+avoidable serial loading. The next-run trainer now has bounded CPU threads, prefetch
+workers, lazy maps and phase timings, with sample/order/calibration parity tests. This
+is a throughput change, not a new model or a positive accuracy result. The active pilot
+remains pinned. See [training-performance.md](training-performance.md) for measurements,
+commands and why early stopping cannot establish late double descent.

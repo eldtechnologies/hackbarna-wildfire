@@ -17,14 +17,14 @@ from .quality import GEOS,Quality
 from .terrain import Terrain
 from .weather import Weather
 from .inputs import InputFrame
-from .train import UNet,calibrate
+from .train import UNet,calibrate,training_sources
 from .acceptance import POLICY,is_hash
 
-# 08c7bbe -> main adds only FireDataset.verify_event checks. Inference definitions
-# are unchanged; pin BOTH files so a later model/calibration change fails closed.
+# Audited legacy trainers use identical Block/UNet/logit/calibration definitions.
+# Pin both source identities so another inference change cannot silently pass.
 COMPATIBLE_TRAINERS = {
-    '83a42e470850d3c9961805e3603a0b14db8207219e06eccc38503b57a4cfb6f6':
-    '5582241583b9323d6adb0fe68ca24fc3982cd0668927a8748754cd0c3cd8906e',
+    '83a42e470850d3c9961805e3603a0b14db8207219e06eccc38503b57a4cfb6f6': '162bf595a71925b4c23052da6e2e6b2210fe291309e1767ad4fafdb1ee524e68',
+    '5582241583b9323d6adb0fe68ca24fc3982cd0668927a8748754cd0c3cd8906e': '162bf595a71925b4c23052da6e2e6b2210fe291309e1767ad4fafdb1ee524e68',
 }
 
 
@@ -35,7 +35,7 @@ def validate_trainer(saved_hash):
 
 
 def producer_hash():
-    names=['forecast','inputs','common','quality','weather','terrain','train','acceptance']
+    names=['forecast','inputs','common','quality','weather','terrain','train','loading','acceptance']
     return digest({name:file_hash(Path(__file__).with_name(name+'.py')) for name in names})
 
 
@@ -65,6 +65,8 @@ def artifact(event,issue,x,previous,identity,checkpoint=None,acceptance=None,dev
             saved=torch.load(checkpoint,map_location=device,weights_only=False)
             if saved['manifest_sha256']!=identity:raise ValueError('Checkpoint dataset mismatch')
             validate_trainer(saved.get('trainer_sha256'))
+            if (saved.get('trainer_sha256')==file_hash(Path(__file__).with_name('train.py')) or 'runtime_sources' in saved) and saved.get('runtime_sources')!=training_sources():
+                raise ValueError('Checkpoint training dependencies changed')
             if not any(c.get('checkpoint_sha256')==checkpoint_sha and c.get('seed')==saved['seed'] for c in acceptance.get('candidates',[])):
                 raise ValueError('Checkpoint seed differs from frozen protocol')
             calibration=saved.get('calibration')

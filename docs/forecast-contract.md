@@ -43,10 +43,11 @@ files after the prospective evaluation gate passes. Rejected or absent acceptanc
 keeps the explicitly labelled persistence fallback. Corrupt accepted weights fail
 export instead of being served. Checkpoint loading is local PyTorch deserialization;
 there is no public checkpoint upload endpoint. The trainer source hash must match
-this inference runtime. One explicitly pinned compatibility mapping permits trainer
-`08c7bbe` (SHA `83a42e47…`) with the current `55822415…` runtime: their sole change is
-dataset checksum verification; model/calibration definitions are identical. Changing
-either source requires renewed review. The full hash pair is in `forecast.py`.
+this inference runtime. Narrow mappings also permit the pinned `08c7bbe` trainer and
+its checksum-verifying successor: their Block/UNet/logit/calibration definitions match
+this runtime exactly. Both source hashes are pinned in `forecast.py`, so later inference
+changes fail closed. New checkpoints additionally freeze transitive runtime sources.
+See [training-performance.md](training-performance.md).
 
 ## Interpretation for consumers
 

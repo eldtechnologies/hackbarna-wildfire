@@ -162,3 +162,9 @@ The existing frozen full-v1 dataset and active training code are not rewritten b
 these additions. New builds have a different source identity; use a new output
 directory. `check_inputs.py` can compare raw train/selection inputs against v1 without
 reading future labels or the test partition.
+
+The next-run trainer defaults to two CPU threads and two persistent prefetch workers,
+with pinned memory on CUDA. `--workers 0` retains serial loading. New checkpoints also
+freeze runtime dependencies; continue evaluating the existing pilot with its original
+pinned code. See [throughput measurements and controls](../../docs/training-performance.md)
+for benchmarking and the separate fixed-budget double-descent protocol.
