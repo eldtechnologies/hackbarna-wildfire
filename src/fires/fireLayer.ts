@@ -33,6 +33,7 @@ import { isLayerVisible, onVisibilityChanged } from '../layers/registry';
 export interface FireLayerState {
   cases: FireCase[];
   selectedCase: FireCase | null;
+  selectedId: string | null;
   scrubHours: number;
   playing: boolean;
   projection: Projection | null;
@@ -99,6 +100,7 @@ export class FireLayer {
   private readonly listeners = new Set<StateListener>();
 
   private cases: FireCase[] = [];
+  private clusters: FiresResponse["clusters"] = [];
   private perimeterEntries: PerimeterEntry[] = [];
   private selectedId: string | null = null;
   private scrubHours = 0;
@@ -139,6 +141,7 @@ export class FireLayer {
     }
     this.perimeterEntries = [];
     this.cases = buildFireCases(response);
+    this.clusters = response.clusters;
 
     for (const caseData of this.cases) {
       const primitive = new GroundPrimitive({
@@ -183,7 +186,8 @@ export class FireLayer {
 
   select(clusterId: string, options: { flyTo?: boolean } = {}): void {
     const target = this.cases.find((c) => c.cluster.id === clusterId);
-    if (!target) return;
+    const cluster=this.clusters.find(c=>c.id===clusterId);
+    if (!cluster) return;
     this.clearSelection();
     this.selectedId = clusterId;
     this.scrubHours = 0;
@@ -197,9 +201,12 @@ export class FireLayer {
       );
     }
 
-    if (target.steps.length > 0) this.buildGhost(target);
+    if (target && target.steps.length > 0) this.buildGhost(target);
 
-    if (options.flyTo) this.flyToCase(target);
+    if (options.flyTo) {
+      if (target) this.flyToCase(target);
+      else this.viewer.camera.flyTo({destination:Cartesian3.fromDegrees(cluster.centroid.lon,cluster.centroid.lat,40_000),duration:1.2});
+    }
     this.notify();
   }
 
@@ -242,6 +249,7 @@ export class FireLayer {
     return {
       cases: this.cases,
       selectedCase,
+      selectedId:this.selectedId,
       scrubHours: this.scrubHours,
       playing: this.playing,
       projection: selectedCase

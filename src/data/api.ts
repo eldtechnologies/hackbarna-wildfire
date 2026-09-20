@@ -5,8 +5,8 @@ import type { FiresResponse } from '../../shared/fires';
 import type { InfrastructureResponse, ThreatsResponse } from '../../shared/threats';
 import type { SituationResponse } from '../../shared/situation';
 
-async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(url,{signal});
   if (!res.ok) {
     throw new Error(`${url} returned ${res.status}`);
   }
@@ -26,6 +26,8 @@ export async function fetchFires(): Promise<FiresResponse> {
     perimeters: Array.isArray(data.perimeters) ? data.perimeters : [],
     spread: Array.isArray(data.spread) ? data.spread : [],
     timeline: data.timeline,
+    asOf:data.asOf,
+    availability:data.availability,
   };
 }
 
@@ -33,15 +35,17 @@ export function fetchInfrastructure(): Promise<InfrastructureResponse> {
   return getJson<InfrastructureResponse>('/api/infrastructure');
 }
 
-export async function fetchThreats(fireId: string): Promise<ThreatsResponse> {
+export async function fetchThreats(fireId: string, atSeconds?: number, signal?: AbortSignal): Promise<ThreatsResponse> {
   const data = await getJson<Partial<ThreatsResponse>>(
-    `/api/threats?fireId=${encodeURIComponent(fireId)}`,
+    `/api/threats?fireId=${encodeURIComponent(fireId)}${atSeconds==null?'':`&at=${atSeconds}`}`, signal,
   );
   // Same boundary guard as fetchFires: partial payloads default to empty
   // lists instead of throwing inside the panel render.
   return {
     fireId: typeof data.fireId === 'string' ? data.fireId : fireId,
     hasPerimeter: data.hasPerimeter === true,
+    infrastructureStatus:data.infrastructureStatus??{state:'unavailable',loadedFiles:[],failedFiles:[],rejectedFeatures:0},
+    infrastructureCoverage:data.infrastructureCoverage??null,
     rings: Array.isArray(data.rings) ? data.rings : [],
     threatened: Array.isArray(data.threatened) ? data.threatened : [],
     corridorCount: typeof data.corridorCount === 'number' ? data.corridorCount : 0,
@@ -49,7 +53,7 @@ export async function fetchThreats(fireId: string): Promise<ThreatsResponse> {
   };
 }
 
-export function fetchSituation(fireId: string, atSeconds?: number): Promise<SituationResponse> {
+export function fetchSituation(fireId: string, atSeconds?: number, signal?: AbortSignal): Promise<SituationResponse> {
   const at = atSeconds != null ? `&at=${atSeconds}` : '';
-  return getJson<SituationResponse>(`/api/situation?fireId=${encodeURIComponent(fireId)}${at}`);
+  return getJson<SituationResponse>(`/api/situation?fireId=${encodeURIComponent(fireId)}${at}`,signal);
 }

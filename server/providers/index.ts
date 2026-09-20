@@ -17,14 +17,8 @@ export function getProvider(): FireDataProvider {
   return DATA_MODE === 'live' ? live : replay;
 }
 
-// Fires-response memoization. fetchedAt is stamped at normalize() time, so
-// without this every getFires() call yields a new fetchedAt and any consumer
-// keying a cache on the snapshot identity (the situation agent's LLM and
-// threat caches) would never hit. Within the window every caller shares one
-// response object: same fetchedAt, same data, so keys on it are stable. A new
-// window is a new snapshot by definition, so the keys change and caches
-// keyed on fetchedAt recompute. The key includes atSeconds: a scrubbed
-// timeline is a different snapshot.
+// Reuse a recent response for the same cursor. Computed analyses use their
+// actual input evidence as identity, never this response's fetch timestamp.
 const FIRES_MEMO_TTL_MS = 5000;
 let firesMemo: { value: FiresResponse; expiresAt: number; at: number | undefined } | null = null;
 

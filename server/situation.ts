@@ -1,13 +1,13 @@
 // Situation agent: assembles a structured packet for one fire from computed
 // geometry (perimeter, spread projection, threat rings) and narrates it.
-// The narrator (LLM or template) only phrases the packet; every number the
-// client renders comes from these computed fields, never from the model.
+// The model can only order server-rendered facts. It cannot write names,
+// measurements, safety claims, recommendations, or coverage limits.
 // Any LLM failure falls back to the deterministic template narrator, so the
 // endpoint always answers, keyless demos included.
 
 import { getFires } from './providers';
+import {FactNarrator, type NarrationFact} from './narration';
 import { getThreats, latestPerimeter } from './threats';
-import { pointInCoverage, INFRASTRUCTURE_COVERAGE } from './infrastructure';
 import type { LatLon } from '../shared/fires';
 import { CATEGORY_LABEL, RING_SEVERITY } from '../shared/threats';
 import type {
@@ -117,8 +117,7 @@ function normalizeBearingDeg(bearing: number): number {
 
 // --- Template narrator (fallback, also the keyless default) -----------
 
-function templateNarrate(packet: SituationPacket): { summary: string; recommendations: EvacuationRecommendation[] } {
-  const name = packet.fireName ?? packet.fireId;
+export function situationFacts(packet: SituationPacket): NarrationFact[] {
   const area =
     packet.perimeterAreaKm2 != null
       ? ` The observed perimeter covers ${packet.perimeterAreaKm2.toFixed(0)} km2.`
@@ -133,7 +132,7 @@ function templateNarrate(packet: SituationPacket): { summary: string; recommenda
   } else {
     spread =
       ` Projection over the next ${packet.spreadHorizonHours} h drifts ${packet.spreadCompass}` +
-      ` (bearing ${Math.round(packet.spreadBearingDeg) % 360} deg), so spread is expected toward ${packet.spreadCompass}.`;
+      ` (bearing ${Math.round(packet.spreadBearingDeg) % 360} deg), a geometric projection rather than measured wind.`;
   }
 
   const detected =
@@ -144,7 +143,9 @@ function templateNarrate(packet: SituationPacket): { summary: string; recommenda
   const insideCount = packet.threats.filter((t) => t.ring === 'inside').length;
   const corridorCount = packet.corridorCount;
   let threatLine: string;
-  if (packet.threats.length === 0) {
+  if (packet.infrastructureStatus.state !== 'available') {
+    threatLine = ` Infrastructure data ${packet.infrastructureStatus.state}; the loaded subset contains ${packet.threats.length} proximity matches. Missing data prevents a complete assessment.`;
+  } else if (packet.threats.length === 0) {
     // An empty list means nothing is inside the rings when the fire is in the
     // covered region, and no data exists there otherwise; the claim must say
     // which one it is.
@@ -160,10 +161,13 @@ function templateNarrate(packet: SituationPacket): { summary: string; recommenda
     threatLine = ` ${bits.join(', ')}.`;
   }
 
-  const summary =
-    `Situation report for fire ${name}.${area}${spread}${detected}${threatLine} ` +
-    `Evacuation priorities below are ordered by proximity and projected impact.`;
+  return [
+    {id:'perimeter',text:area.trim()}, {id:'spread',text:spread.trim()},
+    {id:'detections',text:detected.trim()}, {id:'threats',text:threatLine.trim()},
+  ];
+}
 
+function recommendationsFor(packet:SituationPacket): EvacuationRecommendation[] {
   const recommendations = packet.threats.map((t) => ({
     assetId: t.assetId,
     name: t.name,
@@ -175,192 +179,14 @@ function templateNarrate(packet: SituationPacket): { summary: string; recommenda
     priority: recommendationPriority(t),
   }));
 
-  return { summary, recommendations };
+  return recommendations;
 }
 
-// --- LLM narrator ----------------------------------------------------
-
-const LLM_BASE_URL = process.env.LLM_BASE_URL ?? 'https://api.openai.com/v1';
-const LLM_API_KEY = process.env.LLM_API_KEY ?? '';
-const LLM_MODEL = process.env.LLM_MODEL ?? 'gpt-4o-mini';
-// LLM_TIMEOUT_MS is the hard abort for the completion call. On the request
-// path the template is already computed synchronously, so the panel waits
-// LLM_REQUEST_BUDGET_MS at most for the LLM before the template answer ships;
-// both are constants, not env overrides (the only configurable knob is
-// LLM_API_KEY, per the README).
-const LLM_TIMEOUT_MS = 15000;
-const LLM_REQUEST_BUDGET_MS = 4000;
-const LLM_SUMMARY_MAX_CHARS = 1200;
-const LLM_CACHE_TTL_MS = 60000;
-
-const SYSTEM_PROMPT = `You are the situation officer of a wildfire intelligence console.
-You receive a JSON situation packet with computed figures (perimeter area, spread heading, threat list).
-Write a plain-language situation summary of AT MOST 6 sentences for emergency decision-makers.
-Rules:
-- Narrate only what is in the packet. Never invent numbers, asset names, or facts.
-- Reference figures exactly as given (areas, distances, counts).
-- If the packet's threats array is empty and infrastructureCoverage is null, say the region is outside the infrastructure data coverage; do not claim nothing is at risk.
-- If the packet's threats array is empty and infrastructureCoverage is set, state that no bundled assets fall within the threat rings.
-- Neutral, operational tone. No emojis, no markdown headings.
-Return JSON: {"summary": string}`;
-
-interface LlmChoice { message?: { content?: string } }
-
-// Numeric cross-check: every number the summary states must equal a number
-// the packet actually carries, otherwise the model invented one and the
-// response is discarded in favor of the template. The allowed set is built
-// explicitly from the packet's figures in raw and rendered form (counts,
-// rounded values, ring radii, the detection date components, per-threat
-// distances); membership is numeric, not substring, so "100" does not pass
-// because "10" is allowed. Asset names are not enforced here: the prompt
-// forbids inventing them, but string-level verification would false-reject
-// ordinary capitalized prose, so the enforced guarantee is numeric only.
-// This enforces "the model only narrates the packet" on the LLM output's
-// figures.
-const RING_RADII = [5, 10, 20]; // ring radii, from shared RING_RADII_KM vocabulary
-
-function numbersGroundedInPacket(summary: string, packet: SituationPacket): boolean {
-  const allowed = new Set<number>();
-  const add = (n: number) => {
-    if (Number.isFinite(n)) allowed.add(n);
-  };
-  add(packet.hotspotCount);
-  add(packet.threats.length);
-  add(packet.corridorCount);
-  if (packet.totalFrpMw != null) {
-    add(packet.totalFrpMw);
-    add(Math.round(packet.totalFrpMw));
-  }
-  add(packet.spreadHorizonHours);
-  if (packet.spreadBearingDeg != null) {
-    add(packet.spreadBearingDeg);
-    const norm = Math.round(((packet.spreadBearingDeg % 360) + 360) % 360);
-    add(norm === 360 ? 0 : norm);
-  }
-  if (packet.perimeterAreaKm2 != null) {
-    add(packet.perimeterAreaKm2);
-    add(Math.round(packet.perimeterAreaKm2));
-  }
-  for (const r of RING_RADII) add(r);
-  for (const t of packet.threats) {
-    add(t.distanceKm);
-    add(Number(t.distanceKm.toFixed(1)));
-  }
-  for (const at of [packet.firstDetectedAt, packet.lastDetectedAt]) {
-    if (at == null) continue;
-    // Date components (year, month, day) are packet-derived but small, so
-    // they are only allowed when the summary actually states a date token:
-    // otherwise a fabricated "12 structures" would pass because 12 matches
-    // a month.
-    const hasDateToken = new RegExp(at.slice(0, 10).replace(/-/g, '\\-')).test(summary);
-    if (hasDateToken) {
-      add(Number(at.slice(0, 4))); // year
-      add(Number(at.slice(5, 7))); // month
-      add(Number(at.slice(8, 10))); // day
-    }
-  }
-
-  const stated = summary
-    // "km2" is the area unit the template prints; its trailing 2 is not a
-    // figure, so strip it before matching.
-    .replace(/km2/gi, ' km ')
-    .match(/\d+(?:\.\d+)?/g) ?? [];
-  for (const num of stated) {
-    if (!allowed.has(Number(num))) return false;
-  }
-  return true;
-}
-
-// One completion per fire and fires-snapshot per TTL, and one in flight at a
-// time, so reselect does not re-pay the round trip. The key is
-// fireId@fires.fetchedAt, which is stable while the fires memoization window
-// (providers/index.ts) holds: same snapshot, same summary. A new snapshot
-// (fresh data or a scrubbed timeline) stamps a new fetchedAt, so the key
-// changes and the packet is narrated from its own data rather than reusing a
-// summary for older data. The key must not use packet.computedAt: that
-// changes on every request and would defeat the cache.
-const llmCache = new Map<string, { summary: string; expiresAt: number }>();
-const llmInFlight = new Map<string, Promise<string | null>>();
-
-async function llmNarrateUncached(packet: SituationPacket): Promise<string | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
-  try {
-    const res = await fetch(`${LLM_BASE_URL.replace(/\/+$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${LLM_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: LLM_MODEL,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: JSON.stringify(packet) },
-        ],
-        temperature: 0.2,
-      }),
-      signal: controller.signal,
-    });
-    if (!res.ok) throw new Error(`LLM returned ${res.status}`);
-    // No response_format here: it is OpenAI-specific and some compatible
-    // servers reject it, so we rely on the prompt asking for pure JSON and
-    // tolerate a failure by falling back to the template.
-    const body = (await res.json()) as { choices?: LlmChoice[] };
-    const content = body.choices?.[0]?.message?.content;
-    if (!content) throw new Error('LLM response missing content');
-    const parsed = JSON.parse(content) as { summary?: unknown };
-    if (typeof parsed.summary !== 'string' || parsed.summary.trim() === '') {
-      throw new Error('LLM summary not a non-empty string');
-    }
-    const summary = parsed.summary.trim();
-    if (summary.length > LLM_SUMMARY_MAX_CHARS) {
-      throw new Error(`LLM summary exceeds ${LLM_SUMMARY_MAX_CHARS} chars`);
-    }
-    if (!numbersGroundedInPacket(summary, packet)) {
-      throw new Error('LLM summary states numbers not present in the packet');
-    }
-    return summary;
-  } catch (err) {
-    console.warn('[situation] LLM narration failed, falling back to template:', err instanceof Error ? err.message : err);
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function llmNarrate(packet: SituationPacket, snapshotKey: string): Promise<string | null> {
-  // Fast-fail keyless: without a key there is nothing to call, so the
-  // keyless demo works offline instead of hanging toward the request
-  // timeout on an unauthenticated fetch.
-  if (!LLM_API_KEY) return null;
-  const key = `${packet.fireId}@${snapshotKey}`;
-  const now = Date.now();
-  const hit = llmCache.get(key);
-  if (hit && hit.expiresAt > now) return hit.summary;
-  const pending = llmInFlight.get(key);
-  if (pending) return pending;
-
-  // The template summary is already computed and is the fallback, so the
-  // panel response waits at most LLM_REQUEST_BUDGET_MS for the narration
-  // before shipping the template answer; the completion itself is aborted
-  // by LLM_TIMEOUT_MS inside llmNarrateUncached.
-  const task = llmNarrateUncached(packet).then((summary) => {
-    if (summary != null) {
-      llmCache.set(key, { summary, expiresAt: Date.now() + LLM_CACHE_TTL_MS });
-    }
-    return summary;
-  });
-  llmInFlight.set(key, task);
-  const budget = new Promise<null>((resolve) =>
-    setTimeout(() => resolve(null), LLM_REQUEST_BUDGET_MS),
-  );
-  try {
-    return await Promise.race([task, budget]);
-  } finally {
-    llmInFlight.delete(key);
-  }
-}
+const narrator=new FactNarrator({
+  apiKey:process.env.LLM_API_KEY??'',
+  baseUrl:process.env.LLM_BASE_URL??'https://api.openai.com/v1',
+  model:process.env.LLM_MODEL??'gpt-4o-mini',
+});
 
 // --- Packet assembly -------------------------------------------------
 
@@ -417,14 +243,20 @@ export async function getSituation(fireId: string, atSeconds?: number): Promise<
     lastDetectedAt: cluster.lastDetectedAt,
     threats: situationThreats,
     corridorCount: threats.corridorCount,
-    infrastructureCoverage: pointInCoverage(cluster.centroid) ? INFRASTRUCTURE_COVERAGE : null,
+    infrastructureCoverage: threats.infrastructureCoverage,
+    infrastructureStatus: threats.infrastructureStatus,
+    evidenceAsOf: fires.asOf ?? null,
+    availabilityPolicy: fires.availability?.policy ?? null,
     computedAt: new Date().toISOString(),
   };
 
-  const template = templateNarrate(packet);
-  const llmSummary = await llmNarrate(packet, fires.fetchedAt);
+  const facts=situationFacts(packet);
+  const order=await narrator.order(facts);
+  const sentences=(order??facts.map(f=>f.id)).map(id=>facts.find(f=>f.id===id)!.text);
+  const summary=`Situation report for fire ${packet.fireName??packet.fireId}. ${sentences.join(' ')} `
+    + 'Proximity screening only. These priorities are not evacuation orders or road-access decisions.';
 
-  const recommendations = template.recommendations.sort(
+  const recommendations = recommendationsFor(packet).sort(
     (a, b) =>
       a.priority - b.priority ||
       RING_SEVERITY[a.ring] - RING_SEVERITY[b.ring] ||
@@ -435,9 +267,9 @@ export async function getSituation(fireId: string, atSeconds?: number): Promise<
 
   return {
     fireId,
-    summary: llmSummary ?? template.summary,
+    summary,
     recommendations,
-    narrator: llmSummary != null ? 'llm' : 'template',
+    narrator: order !== null ? 'llm' : 'template',
     packet,
   };
 }

@@ -18,7 +18,15 @@ export interface InfrastructureAsset {
 // Bundled infrastructure served by /api/infrastructure. Power lines are
 // included as assets whose position is the midpoint of their path, so the
 // client renders them as one marker per line plus the raw path for drawing.
+export interface InfrastructureStatus {
+  state: 'available' | 'partial' | 'unavailable';
+  loadedFiles: string[];
+  failedFiles: string[];
+  rejectedFeatures: number;
+}
+
 export interface InfrastructureResponse {
+  status: InfrastructureStatus;
   assets: InfrastructureAsset[];
   powerLinePaths: Record<string, LatLon[]>; // assetId -> path
 }
@@ -35,6 +43,8 @@ export interface ThreatenedAsset {
 }
 
 export interface ThreatsResponse {
+  infrastructureStatus: InfrastructureStatus;
+  infrastructureCoverage: InfrastructureCoverage | null;
   fireId: string;
   hasPerimeter: boolean;
   rings: { ring: ThreatRing; radiusKm: number | null }[]; // display order

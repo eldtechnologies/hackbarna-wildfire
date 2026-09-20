@@ -8,34 +8,36 @@ import type { SituationResponse } from '../../shared/situation';
 
 export class AgentPanel {
   private request = 0;
-  private trackedId: string | null = null;
+  private trackedKey: string | null = null;
+  private controller: AbortController | null = null;
 
   constructor(private panel: HTMLElement) {}
 
-  /** Track a fire and render its situation report. Null clears the panel.
-   * Re-selecting the fire already tracked is a no-op: the server serves the
-   * same report from its caches while the fires memoization window holds, so
-   * a re-render adds nothing new. */
-  track(fireId: string | null): void {
-    if (fireId === this.trackedId) return; // same fire re-selected, no re-fetch
-    this.trackedId = fireId;
-    const seq = ++this.request;
+  /** The app owns selection and evidence time; this panel only renders them. */
+  track(fireId: string | null, atSeconds?: number, evidenceKey='latest'): void {
+    const key=fireId===null ? null : JSON.stringify([fireId,atSeconds,evidenceKey]);
+    if (key===this.trackedKey) return;
+    this.trackedKey=key;
+    const seq=++this.request;
+    this.controller?.abort();
+    this.controller=new AbortController();
     if (!fireId) {
       this.panel.classList.remove('open');
       this.panel.replaceChildren();
       return;
     }
     this.renderLoading();
-    fetchSituation(fireId)
+    fetchSituation(fireId,atSeconds,this.controller.signal)
       .then((situation) => {
         if (seq === this.request) this.render(situation);
       })
       .catch((err) => {
+        if (seq!==this.request) return;
         console.error('[agent-panel] situation fetch failed:', err);
         // Allow a retry: the next click on the same fire re-fetches.
         if (seq === this.request) {
-          this.trackedId = null;
-          this.renderError(fireId);
+          this.trackedKey = null;
+          this.renderError(fireId,atSeconds,evidenceKey);
         }
       });
   }
@@ -46,10 +48,14 @@ export class AgentPanel {
     this.panel.append(this.title('SITUATION AGENT'), this.body('ANALYZING...'));
   }
 
-  private renderError(fireId: string): void {
+  private renderError(fireId: string, atSeconds?:number,evidenceKey?:string): void {
     this.panel.classList.add('open');
     this.panel.replaceChildren();
     this.panel.append(this.title(`SITUATION AGENT / ${fireId}`), this.body('REPORT UNAVAILABLE'));
+    const retry=document.createElement('button');
+    retry.className='hud-btn';retry.textContent='RETRY REPORT';
+    retry.addEventListener('click',()=>this.track(fireId,atSeconds,evidenceKey));
+    this.panel.appendChild(retry);
   }
 
   private title(text: string): HTMLElement {
@@ -79,7 +85,7 @@ export class AgentPanel {
     const badge = document.createElement('span');
     badge.className =
       'agent-badge ' + (situation.narrator === 'llm' ? 'agent-badge-llm' : 'agent-badge-template');
-    badge.textContent = situation.narrator === 'llm' ? 'LLM' : 'TEMPLATE';
+    badge.textContent = situation.narrator === 'llm' ? 'AI ORDERED FACTS' : 'COMPUTED FACTS';
     header.append(heading, badge);
 
     const summary = document.createElement('div');
@@ -99,7 +105,7 @@ export class AgentPanel {
       ['PERIMETER', packet.perimeterAreaKm2 != null ? `${packet.perimeterAreaKm2.toFixed(0)} KM2` : 'NONE OBSERVED'],
       ['SPREAD', spreadValue],
       ['HOTSPOTS', String(packet.hotspotCount)],
-      ['THREATS <=20 KM', String(packet.threats.length)],
+      ['PROXIMITY MATCHES', String(packet.threats.length)],
       ['IN CORRIDOR', String(packet.corridorCount)],
     ];
     for (const [label, value] of rows) {
@@ -118,11 +124,13 @@ export class AgentPanel {
     // names the coverage scope, mirroring the narrators' "bundled" wording:
     // the rectangle can include areas (e.g. Andorra) where the dataset has
     // no assets without the area being risk-free.
-    if (packet.threats.length === 0) {
+    if (packet.threats.length === 0 || packet.infrastructureStatus.state !== 'available') {
       const caveat = document.createElement('div');
       caveat.className = 'agent-caveat';
       caveat.textContent =
-        packet.infrastructureCoverage != null
+        packet.infrastructureStatus.state !== 'available'
+          ? `INFRASTRUCTURE DATA ${packet.infrastructureStatus.state.toUpperCase()} — ASSESSMENT INCOMPLETE`
+          : packet.infrastructureCoverage != null
           ? `NO BUNDLED ASSETS WITHIN 20 KM (COVERAGE: ${packet.infrastructureCoverage.label.toUpperCase()})`
           : 'NO INFRASTRUCTURE DATA FOR THIS REGION';
       figures.appendChild(caveat);
@@ -133,7 +141,7 @@ export class AgentPanel {
     if (situation.recommendations.length > 0) {
       const listTitle = document.createElement('div');
       listTitle.className = 'threat-ring-heading';
-      listTitle.textContent = `EVACUATION PRIORITY (${situation.recommendations.length})`;
+      listTitle.textContent = `PROXIMITY PRIORITY (${situation.recommendations.length})`;
       this.panel.appendChild(listTitle);
 
       const list = document.createElement('div');
@@ -161,7 +169,7 @@ export class AgentPanel {
     const footer = document.createElement('div');
     footer.className = 'agent-footer';
     const provenance = packet.dataProvenance === 'live' ? 'LIVE' : 'REPLAY';
-    footer.textContent = `${provenance} DATA / COMPUTED ${packet.computedAt.slice(11, 19)} UTC / FIGURES FROM GEOMETRY, NARRATIVE ONLY`;
+    footer.textContent = `${provenance} DATA / EVIDENCE ${packet.evidenceAsOf??'TIME UNAVAILABLE'} / ${packet.availabilityPolicy??'PROVIDER OBSERVATIONS'} / PROXIMITY SCREENING, NOT EVACUATION ORDERS`;
     this.panel.appendChild(footer);
   }
 }

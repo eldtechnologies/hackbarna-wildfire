@@ -12,7 +12,9 @@ import pointToLineDistance from '@turf/point-to-line-distance';
 import union from '@turf/union';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { getFires } from './providers';
-import { getInfrastructure } from './infrastructure';
+import { getInfrastructure, pointInCoverage, INFRASTRUCTURE_COVERAGE } from './infrastructure';
+import { createHash } from 'node:crypto';
+import { BoundedCache } from './bounded-cache';
 import type { FirePerimeter, FiresResponse, LatLon } from '../shared/fires';
 import type { ThreatRing, ThreatsResponse } from '../shared/threats';
 import { RING_RADII_KM, RING_SEVERITY } from '../shared/threats';
@@ -109,17 +111,16 @@ function powerLineThreat(
   return best;
 }
 
-// Per-fire TTL cache: /api/threats and /api/situation both run the same turf
-// analysis over the same infrastructure data, so a selection pays for it once
-// per window instead of twice per click. The key is fireId@fires.fetchedAt,
-// stable while the fires memoization window (providers/index.ts) holds; a new
-// snapshot stamps a new fetchedAt, so the key changes and the analysis
-// recomputes rather than pairing stale geometry with a fresh packet.
-const THREATS_CACHE_TTL_MS = 60000;
-const threatsCache = new Map<string, { value: ThreatsResponse; expiresAt: number }>();
+// Geometry identity excludes transport timestamps and raw cursor spellings.
+const threatsCache=new BoundedCache<ThreatsResponse>(64,60_000);
 
-function threatsCacheKey(fireId: string, fires: FiresResponse): string {
-  return `${fireId}@${fires.fetchedAt}`;
+export function threatsCacheKey(fireId:string,fires:FiresResponse):string {
+  return createHash('sha256').update(JSON.stringify({
+    provenance:fires.provenance,scenario:fires.scenario,
+    cluster:fires.clusters.find(c=>c.id===fireId),
+    perimeters:fires.perimeters.filter(p=>p.clusterId===fireId),
+    spread:fires.spread.filter(s=>s.clusterId===fireId),
+  })).digest('hex');
 }
 
 export async function getThreats(
@@ -129,11 +130,11 @@ export async function getThreats(
   const firesSnapshot = fires ?? (await getFires());
   const key = threatsCacheKey(fireId, firesSnapshot);
   const cached = threatsCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (cached) return cached;
 
   const value = await computeThreats(fireId, firesSnapshot);
   if (value) {
-    threatsCache.set(key, { value, expiresAt: Date.now() + THREATS_CACHE_TTL_MS });
+    threatsCache.set(key,value);
   }
   return value;
 }
@@ -164,7 +165,7 @@ async function computeThreats(
     })),
   );
 
-  const { assets, powerLinePaths } = await getInfrastructure();
+  const { assets, powerLinePaths, status } = await getInfrastructure();
   const threatened: ThreatsResponse['threatened'] = [];
 
   for (const asset of assets) {
@@ -219,6 +220,8 @@ async function computeThreats(
 
   return {
     fireId,
+    infrastructureStatus:status,
+    infrastructureCoverage:pointInCoverage(cluster.centroid) ? INFRASTRUCTURE_COVERAGE : null,
     hasPerimeter,
     rings: [
       { ring: 'inside' as ThreatRing, radiusKm: null },

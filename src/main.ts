@@ -10,6 +10,7 @@ import { InfrastructureLayer } from './layers/infrastructure';
 import { FireSelectionLayer } from './layers/fireSelection';
 import { AgentPanel } from './hud/agentPanel';
 import { fetchFires } from './data/api';
+import type {FiresResponse} from '../shared/fires';
 
 const globeEl = document.getElementById('globe');
 const hudEl = document.getElementById('hud');
@@ -49,19 +50,28 @@ new InfrastructureLayer(viewer.scene, (asset) => {
 
 // Selecting a fire's pick marker also selects it in the perimeter layer, so
 // the spread ghost and scrubber follow the threat analysis.
-new FireSelectionLayer(viewer, threatPanel, (fireId) => {
+const fireSelection=new FireSelectionLayer(viewer, threatPanel, (fireId) => {
   if (fireId) {
     fireLayer.select(fireId, { flyTo: true });
   } else {
     fireLayer.deselect();
   }
-  agentPanel.track(fireId);
+});
+
+let evidence: FiresResponse | null=null;
+fireLayer.onStateChange(({selectedId})=>{
+  const at=evidence?.provenance==='replay' && evidence.timeline && evidence.asOf
+    ? Math.ceil((Date.parse(evidence.asOf)-Date.parse(evidence.timeline.start))/1000) : undefined;
+  const key=evidence?.asOf??evidence?.fetchedAt??'latest';
+  fireSelection.track(selectedId,at,key);
+  agentPanel.track(selectedId,at,key);
 });
 
 async function loadFires(): Promise<void> {
   try {
     const response = await fetchFires();
     hud.setMode(response.provenance);
+    evidence=response;
     fireLayer.setData(response);
   } catch (err) {
     const banner = document.createElement('div');

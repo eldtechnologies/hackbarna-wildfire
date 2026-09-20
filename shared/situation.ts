@@ -1,9 +1,9 @@
 // Situation agent schema, shared by server and client. The server assembles
 // a SituationPacket from computed geometry (perimeter, spread, threats) and
-// the narrator (LLM or template) only phrases it: every number the client
+// the model only orders server-rendered facts: every number the client
 // renders comes from these fields, never from the model.
 
-import type { InfrastructureCategory, InfrastructureCoverage, ThreatRing } from './threats';
+import type { InfrastructureCategory, InfrastructureCoverage, InfrastructureStatus, ThreatRing } from './threats';
 
 export interface SituationThreat {
   assetId: string;
@@ -15,11 +15,14 @@ export interface SituationThreat {
 }
 
 export interface EvacuationRecommendation extends SituationThreat {
-  reason: string; // computed justification, template-phrased (the LLM only writes the summary)
-  priority: 1 | 2 | 3; // 1 = act first (inside perimeter / corridor), 3 = monitor
+  reason: string; // computed justification, template-phrased (the LLM only orders summary facts)
+  priority: 1 | 2 | 3; // relative screening rank, not an evacuation instruction
 }
 
 export interface SituationPacket {
+  infrastructureStatus: InfrastructureStatus;
+  evidenceAsOf: string | null;
+  availabilityPolicy: string | null;
   fireId: string;
   fireName: string | null;
   // Data source that fed the packet, so the demo is honest about replay.
