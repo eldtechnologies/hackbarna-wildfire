@@ -44,6 +44,9 @@ export function causalResponse(raw: RawFiresPayload, scenario: string, issueMs: 
     const group = groups.get(id) ?? [];
     group.push(h); groups.set(id, group);
   }
+  // Names are source labels, not future geometry or detection timestamps.
+  const labels = new Map((raw.clusters ?? []).flatMap(c => c?.properties
+    ? [[String(c.properties.id ?? c.id ?? ''), {name:c.properties.name, label:c.properties.label}] as const] : []));
   const clusters: RawCluster[] = [...groups].map(([id, members]) => {
     const stamps = members.map(h => h.observed);
     const coordinates: [number, number] = [0, 0];
@@ -51,7 +54,7 @@ export function causalResponse(raw: RawFiresPayload, scenario: string, issueMs: 
       coordinates[0] += hotspot.position.lon / members.length;
       coordinates[1] += hotspot.position.lat / members.length;
     }
-    return {type:'Feature', geometry:{type:'Point',coordinates}, properties:{id,
+    return {type:'Feature', geometry:{type:'Point',coordinates}, properties:{...labels.get(id),id,
       first_observed:new Date(Math.min(...stamps)).toISOString(),
       last_observed:new Date(Math.max(...stamps)).toISOString(), active:true}};
   });
