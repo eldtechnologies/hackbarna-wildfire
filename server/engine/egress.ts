@@ -39,6 +39,7 @@ import {
 import { detectionsFromCapture, groupClustersIntoEvents, loadCapture, pickEventForWindow } from './capture';
 import { DEFAULT_GRAPH_PATH, loadGraph, nearestNode, type LoadedGraph } from './graph';
 import { sensorFamilyRows, subtractStaticHeatSources, type Detection } from './mask';
+import { ownLookup } from './tables';
 import { loadPocketGeometry } from './pockets';
 import {
   allNodesSafe,
@@ -67,6 +68,26 @@ export const STATIC_HEAT_PATH = resolve(HERE, '../../data/fixtures/static-heat-s
  */
 function digestOf(path: string): string {
   return createHash('sha256').update(readFileSync(path)).digest('hex').slice(0, 16);
+}
+
+/**
+ * The latency to add for a detection from `source` — the delay between the satellite seeing a
+ * pixel and the record being usable.
+ *
+ * `ownLookup`, not `LATENCY_SECONDS[source] ?? ...`. The source comes from the capture, and for a
+ * name like `'constructor'` the bare lookup returns a function rather than nothing — truthy, so the
+ * fallback never fired. That value then reached the latency `Float64Array` as NaN, and every
+ * `cut + NaN <= cursor` is false: the engine stopped marking roads cut and published
+ * `not_yet_observed` at cursors where the same capture with an unknown source name publishes
+ * `no_verified_action`, with different routes recommended. The permissive direction, found by
+ * review one table over from the same defect in the mask.
+ *
+ * Exported so the site itself is reachable by a test. `loadContext` reads a fixed capture path, so
+ * a hostile source cannot be put through it from outside — and this is the difference between
+ * marking a road cut and not, which is worth more than a test of the helper alone.
+ */
+export function latencyFor(source: string): number {
+  return ownLookup(LATENCY_SECONDS, source) ?? DEFAULT_LATENCY_SECONDS;
 }
 
 interface StaticHeatFile {
@@ -353,7 +374,7 @@ export function loadContext(graphPath: string = DEFAULT_GRAPH_PATH): Context {
   });
 
   const edgeGeometries = loaded.graph.edges.map((e) => e.geometry);
-  const latencyOf = (source: string): number => LATENCY_SECONDS[source] ?? DEFAULT_LATENCY_SECONDS;
+  const latencyOf = latencyFor;
   const sweep = sweepField(
     edgeGeometries,
     loaded.graph.nodes,
@@ -540,7 +561,7 @@ function clearanceBasis(
     const a = entry.profile.assumptions;
     const edge = byId.get(entry.bottleneck.segmentId);
     const highway = edge?.highway ?? 'unknown class';
-    const capacity = (edge && a.capacityPerHour[edge.highway]) ?? DEFAULT_CAPACITY_PER_HOUR;
+    const capacity = (edge && ownLookup(a.capacityPerHour, edge.highway)) ?? DEFAULT_CAPACITY_PER_HOUR;
     // The road class and the segment are named, not just the throughput. The contract
     // promises the basis says which segment produced each end, and the class is the part a
     // reader can act on: "track" is why a village of 953 takes three hours to leave.
@@ -595,7 +616,7 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
   // road, because "no road is cut" and "nothing has been reported" are different states
   // and only one of them is evidence that the road is open.
   const anyObserved = ctx.detections.some(
-    (d) => d.atSeconds + (LATENCY_SECONDS[d.source] ?? DEFAULT_LATENCY_SECONDS) <= cursor,
+    (d) => d.atSeconds + latencyFor(d.source) <= cursor,
   );
 
   // The node field is masked to the cursor exactly like the edge field above, and for

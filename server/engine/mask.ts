@@ -21,6 +21,7 @@
 import type { SensorFamilyRow } from '../../shared/egress';
 import type { LatLon } from '../../shared/fires';
 import { bboxOf, pointInRing, pointToSegmentMetres } from './geometry';
+import { ownLookup } from './tables';
 
 /**
  * Nominal detection footprint radius in metres — how far the fire could be from the
@@ -62,21 +63,6 @@ export const SENSOR_FAMILY: Record<string, string> = {
   SENTINEL_3A: 'Sentinel-3',
   SENTINEL_3B: 'Sentinel-3',
 };
-
-/**
- * A table lookup that cannot reach the prototype chain.
- *
- * `TABLE[source]` on an object literal answers for `source = 'constructor'` with the `Object`
- * function, and for `'__proto__'` with `Object.prototype`. Both are truthy, so a `?? fallback`
- * never fires and the value flows on — as a family name that is not a string, or, at
- * `SENSOR_RADIUS`, as `Object * scale = NaN`. Every `distanceM > NaN` is false, so a detection from
- * such a source would be treated as reaching every road segment in the graph. The source strings
- * come from the capture, which makes these lookups run over data rather than over a closed set of
- * literals — a difference `??` does not see.
- */
-function ownLookup<T>(table: Record<string, T>, key: string): T | undefined {
-  return Object.hasOwn(table, key) ? table[key] : undefined;
-}
 
 /** The family a source belongs to, or the source itself when it is not a known one. */
 export function familyOf(source: string): string {

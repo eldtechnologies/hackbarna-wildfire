@@ -21,6 +21,7 @@ import { ASSUMPTION_PROFILES } from './assumptions';
 import { LEDGER_PATH } from '../config';
 import { findEntry, fingerprintInputs, ledgerName, openLedger, type LedgerStore, type StoredEntry } from './ledger';
 import { PESSIMISTIC_DELAY_MINUTES, buildEgress, loadContext, type EgressOptions, type Settlement } from './egress';
+import { ownLookup } from './tables';
 import { capIdentifier, emitCap, groupByPocket, validateCapSemantics } from './cap/emit';
 import { fillTemplate, languagesFor, templateFor, unresolvedPlaceholders } from './cap/templates';
 import { verifySentence, type Place } from './cap/verify';
@@ -395,7 +396,7 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
         : undefined;
     const bottleneckCapacityPerHour =
       bottleneckHighway !== undefined && clearanceProfile !== undefined
-        ? clearanceProfile.assumptions.capacityPerHour[bottleneckHighway]
+        ? ownLookup(clearanceProfile.assumptions.capacityPerHour, bottleneckHighway)
         : undefined;
 
     const fresh: StoredEntry = {

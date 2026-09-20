@@ -27,6 +27,7 @@
 
 import type { LatLon } from '../../shared/fires';
 import { polylineLengthMetres } from './geometry';
+import { ownLookup } from './tables';
 
 export interface Edge {
   id: string;
@@ -475,7 +476,7 @@ export function bottleneckOf(
   for (const id of route.segmentIds) {
     const edge = byId.get(id);
     if (!edge) continue;
-    const capacity = capacityPerHourByHighway[edge.highway] ?? defaultCapacityPerHour;
+    const capacity = ownLookup(capacityPerHourByHighway, edge.highway) ?? defaultCapacityPerHour;
     if (capacity <= 0) continue;
     const clearMinutes = (vehicles / capacity) * 60;
     if (worst === null || clearMinutes > worst.clearMinutes) worst = { segmentId: id, clearMinutes };
