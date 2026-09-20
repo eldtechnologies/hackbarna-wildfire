@@ -4,6 +4,7 @@
 // hotspot/perimeter/spread visuals come from their own cards and will merge
 // on top of this.
 
+import { clusterDisplayName } from '../fires/display';
 import {
   Cartesian2,
   Cartesian3,
@@ -101,7 +102,7 @@ export class FireSelectionLayer {
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         label: {
-          text: new ConstantProperty(cluster.name ?? cluster.id),
+          text: new ConstantProperty(clusterDisplayName(cluster)),
           font: '11px JetBrains Mono, monospace',
           fillColor: Color.fromCssColorString('#ffb454'),
           showBackground: true,

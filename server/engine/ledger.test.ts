@@ -9,9 +9,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, chmodSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import {pathToFileURL} from 'node:url';
 
 import { findEntry, fingerprintInputs, openLedger, type AppendResult, type LedgerStore, type StoredEntry } from './ledger';
 
@@ -91,7 +92,7 @@ test('the record survives a restart', () => {
   writeFileSync(
     script,
     [
-      `import { openLedger } from ${JSON.stringify(join(process.cwd(), 'server/engine/ledger.ts'))};`,
+      `import { openLedger } from ${JSON.stringify(pathToFileURL(join(process.cwd(), 'server/engine/ledger.ts')).href)};`,
       `const store = openLedger(${JSON.stringify(path)});`,
       "if (process.argv[2] === 'write') {",
       `  console.log(JSON.stringify(store.append(${JSON.stringify(entry())})));`,
@@ -275,7 +276,7 @@ test('a line whose rejections are the wrong shape counts as unreadable', () => {
   assert.deepEqual(store.history().entries.map((e) => e.id), ['good', 'good-again']);
 });
 
-test('a ledger path that is not a regular file is refused, so nothing can block on it', () => {
+test('a ledger path that is a FIFO is refused, so nothing can block on it', {skip:process.platform==='win32'?'Windows has no POSIX FIFOs':false}, () => {
   // A FIFO used to be accepted — the guard tested only `isSymbolicLink` — and the blocking open
   // that followed never returned. One unauthenticated `GET /api/ledger` against a path someone with
   // write access to the ledger directory had replaced stopped the event loop, taking every route on
@@ -432,9 +433,11 @@ test('a change to a nested input value moves the fingerprint, not only a top-lev
 test('a store whose directory cannot be created fails, naming the path', () => {
   // Falling back to an in-memory ledger would look identical until the process restarted,
   // which is the one moment the record was supposed to survive.
+  const parent=storePath();writeFileSync(parent,'regular file');
+  const impossible=join(parent,'not-a-directory','recommendations.jsonl');
   assert.throws(
-    () => openLedger('/dev/null/not-a-directory/recommendations.jsonl'),
-    (err: unknown) => err instanceof Error && err.message.includes('/dev/null/not-a-directory'),
+    () => openLedger(impossible),
+    (err:unknown) => err instanceof Error && err.message.includes(impossible),
   );
 });
 
@@ -487,4 +490,10 @@ test('a store at its cap refuses to grow, rather than deleting or growing withou
     'fits',
     'the first entry is still there: nothing was rotated out to make room',
   );
+});
+
+// This non-regular-file boundary exists on every supported OS, including Windows.
+test('a ledger directory is refused as a non-regular file',()=>{
+  const directory=storePath();mkdirSync(directory);
+  assert.throws(()=>openLedger(directory),(err:unknown)=>err instanceof Error && err.message.includes(directory));
 });

@@ -5,7 +5,7 @@ import {
   ScreenSpaceEventType,
   Viewer,
 } from 'cesium';
-import { LAYERS, isLayerVisible, setLayerVisible } from '../layers/registry';
+import { LAYERS, LAYER_COLORS, isLayerVisible, setLayerVisible } from '../layers/registry';
 
 // HUD shell: corner brackets, title, UTC clock, telemetry, layer toggles.
 // Pure DOM overlay on top of the Cesium canvas.
@@ -63,6 +63,16 @@ export function initHud(viewer: Viewer, root: HTMLElement): HudHandle {
       setLayerVisible(layer.id, box.checked),
     );
     row.appendChild(box);
+    const color = LAYER_COLORS[layer.id];
+    if (color) {
+      const swatch = el('span', 'hud-swatch');
+      swatch.style.backgroundColor = color;
+      row.appendChild(swatch);
+    } else {
+      // Placeholder keeps labels aligned in one column for layers without a
+      // color (hotspots, clusters, perimeters, spread sim).
+      row.appendChild(el('span', 'hud-swatch hud-swatch-empty'));
+    }
     row.appendChild(el('span', '', layer.label));
     layersPanel.appendChild(row);
   }

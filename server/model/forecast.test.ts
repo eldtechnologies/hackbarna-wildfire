@@ -1,3 +1,4 @@
+import {fileURLToPath} from 'node:url';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -15,7 +16,7 @@ const original = await readFile(new URL(entry.file,example));
 const forecast = JSON.parse(original.toString());
 
 test('Python-produced native-grid artifact survives the actual HTTP handoff unchanged',async()=>{
-  const store=new ForecastStore(example.pathname);
+  const store=new ForecastStore(fileURLToPath(example));
   const server=createServer(createApp(undefined,store));
   await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));
   const address=server.address();assert.ok(address && typeof address!=='string');

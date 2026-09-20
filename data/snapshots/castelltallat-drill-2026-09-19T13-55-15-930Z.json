@@ -221,7 +221,8 @@
       "id": "cl-01",
       "first_observed": "2026-09-19T13:53:27.622Z",
       "last_observed": "2026-09-19T13:59:59.542Z",
-      "active": true
+      "active": true,
+      "name": "IF Castelltallat"
      }
     }
    ],
@@ -687,7 +688,8 @@
       "id": "cl-01",
       "first_observed": "2026-09-19T13:53:27.622Z",
       "last_observed": "2026-09-19T14:30:00.742Z",
-      "active": true
+      "active": true,
+      "name": "IF Castelltallat"
      }
     }
    ],
@@ -1173,7 +1175,8 @@
       "id": "cl-01",
       "first_observed": "2026-09-19T13:53:27.622Z",
       "last_observed": "2026-09-19T15:00:01.342Z",
-      "active": true
+      "active": true,
+      "name": "IF Castelltallat"
      }
     }
    ],
@@ -1659,7 +1662,8 @@
       "id": "cl-01",
       "first_observed": "2026-09-19T13:53:27.622Z",
       "last_observed": "2026-09-19T15:30:02.062Z",
-      "active": true
+      "active": true,
+      "name": "IF Castelltallat"
      }
     }
    ],
@@ -2165,7 +2169,8 @@
       "id": "cl-01",
       "first_observed": "2026-09-19T13:53:27.622Z",
       "last_observed": "2026-09-19T16:00:02.902Z",
-      "active": true
+      "active": true,
+      "name": "IF Castelltallat"
      }
     }
    ],
@@ -2671,7 +2676,8 @@
       "id": "cl-01",
       "first_observed": "2026-09-19T13:53:27.622Z",
       "last_observed": "2026-09-19T16:30:03.502Z",
-      "active": true
+      "active": true,
+      "name": "IF Castelltallat"
      }
     }
    ],
@@ -3197,7 +3203,8 @@
       "id": "cl-01",
       "first_observed": "2026-09-19T13:53:27.622Z",
       "last_observed": "2026-09-19T17:00:04.102Z",
-      "active": true
+      "active": true,
+      "name": "IF Castelltallat"
      }
     }
    ],
@@ -3723,7 +3730,8 @@
       "id": "cl-01",
       "first_observed": "2026-09-19T13:53:27.622Z",
       "last_observed": "2026-09-19T17:30:04.462Z",
-      "active": true
+      "active": true,
+      "name": "IF Castelltallat"
      }
     }
    ],
