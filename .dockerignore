@@ -1,0 +1,25 @@
+# node_modules and dist are rebuilt inside the image.
+node_modules
+dist
+
+# Runtime state and secrets never belong in the build context.
+data/ledger
+.env
+.env.*
+!.env.example
+
+# VCS, editor, and CI noise.
+.git
+.gitignore
+*.log
+.DS_Store
+.claude
+.creatumo
+.flow
+.decisions
+
+# Docs and tests aren't needed at runtime.
+docs
+**/*.test.ts
+tests
+tools
