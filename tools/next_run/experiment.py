@@ -38,15 +38,17 @@ def main():
         return report
     with ThreadPoolExecutor(max_workers=protocol['concurrent_runs']) as pool:
         reports=list(pool.map(run,protocol['runs']))
-    # Training jobs are finished before memory-heavy pooled diagnostics start.
-    for report in reports:
-        if report['returncode']:continue
+    # Bound pooled-metric memory independently from training concurrency.
+    def diagnose(report):
+        if report['returncode']:return
         path=args.out/report['name']
         with (path/'diagnostic.log').open('w') as log:
             diagnostic=subprocess.run([sys.executable,'-m','tools.next_run.selection_report',
                 '--data',str(args.data),'--checkpoint',str(path/'frozen.pt'),
                 '--out',str(path/'selection-report.json')],env=env,stdout=log,stderr=subprocess.STDOUT)
         report['diagnostic_returncode']=diagnostic.returncode
+    with ThreadPoolExecutor(max_workers=protocol.get('diagnostic_workers',2)) as pool:
+        list(pool.map(diagnose,reports))
     write_json(args.out/'completed.json',reports)
 
 
