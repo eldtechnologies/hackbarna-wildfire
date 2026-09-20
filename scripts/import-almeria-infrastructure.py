@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 
 import osmium
-from shapely.geometry import LineString, shape, box
+from shapely.geometry import LineString, Point, shape, box
 
 BBOX = [-2.45, 36.8, -1.55, 37.65]
 REGION = 'eastern-almeria'
@@ -40,7 +40,6 @@ class Infrastructure(osmium.SimpleHandler):
             geometry=dict(type='Point', coordinates=[point.x, point.y])))
 
     def node(self, node):
-        from shapely.geometry import Point
         tags = dict(node.tags)
         kind = tags.get('amenity')
         if kind not in ('hospital', 'school'):

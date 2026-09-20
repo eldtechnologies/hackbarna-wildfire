@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-from collections import Counter
 import itertools
 import json
 from pathlib import Path
@@ -10,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from tools.next_run.common import SIZE, file_hash
+from tools.next_run.common import SIZE, file_hash, write_json
 from tools.next_run.inputs import InputFrame
 from tools.next_run.quality import Quality
 from tools.next_run.weather import Weather
@@ -22,11 +21,9 @@ class PoisonUnavailable(Quality):
         super().__init__(archive)
         self.issue = issue
         self.poisoned = 0
-        self.reads = 0
 
-    def patch(self, stamp, row0, col0, size=64):
+    def patch(self, stamp, row0, col0, size=SIZE):
         q, available = super().patch(stamp, row0, col0, size)
-        self.reads += 1
         if available is None or available > self.issue or pd.Timestamp(stamp) >= self.issue:
             self.poisoned += 1
             q = np.ones_like(q)  # Fabricated fire must remain unavailable to inputs.
@@ -69,8 +66,7 @@ def main():
                            unavailable_seed_samples=seed_violations, time_boundary_violations=boundary_violations)
     report = dict(manifest_sha256=file_hash(a.data/'manifest.json'), split_pairs=splits,
                   roles=times, raw_challenges=[], future_labels_read=False)
-    a.out.parent.mkdir(parents=True, exist_ok=True)
-    a.out.write_text(json.dumps(report, indent=2)+'\n')
+    write_json(a.out, report)
     print(json.dumps({'split_audit': times}), flush=True)
     q = Quality(cfg['archive'])
     w = Weather(cfg['weather'])
@@ -109,14 +105,14 @@ def main():
                  future_poison_equal=bool(np.array_equal(x, px) and np.array_equal(p, pp)),
                  future_observations_poisoned=int(late.sum())+1, unavailable_quality_reads_poisoned=poison.poisoned)
         report['raw_challenges'].append(r)
-        a.out.write_text(json.dumps(report, indent=2)+'\n')
+        write_json(a.out, report)
         print(json.dumps(r), flush=True)
     report['passed'] = (
         all(not r['shared_events'] and not r['shared_groups'] and r['overlapping_patch_pairs'] == 0 for r in splits)
         and all(r['unavailable_seed_samples'] == 0 and r['time_boundary_violations'] == 0 for r in times.values())
         and all(all(r[k] for k in ['frozen_input_equal','frozen_state_equal','future_removal_equal','future_poison_equal'])
                 and r['unavailable_quality_reads_poisoned'] > 0 for r in report['raw_challenges']))
-    a.out.write_text(json.dumps(report, indent=2)+'\n')
+    write_json(a.out, report)
     if not report['passed']:
         raise SystemExit('Input audit failed; inspect the report')
 

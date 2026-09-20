@@ -91,18 +91,25 @@ def main():
     if a.out.exists():
         raise FileExistsError('Use a fresh output directory')
     protocol = json.loads(a.protocol.read_text())
-    assert sha(a.checkpoint) == protocol['checkpoint_sha256']
-    assert sha(a.data / 'manifest.json') == protocol['manifest_sha256']
-    assert sha(a.trainer_root / 'tools/next_run/train.py') == protocol['trainer_sha256']
+    if not (sha(a.checkpoint) == protocol['checkpoint_sha256']):
+        raise ValueError('Checkpoint hash mismatch')
+    if not (sha(a.data / 'manifest.json') == protocol['manifest_sha256']):
+        raise ValueError('Manifest hash mismatch')
+    if not (sha(a.trainer_root / 'tools/next_run/train.py') == protocol['trainer_sha256']):
+        raise ValueError('Trainer hash mismatch')
     sys.path.insert(0, str(a.trainer_root.resolve()))
     trainer = importlib.import_module('tools.next_run.train')
-    assert Path(trainer.__file__).resolve() == (a.trainer_root / 'tools/next_run/train.py').resolve()
+    if not (Path(trainer.__file__).resolve() == (a.trainer_root / 'tools/next_run/train.py').resolve()):
+        raise ValueError('Imported trainer is not the pinned source')
     torch.set_num_threads(2)
     saved = torch.load(a.checkpoint, map_location='cpu', weights_only=False)
-    assert saved['manifest_sha256'] == protocol['manifest_sha256']
-    assert saved['trainer_sha256'] == protocol['trainer_sha256']
+    if not (saved['manifest_sha256'] == protocol['manifest_sha256']):
+        raise ValueError('Checkpoint manifest provenance mismatch')
+    if not (saved['trainer_sha256'] == protocol['trainer_sha256']):
+        raise ValueError('Checkpoint trainer provenance mismatch')
     manifest = json.loads((a.data / 'manifest.json').read_text())
-    assert not manifest['smoke_only']
+    if not (not manifest['smoke_only']):
+        raise ValueError('A smoke dataset cannot validate model accuracy')
     channels = manifest['channels']
     model = trainer.UNet(len(channels), saved['base']).eval().to(a.device)
     model.load_state_dict(saved['state'])
@@ -159,10 +166,12 @@ def main():
         report['scores'][maskname] = {}
         for h, parts in horizons.items():
             arrays = [np.concatenate([p[i] for p in parts]) for i in range(5)]
+            parts.clear()
             m = metrics(arrays[0], dict(zip(['model', 'persistence', 'dilation', 'history_dilation'], arrays[1:])))
             m['paired_event_ap_group_bootstrap'] = {
                 b: paired_groups(per_event[maskname][h], b) for b in ['persistence', 'dilation', 'history_dilation']}
             report['scores'][maskname][h] = m
+            del arrays
     report['seconds'] = round(time.monotonic() - started, 1)
     (a.out / 'results.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps({'finished': True, 'seconds': report['seconds'], 'out': str(a.out)}), flush=True)
