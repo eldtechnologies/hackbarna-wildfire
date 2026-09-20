@@ -199,6 +199,36 @@ test('a threatened settlement contributes nothing to the over-alerting figure', 
   assert.equal(none.rows.reduce((sum, r) => sum + r.overAlerted, 0), 300, 'with nothing threatened, everyone is');
 });
 
+test('a settlement is counted wholly or not at all, by its centre', () => {
+  // The risk map's third row asks about a settlement PARTLY inside a footprint. This model has
+  // no such case — a settlement is a point, its coordinate, which is how the egress engine snaps
+  // a pocket to the road graph — so the row's discriminating input is unreachable as written.
+  // What can be pinned instead is the choice it rests on: the centre decides, and the whole
+  // population follows it.
+  //
+  // Both directions cost something, and the module states both: a village whose centre sits just
+  // inside a 1 km disc contributes every resident, including the ones the broadcast would never
+  // reach, and a village just outside contributes none of them. The first inflates the headline
+  // figure. Asserted rather than left implicit so that moving to an areal model is a decision
+  // someone makes rather than a drift nobody notices.
+  const c = { lat: 37.19, lon: -1.98 };
+  const set = servedFootprints([cell({ lat: c.lat, lon: c.lon, range: 1000 })]);
+
+  const { rows } = overAlertingBy(
+    set,
+    [
+      settlement({ id: 'in', name: 'In', lat: c.lat + 900 / 110_977, lon: c.lon, population: 500 }),
+      settlement({ id: 'out', name: 'Out', lat: c.lat + 1100 / 110_977, lon: c.lon, population: 700 }),
+    ],
+    new Set<string>(),
+  );
+
+  assert.equal(rows.find((r) => r.settlementId === 'in')?.overAlerted, 500,
+    'centre 900 m away, inside a 1 km disc: the whole population, not a fraction of it');
+  assert.equal(rows.find((r) => r.settlementId === 'out')?.overAlerted, 0,
+    'centre 1.1 km away: none of it, however much of the village reaches in');
+});
+
 test('a footprint covers a settlement by distance, not by a bounding box', () => {
   // Haversine against the cell's own radius. A bounding-box test would cover a settlement that
   // is 1 km north and 1 km east — 1.41 km away — of a 1 km cell, and the wrong version differs

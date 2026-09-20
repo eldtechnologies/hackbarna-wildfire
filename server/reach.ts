@@ -181,6 +181,13 @@ export interface ReachResult {
  * centre is inside, and a large village just outside a 1 km disc contributes nothing. Stated
  * because the alternative reading — counting a village because a footprint clips its edge —
  * would raise the number with no more evidence behind it.
+ *
+ * The choice cuts BOTH ways and the other way is the one that inflates the headline: a village
+ * whose centre is just inside a disc contributes its whole population, including the residents
+ * the broadcast would never reach. So the figure is an upper bound for that reason as well as
+ * for the fallback radius, and an areal settlement model is what would tighten it — the data for
+ * which is not in this repository. Recorded here rather than only in the risk map, because a
+ * reader of the number is the one who needs it.
  */
 export function overAlertingBy(
   set: FootprintSet,
