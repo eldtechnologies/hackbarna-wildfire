@@ -1,0 +1,100 @@
+{
+  "schema": "paper-screen-v1",
+  "purpose": "Development-set ablation, not WSTS+ reproduction or a fresh generalization claim",
+  "dataset_manifest_sha256": "6a892f380242c2a253393daf59e92c0b84326b7171355db860cae1080e78e31e",
+  "seed": 0,
+  "optimizer_updates": 4000,
+  "batch_size": 64,
+  "concurrent_runs": 2,
+  "selection_objective": "novel-mean",
+  "novel_definition": "no_past_detection_and_any_observed_history",
+  "final_test_access": false,
+  "common_args": [
+    "--batch-size",
+    "64",
+    "--max-steps",
+    "4000",
+    "--patience",
+    "0",
+    "--workers",
+    "4",
+    "--cpu-threads",
+    "2",
+    "--amp",
+    "--seed",
+    "0",
+    "--selection-objective",
+    "novel-mean"
+  ],
+  "runs": [
+    {
+      "name": "u_bce_lr3",
+      "args": [
+        "--lr",
+        "0.001"
+      ]
+    },
+    {
+      "name": "u_focal_lr3",
+      "args": [
+        "--lr",
+        "0.001",
+        "--focal-gamma",
+        "2"
+      ]
+    },
+    {
+      "name": "u_focal_lr4",
+      "args": [
+        "--lr",
+        "0.0001",
+        "--focal-gamma",
+        "2"
+      ]
+    },
+    {
+      "name": "u_focal_novel4",
+      "args": [
+        "--lr",
+        "0.001",
+        "--focal-gamma",
+        "2",
+        "--novel-weight",
+        "4"
+      ]
+    },
+    {
+      "name": "r18_random",
+      "args": [
+        "--architecture",
+        "resnet18",
+        "--lr",
+        "0.0001",
+        "--focal-gamma",
+        "2"
+      ]
+    },
+    {
+      "name": "r18_pretrained",
+      "args": [
+        "--architecture",
+        "resnet18",
+        "--pretrained",
+        "--lr",
+        "0.0001",
+        "--focal-gamma",
+        "2"
+      ]
+    }
+  ],
+  "resource_policy": {
+    "gpu": "H100 80GB HBM3",
+    "maximum_hourly_rate_usd": 4.0,
+    "maximum_lifetime_minutes": 90,
+    "terminate_after_artifact_retrieval": true,
+    "touch_existing_pods": false,
+    "maximum_concurrent_owned_pods": 1,
+    "maximum_provisioning_attempts": 2
+  },
+  "interpretation": "Compare matched runs at equal updates; one seed is screening only. The 4000-update screen is shorter than the paper 10000-update recipe. No promotion based on selection metrics."
+}

@@ -11,11 +11,15 @@ import importlib
 import json
 from pathlib import Path
 import time
+import sys
 
 import numpy as np
 from scipy.ndimage import distance_transform_edt
 from sklearn.metrics import average_precision_score
 import torch
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from tools.next_run.domains import novel_masks
 
 if __package__:
     from .frozen_inputs import frozen_trainer, load_checkpoint
@@ -34,17 +38,6 @@ def sha(path):
 def distance_score(active):
     return (np.exp(-distance_transform_edt(~active) / 2).astype(np.float32)
             if active.any() else np.zeros(active.shape, np.float32))
-
-
-def novel_masks(x, old, channels):
-    observable = [i for i, name in enumerate(channels) if name.endswith('observable_fraction')]
-    fire = [i for i, name in enumerate(channels) if name.endswith('fire_fraction')]
-    if len(observable) != 6 or len(fire) != 6:
-        raise ValueError('Expected six observation bins')
-    known = x[:, observable].max(axis=1) > 0
-    past = x[:, fire].max(axis=1) > 0
-    return {'full': np.ones_like(known), 'latest_clear': known & (old == 0),
-            'no_past_detection': known & ~past}, past
 
 
 def metrics(y, predictions):
