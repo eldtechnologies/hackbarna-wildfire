@@ -140,13 +140,16 @@ reading `.env` directly should note the values may be quoted there.
 
 ## Data pipeline
 
-`tools/pipeline/` builds the fire-spread training dataset from the MTG FRP archive and scores
-growth baselines on it. It is Python, separate from the console. Its dependencies are in
-`tools/pipeline/requirements.txt`; run its tests with:
+Use [`tools/next_run/README.md`](tools/next_run/README.md) for the corrected extraction,
+weather joins, masked labels, isolated evaluation roles, and training commands.
+Run Python checks from the repository root:
 
 ```bash
-cd tools/pipeline
-uv run --with-requirements requirements.txt python -m unittest test_pipeline -v
+python -m pip install -r tools/next_run/requirements.txt
+python -m pytest tools/next_run/test_next_run.py tools/pipeline -q
 ```
 
-See [`docs/growth-baselines-AP.md`](docs/growth-baselines-AP.md) for the results and how to rebuild them.
+`tools/pipeline/` and `data/wildfire-spread/` retain the historical Iberian experiment
+for audit. They are not the next training dataset. Legacy build/scoring commands
+require `--legacy-reproduction`; see [`docs/growth-baselines-AP.md`](docs/growth-baselines-AP.md)
+for the old numbers and their limitations. Do not mix their shards with `tools/next_run`.

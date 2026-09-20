@@ -192,11 +192,30 @@ def test_selection_calibration_overlap_is_purged():
 
 def test_resume_rejects_changed_artifact(tmp_path):
     from .common import file_hash
-    p=tmp_path/"event";p.mkdir();(p/"X.npy").write_bytes(b"original")
-    meta=dict(file="event",dataset_id="id",sha256={"X.npy":file_hash(p/"X.npy")})
+    p=tmp_path/"event";p.mkdir()
+    for name in ["X","Y","M","P","issue"]:(p/f"{name}.npy").write_bytes(b"original")
+    meta=dict(file="event",dataset_id="id",sha256={f.name:file_hash(f) for f in p.iterdir()})
     assert verify_event(tmp_path,meta,"id")==meta
     (p/"X.npy").write_bytes(b"corrupt")
     with pytest.raises(ValueError,match="Corrupt"):verify_event(tmp_path,meta,"id")
+
+
+def test_training_verifies_split_artifacts_and_rejects_missing_hashes(tmp_path):
+    from .common import SCHEMA,CHANNELS,HORIZONS,file_hash
+    from .train import FireDataset
+    directory=tmp_path/"event";directory.mkdir()
+    for name in ["X","Y","M","P","issue"]:
+        np.save(directory/f"{name}.npy",np.zeros((1,2,2)))
+    event=dict(event_id="event",file="event",dataset_id="id",split="train",role="train",samples=1,
+               sha256={f.name:file_hash(f) for f in directory.iterdir()})
+    manifest=dict(schema=SCHEMA,channels=CHANNELS,horizons=HORIZONS,dataset_id="id",events=[event])
+    (tmp_path/"manifest.json").write_text(json.dumps(manifest))
+    assert len(FireDataset(tmp_path,"train"))==1
+    np.save(directory/"X.npy",np.ones((1,2,2)))
+    with pytest.raises(ValueError,match="Corrupt"):FireDataset(tmp_path,"train")
+    event["sha256"]={}
+    (tmp_path/"manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError,match="Incomplete"):FireDataset(tmp_path,"train")
 
 
 def test_weather_transport_error_is_retried(tmp_path,monkeypatch):

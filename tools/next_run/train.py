@@ -15,6 +15,7 @@ from sklearn.metrics import average_precision_score, brier_score_loss
 from scipy.ndimage import distance_transform_edt
 
 from .common import file_hash, write_json, SCHEMA, CHANNELS, HORIZONS, validation_role
+from .build import verify_event
 
 
 def finite(x, name):
@@ -32,6 +33,8 @@ class FireDataset(Dataset):
         self.events = [e for e in self.manifest["events"] if e.get("split")==split and e["samples"]>0]
         if role is not None:
             self.events = [e for e in self.events if e["role"]==role]
+        for event in self.events:
+            verify_event(self.root,event,self.manifest["dataset_id"])
         self.rows = [(e,i) for e in self.events for i in range(e["samples"])]
         if not self.rows:
             raise ValueError(f"Empty {split}/{role} split")

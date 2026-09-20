@@ -1,92 +1,63 @@
-# Growth baselines on the metric the field uses
+# Historical MTG baseline experiment
 
-The earlier result in [`model-proposal.md`](model-proposal.md) scored R² on
-**scalar burned area** and concluded persistence wins. That conclusion is a property
-of the metric, not of the model. This document re-scores the same task as a
-**next-state fire mask** with
-**average precision (AUC-PR)** — the metric the published benchmarks use — and adds
-the features the corpora never carried.
+This records the older `tools/pipeline/` experiment. For new training use
+[`tools/next_run/README.md`](../tools/next_run/README.md). The old scores do not
+validate the corrected pipeline or establish superiority to DeepFire.
 
-## Why the metric decided the old answer
+## Recorded experiment
 
-Persistence copies the last burned area, so on an area target it wins by
-construction. On a **mask** target the literature reports the opposite: persistence
-is the baseline every learned model beats, typically 2–2.5×.
+The committed Iberian dataset contains 4,789 samples from 260 thermal episodes,
+with 128×128 cells at 0.02°. Its target is `label_frp > 0` within the next six-hour
+window, not independently verified fire spread. The harness uses **five-fold
+GroupKFold by episode**, not leave-one-fire-out. Reported AP is the arithmetic mean
+of the five fold APs; average precision is not identical to trapezoidal PR area.
 
-| Benchmark | Metric | Persistence | Best learned |
-| --- | --- | ---: | ---: |
-| Next Day Wildfire Spread (Huot 2022) | AUC(PR) | 11.5 | 28.4 |
-| WildfireSpreadTS (Gerard 2023) | AP | 0.193 | 0.404 |
+| Historical predictor | Mean fold AP |
+|---|---:|
+| Persistence | 0.3659 |
+| Drift persistence | 0.0569 |
+| Observed-state model | 0.4435 |
+| Observed state plus relative position | 0.4470 |
+| Static geography control | 0.0017 |
 
-## What was scored
+These are archived measurements, not a current acceptance benchmark. No new model
+score is claimed by adding the corrected next-run pipeline.
 
-Dataset: the MTG LSA-509 Iberia extract, assembled by `tools/pipeline/` —
-**4,789 samples, 260 fires, 78.5 M cells**, each sample a 128×128 grid at 0.02°.
-An earlier revision of `frames.py` produced 5,077 samples from a label window one step
-too short; those shards are superseded here.
+## Why these numbers are insufficient
 
-Target: will cell (i, j) carry fire in the next **6 h**? `label_frp > 0`.
+- Missing/cloud-covered observations become negative labels in this old dataset.
+  It lacks the native quality masks and publication-time gating of `tools/next_run`.
+- Crop centres use full-episode information. Episode splits alone do not protect
+  against neighbouring patches or later episodes sharing geography.
+- The observation-conditioned sampling truncates quiet tails. FRP greater than
+  zero also differs from detecting thermal activity with a missing FRP estimate.
+- The legacy terrain pipeline has a north-up aspect sign error, edge-clamped
+  geographic lookup and an unvalidated ordinal land-cover-to-fuel mapping.
+- Drift uses wrapped `np.roll` and fixed timing assumptions. Beating that specific
+  baseline does not establish that plain persistence is the strongest baseline.
+- A weak static-only control does not prove freedom from geographic leakage or
+  establish that terrain/fuel add no useful information.
+- Scalar-area persistence can score highly at short horizons; it does not win by
+  construction. Results on different targets/corpora are not directly comparable.
 
-Split: **leave-one-fire-out** (5 folds by event). A cell-level split would leak the
-fire's identity; the score would be meaningless.
+The new pipeline addresses extraction, masking, causality, weather availability,
+terrain representation and evaluation separation. Independent wildfire labels and
+an operational benchmark are still needed for fire-front and evacuation claims.
 
-Score: **average precision**, the full held-out fold (true prevalence 0.087 %).
+## Reproduce the historical experiment only
 
-## Results
-
-| Predictor | AP | vs persistence |
-| --- | ---: | ---: |
-| persistence (fire stays put) | 0.3659 | 1.00× |
-| drift persistence (extrapolate the 3 h centroid velocity) | 0.0569 | 0.16× |
-| **model — observed fire state only** | 0.4435 | 1.21× |
-| **model + relative position (direction)** | **0.4470** | **1.22×** |
-| terrain + fuel only (geography control) | 0.0017 | 0.00× |
-
-Three things this shows.
-
-1. **A learned model beats persistence on the field's metric.** AP 0.44 against
-   0.37, with no weather, no terrain and no fuel — only the observed fire state.
-
-2. **Relative position is the only added feature that helps, and only slightly.**
-   Adding the cell's offset from the fire's FRP-weighted centroid takes AP
-   0.4435 → 0.4470. It is also fold-dependent (it helps on three folds and hurts on
-   two), so on this dataset it is not the decisive lever an earlier run over the
-   stale 5,077-sample shards reported (0.47 → 0.54). The features are computed from
-   the model's own input, so there is no leak; the gain is simply small here.
-
-3. **Terrain and fuel alone score essentially zero (AP 0.0017).** That is the
-   control that matters: it proves the model is reading the fire, not memorising
-   the map. It also means terrain/fuel, added on top, do not help here.
-
-## The drift baseline is worse than staying put
-
-Extrapolating the last 3 h of centroid motion over 9 h scores AP 0.06 — far below
-plain persistence. A short-window velocity is too noisy to extrapolate that far, so
-**plain persistence is the honest strongest baseline**, and the 1.22× is measured
-against it.
-
-## What is still missing, and why it matters
-
-Wind. It is the physical driver of spread direction and the one time-varying input
-the model does not yet have. Open-Meteo's daily request cap was reached during this
-work, so the wind join is **queued, not abandoned**. The static layers (DEM GLO-30
-slope/aspect, ESA WorldCover fuel) are already joined and verified; they simply do
-not help on this target, which is itself a finding.
-
-## Reproduce
+The old builder consumes the derived `analysis/iberia_bbox_hotspots.csv.gz` table,
+not raw native scans. The static-control row additionally requires external
+Copernicus DEM GLO-30 and ESA WorldCover v200 tiles, which are not bundled.
 
 ```bash
-# 1. build the dataset shards (needs the MTG archive; see build.py for its source)
-cd tools/pipeline && uv run --with-requirements requirements.txt python build.py --archive /path/to/LSA_SAF_MTFRPPixel_2026
-
-# 2. put the DEM and WorldCover tiles for the sample grids under tiles/:
-#      tools/pipeline/tiles/dem/*.tif   Copernicus DEM GLO-30   (AWS Open Data, no key)
-#      tools/pipeline/tiles/wc/*.tif    ESA WorldCover v200     (AWS Open Data, no key)
-#    features_static.py reads the union of the sample grids from these tiles.
-
-# 3. build the coarse static mosaics and score
+cd tools/pipeline
+uv run --with-requirements requirements.txt python build.py --legacy-reproduction --archive /path/to/LSA_SAF_MTFRPPixel_2026 --out /path/to/new/historical-output
+# Optional external tiles under tools/pipeline/tiles/{dem,wc}/ are needed for:
 uv run --with-requirements requirements.txt python features_static.py
-uv run --with-requirements requirements.txt python ap_harness.py
+# Scores the committed historical shard set by default:
+uv run --with-requirements requirements.txt python ap_harness.py --legacy-reproduction
 ```
 
-`ap_harness.py` prints the table above fold by fold.
+Retain the historical artifacts unchanged so earlier claims can be traced. Build a
+new dataset with `tools/next_run` for the next RunPod experiment.

@@ -160,6 +160,8 @@ def revision(out: Path) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--legacy-reproduction", action="store_true",
+                    help="Explicitly reproduce historical, unmasked shards; use tools.next_run for training")
     ap.add_argument("--archive", type=Path, default=DEFAULT_ARCHIVE)
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
     ap.add_argument("--cell-deg", type=float, default=DEFAULT_CELL_DEG)
@@ -171,6 +173,8 @@ def main() -> int:
     ap.add_argument("--force", action="store_true",
                     help="clear existing shards in --out instead of refusing")
     args = ap.parse_args()
+    if not args.legacy_reproduction:
+        ap.error("Historical builder disabled by default. Use tools.next_run (tools/next_run/README.md), or --legacy-reproduction to reproduce the old experiment.")
 
     args.out.mkdir(parents=True, exist_ok=True)
     stale = sorted(args.out.glob("shard-*.npz"))

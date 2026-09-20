@@ -216,10 +216,14 @@ def score_variants(X, y, g, pers, drift, rng):
 
 def main() -> int:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--legacy-reproduction", action="store_true",
+                    help="Score the historical unmasked experiment; not a valid next-run evaluation")
     ap.add_argument("--shards", default=str(DATA / "shard-*.npz"))
     ap.add_argument("--report", type=Path, default=DATA / "report.json")
     ap.add_argument("--static", type=Path, default=DATA / "static_coarse.npz")
     args = ap.parse_args()
+    if not args.legacy_reproduction:
+        ap.error("Historical harness disabled by default. Use tools.next_run, or --legacy-reproduction to inspect the old scores.")
 
     shards = sorted(glob.glob(args.shards))
     if not shards:

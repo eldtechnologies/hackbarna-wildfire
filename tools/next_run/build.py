@@ -39,7 +39,10 @@ def update_observed_state(state, flags):
 
 def verify_event(root, result, dataset_id):
     if result["dataset_id"]!=dataset_id:raise ValueError("Event dataset identity mismatch")
-    for name,sha in result.get("sha256",{}).items():
+    hashes=result.get("sha256",{})
+    if set(hashes)!={"X.npy","Y.npy","M.npy","P.npy","issue.npy"}:
+        raise ValueError("Incomplete event checksums")
+    for name,sha in hashes.items():
         if file_hash(Path(root)/result["file"]/name)!=sha:raise ValueError(f"Corrupt event file: {name}")
     return result
 
