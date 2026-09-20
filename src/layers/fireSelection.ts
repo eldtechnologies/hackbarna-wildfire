@@ -101,7 +101,7 @@ export class FireSelectionLayer {
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         label: {
-          text: new ConstantProperty(cluster.name ?? cluster.id),
+          text: new ConstantProperty(cluster.name ?? cluster.id.slice(0, 8)),
           font: '11px JetBrains Mono, monospace',
           fillColor: Color.fromCssColorString('#ffb454'),
           showBackground: true,

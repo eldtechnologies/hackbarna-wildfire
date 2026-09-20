@@ -97,7 +97,7 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): void {
         'hud-fire-row-selected',
         caseData.cluster.id === state.selectedCase?.cluster.id,
       );
-      const name = el('span', 'hud-fire-name', caseData.cluster.name ?? caseData.cluster.id);
+      const name = el('span', 'hud-fire-name', caseData.cluster.name ?? caseData.cluster.id.slice(0, 8));
       const meta = el('span', 'hud-fire-meta', `${caseData.areaKm2.toFixed(1)} KM2`);
       row.appendChild(name);
       row.appendChild(meta);
@@ -114,7 +114,7 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): void {
     }
     scrubPanel.hidden = false;
 
-    scrubName.textContent = selected.cluster.name ?? selected.cluster.id;
+    scrubName.textContent = selected.cluster.name ?? selected.cluster.id.slice(0, 8);
     tPlus.textContent = `T${state.scrubHours > 0 ? `+${state.scrubHours.toFixed(1)}H` : 'NOW'}`;
     valid.textContent = state.projection
       ? `VALID ${formatClock(state.projection.validAt)}`

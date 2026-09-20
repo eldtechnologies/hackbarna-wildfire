@@ -143,6 +143,7 @@ function stateAt(simDate, hours) {
       geometry: { type: 'Point', coordinates: [CLUSTER.centroid.lon, CLUSTER.centroid.lat] },
       properties: {
         id: CLUSTER.id,
+        name: 'IF Castelltallat',
         first_observed: simStartIso,
         last_observed: iso,
         active: true,
