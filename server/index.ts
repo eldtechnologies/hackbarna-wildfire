@@ -9,6 +9,8 @@ import { getThreats } from './threats';
 import { growthFor } from './model';
 import { loadMetrics, type Metrics } from './model/metrics';
 import { engineRouter } from './engine/routes';
+import { parseCursor, epoch, CursorError } from './providers/availability';
+import { ForecastStore } from './model/forecast';
 
 /**
  * The Express app, as a factory so tests can exercise the real routes over HTTP.
@@ -16,7 +18,7 @@ import { engineRouter } from './engine/routes';
  * harness artifact answering 502 rather than an empty score list; production uses
  * the committed file.
  */
-export function createApp(metrics: () => Metrics = loadMetrics): express.Express {
+export function createApp(metrics: () => Metrics = loadMetrics, forecasts = new ForecastStore()): express.Express {
   const app = express();
 
   app.use(engineRouter());
@@ -32,13 +34,11 @@ export function createApp(metrics: () => Metrics = loadMetrics): express.Express
 
   app.get('/api/fires', async (req, res) => {
     try {
-      // ?at=<seconds> scrubs a recorded event timeline. Absent or invalid
-      // values serve the latest state (live edge).
-      const atRaw = req.query.at;
-      const atParsed = atRaw === '' ? NaN : Number(atRaw);
-      const atSeconds = Number.isFinite(atParsed) ? Math.max(0, atParsed) : undefined;
+      // An absent cursor serves the replay edge; malformed cursors fail closed.
+      const atSeconds = parseCursor(req.query.at);
       res.json(await getFires(atSeconds));
     } catch (err) {
+      if (err instanceof CursorError) { res.status(400).json({error:err.message}); return; }
       console.error('[api] /api/fires failed:', err);
       res.status(502).json({ error: 'fire data unavailable' });
     }
@@ -84,15 +84,34 @@ export function createApp(metrics: () => Metrics = loadMetrics): express.Express
       return;
     }
     try {
-      const body = growthFor(clusterId, await getFires(), new Date(), metrics);
+      const evidence = await getFires(parseCursor(req.query.at));
+      const body = growthFor(clusterId, evidence, new Date(evidence.asOf ?? evidence.fetchedAt), metrics);
       if (!body) {
         res.status(404).json({ error: 'cluster not found' });
         return;
       }
       res.json(body);
     } catch (err) {
+      if (err instanceof CursorError) { res.status(400).json({error:err.message}); return; }
       console.error('[api] /api/growth failed:', err);
       res.status(502).json({ error: 'growth data unavailable' });
+    }
+  });
+
+  app.get('/api/forecasts', async (req,res) => {
+    const {eventId,issue}=req.query;
+    if ((eventId!==undefined || issue!==undefined) &&
+        (typeof eventId!=='string' || !eventId || typeof issue!=='string' || epoch(issue)===null)) {
+      res.status(400).json({error:'eventId and a timezone-qualified issue timestamp are required'});return;
+    }
+    try {
+      if (eventId===undefined) { res.json({target:'observed_thermal_detection_within_horizon',forecasts:await forecasts.list()});return; }
+      const forecast=await forecasts.get(eventId as string,issue as string);
+      if(!forecast){res.status(404).json({error:'no prepared forecast for this event and issue time'});return;}
+      res.json(forecast);
+    } catch(err) {
+      console.error('[api] forecast unavailable:',err);
+      res.status(502).json({error:'forecast artifact unavailable'});
     }
   });
 

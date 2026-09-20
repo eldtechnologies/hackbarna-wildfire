@@ -148,3 +148,23 @@ forecast must not be treated as a road-clearance oracle.
   archived fixed-lead forecasts and supported weather variables.
 - [Copernicus DEM](https://registry.opendata.aws/copernicus-dem/) and
   [ESA WorldCover](https://esa-worldcover.org/en): static context, not fuel moisture.
+
+## Forecast handoff and validation
+
+`inputs.py` is the shared past-only feature builder. `forecast.py` exports a native-grid
+research artifact from archived X/P inputs or fresh local input caches; `acceptance.py`
+consumes completed evaluation reports without opening test tensors. The server serves
+checksum-validated artifacts through `/api/forecasts`. See
+[the integration contract](../../docs/forecast-contract.md) and
+[the prospective evaluation policy](../../docs/thermal-evaluation.md).
+
+The existing frozen full-v1 dataset and active training code are not rewritten by
+these additions. New builds have a different source identity; use a new output
+directory. `check_inputs.py` can compare raw train/selection inputs against v1 without
+reading future labels or the test partition.
+
+The next-run trainer defaults to two CPU threads and two persistent prefetch workers,
+with pinned memory on CUDA. `--workers 0` retains serial loading. New checkpoints also
+freeze runtime dependencies; continue evaluating the existing pilot with its original
+pinned code. See [throughput measurements and controls](../../docs/training-performance.md)
+for benchmarking and the separate fixed-budget double-descent protocol.

@@ -21,7 +21,7 @@ import {
 } from './growth';
 import { baselinesFor, constantRos } from './baselines';
 import { detectionsOf, growthFor } from './index';
-import { loadMetrics, shippedPredictor } from './metrics';
+import { loadMetrics } from './metrics';
 
 function hotspot(over: Partial<Hotspot>): Hotspot {
   return {
@@ -145,6 +145,16 @@ test('advanceBetween refuses a rate when the timestamps do not separate', () => 
   assert.equal(advanceBetween(a, b), null, 'zero elapsed is not an infinite rate');
 });
 
+test('simultaneous and within-overpass pixels cannot manufacture a velocity',()=>{
+  const at='2026-07-09T18:00:00Z';
+  const a=[1,22,37,115].map(frpMw=>hotspot({detectedAt:at,frpMw,position:{lat:37,lon:-2}}));
+  const b=[7,40,51,95].map(frpMw=>hotspot({detectedAt:at,frpMw,position:{lat:37.1,lon:-1.9}}));
+  assert.equal(advanceBetween(a,b),null);
+  assert.equal(timeSplit([...a,...b]),null);
+  const later=b.map(h=>({...h,detectedAt:'2026-07-09T18:00:21Z'}));
+  assert.equal(advanceBetween(a,later),null);
+});
+
 test('sourceMixOf counts sensors and names the unknown ones', () => {
   const mix = sourceMixOf([
     hotspot({ satellite: 'VIIRS' }),
@@ -185,27 +195,6 @@ test('the baselines carry their own name and keep an unknown rate unknown', () =
   assert.equal(c.predictor, 'constant_ros');
   assert.equal(c.rateKmh, 9.5);
   assert.equal(constantRos(v, null).rateKmh, null, 'a missing constant stays null');
-});
-
-test('shippedPredictor names a baseline when no model score beats it', () => {
-  assert.equal(
-    shippedPredictor([
-      { name: 'persistence', target: 'burned_area', corpus: 'x', r2: 0.99, medianR2PerFire: 0.57, medianMape: 6, medianBearingErrorDeg: null, events: 10 },
-      { name: 'constant_ros', target: 'burned_area', corpus: 'x', r2: 0.98, medianR2PerFire: -0.08, medianMape: 9, medianBearingErrorDeg: null, events: 10 },
-      { name: 'model', target: 'bearing_rate', corpus: 'x', r2: 0.1, medianR2PerFire: null, medianMape: 50, medianBearingErrorDeg: 56, events: 10 },
-    ]),
-    'persistence',
-  );
-});
-
-test('shippedPredictor decides on the per-fire median, where the pooled reading disagrees', () => {
-  // On MedEU the pooled R2 prefers constant_ros (0.8026) while the per-fire median
-  // prefers persistence (-3.4177 against -10.949). The honest aggregate must decide.
-  const perFire = shippedPredictor([
-    { name: 'persistence', target: 'burned_area', corpus: 'm', r2: 0.7681, medianR2PerFire: -3.4177, medianMape: 37.5, medianBearingErrorDeg: null, events: 60 },
-    { name: 'constant_ros', target: 'burned_area', corpus: 'm', r2: 0.8026, medianR2PerFire: -10.949, medianMape: 48.5, medianBearingErrorDeg: null, events: 60 },
-  ]);
-  assert.equal(perFire, 'persistence');
 });
 
 test('loadMetrics returns the committed harness output', () => {

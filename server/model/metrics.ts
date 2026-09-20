@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { GrowthScore, PredictorName } from '../../shared/growth';
+import type { GrowthScore } from '../../shared/growth';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const METRICS_PATH = join(HERE, '../../data/model/metrics.json');
@@ -179,23 +179,4 @@ function meanRateOf(rows: HarnessRow[]): number | null {
 export function loadMetrics(path: string = METRICS_PATH): Metrics {
   const parsed = rows(path);
   return { scores: scoresOf(parsed), meanRateKmh: meanRateOf(parsed) };
-}
-
-/**
- * The predictor that ships. Only predictors scored on burned area are candidates, so
- * the model — which carries a bearing_rate score only — is not one yet; a model would
- * have to beat these on this target to ship.
- *
- * The choice is made on the per-fire median, the honest aggregate: on MedEU the
- * pooled R2 prefers constant_ros while the per-fire reading prefers persistence. The
- * pooled R2 is the fallback only when a corpus carries no per-fire number.
- */
-export function shippedPredictor(scores: GrowthScore[]): PredictorName {
-  const area = scores.filter((s) => s.target === 'burned_area');
-  const rank = (s: GrowthScore): number => s.medianR2PerFire ?? s.r2;
-  const best = area.reduce<GrowthScore | null>(
-    (acc, s) => (acc === null || rank(s) > rank(acc) ? s : acc),
-    null,
-  );
-  return best?.name ?? 'persistence';
 }

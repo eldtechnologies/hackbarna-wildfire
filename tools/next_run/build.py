@@ -16,6 +16,7 @@ from .common import digest, write_json, file_hash, SCHEMA, SIZE, HORIZONS, TAIL_
 from .quality import Quality, labels, lonlat
 from .terrain import Terrain
 from .weather import Weather
+from .inputs import InputFrame, update_observed_state, observed_offsets
 
 def issue_times(start,end,archive_end,max_samples=48,seed_available=None):
     if max_samples<1:raise ValueError("max_samples must be positive")
@@ -29,12 +30,6 @@ def issue_times(start,end,archive_end,max_samples=48,seed_available=None):
     if len(times)>max_samples:
         times=times[np.unique(np.linspace(0,len(times)-1,max_samples).astype(int))]
     return times
-
-
-def update_observed_state(state, flags):
-    for q in flags:
-        state=np.where(np.isin(q,[0,1,2]),np.isin(q,[1,2]),state)
-    return state.astype(np.float32)
 
 
 def verify_event(root, result, dataset_id):
@@ -71,15 +66,6 @@ def local_observations(row0,col0):
     return d[d.ABS_LINE.between(row0,row0+SIZE-1)&d.ABS_SAMP.between(col0,col0+SIZE-1)]
 
 
-def observed_offsets(fire,lon,lat):
-    total=fire.sum()
-    if total<=0:return np.zeros((4,*fire.shape),np.float32)
-    center_lon=float((fire*lon).sum()/total);center_lat=float((fire*lat).sum()/total)
-    east=(lon-center_lon)*111.32*np.cos(np.radians(lat))/50
-    north=(lat-center_lat)*110.54/50
-    return np.stack([east,north,np.hypot(east,north),np.ones_like(east)]).astype(np.float32)
-
-
 def build_event(event):
     out=Path(CFG["out"]);path=out/event['event_id']
     metadata=path/"event.json"
@@ -94,42 +80,12 @@ def build_event(event):
     if seed_available is None:return dict(result,reason="seed_product_missing")
     times=issue_times(event["start"],event["end"],CFG["archive_end"],CFG["max_samples"],seed_available)
     if len(times)==0:return dict(result,reason="seed_unavailable_or_no_complete_future_window")
-    longitude,latitude=lonlat(row0,col0,SIZE)
-    static,static_valid=T.sample(longitude,latitude)
     persistent=np.array([[(r,c) in PERSISTENT for c in range(col0,col0+SIZE)] for r in range(row0,row0+SIZE)])
     obs=local_observations(row0,col0)
+    inputs=InputFrame(event,Q,W,T,obs)
     Xs,Ys,Ms,Ps,issues=[],[],[],[],[]
     for issue in times:
-        bins=[];recent_fire=np.zeros((SIZE,SIZE),np.float32)
-        for b in range(6):
-            start=issue-pd.Timedelta(minutes=(6-b)*30);end=start+pd.Timedelta(minutes=30)
-            flags=Q.sequence(start,end,row0,col0,SIZE,available_by=issue)
-            fire=np.isin(flags,[1,2]).mean(axis=0).astype(np.float32)
-            observable=np.isin(flags,[0,1,2]).mean(axis=0).astype(np.float32)
-            frp=np.zeros((SIZE,SIZE),np.float32);measured=frp.copy()
-            d=obs[(obs.observed_at>=start)&(obs.observed_at<end)&obs.FRP.notna()]
-            # Creation timestamp as well as conservative latency must pass.
-            for scan,g in d.groupby("scan_time"):
-                _,available=Q.patch(str(scan),row0,col0,SIZE)
-                if available is None or available>issue:continue
-                rr=g.ABS_LINE.to_numpy()-row0;cc=g.ABS_SAMP.to_numpy()-col0
-                np.add.at(frp,(rr,cc),g.FRP.to_numpy(dtype=np.float32))
-                np.add.at(measured,(rr,cc),1)
-            bins.extend([np.log1p(frp/3)/5,fire,observable,measured/3])
-            # Last observed state, retaining older observations through clouds.
-            recent_fire=update_observed_state(recent_fire,flags)
-        dynamic=np.stack(bins).astype(np.float32)
-        weather=[]
-        for h in [0,*HORIZONS]:
-            v,valid=W.features(event["lon"],event["lat"],issue,issue+pd.Timedelta(hours=h))
-            v=v/np.array([20,20,50,100,10],np.float32)
-            weather.extend(np.full((SIZE,SIZE),z,np.float32) for z in np.r_[v,valid])
-        offsets=observed_offsets(recent_fire,longitude,latitude)
-        phase=2*np.pi*(issue.hour+issue.minute/60)/24
-        x=np.concatenate([dynamic,static,np.stack(weather),offsets,
-                          np.full((1,SIZE,SIZE),np.sin(phase)),np.full((1,SIZE,SIZE),np.cos(phase))]).astype(np.float32)
-        if x.shape[0]!=len(CHANNELS) or not np.isfinite(x).all():
-            raise ValueError(f"Invalid input tensor: {event['event_id']} {issue}")
+        x,recent_fire=inputs.at(issue)
         future=Q.sequence(issue,issue+pd.Timedelta(hours=max(HORIZONS)),row0,col0,SIZE)
         yy,mm=zip(*(labels(future[:h*6],persistent) for h in HORIZONS))
         Xs.append(x.astype(np.float16));Ys.append(np.stack(yy).astype(np.uint8));Ms.append(np.stack(mm))
@@ -139,7 +95,7 @@ def build_event(event):
     result.update(samples=len(x),file=path.name,
                 label_valid_cells=m.sum(axis=(0,2,3)).tolist(),positive_cells=(y*m).sum(axis=(0,2,3)).tolist(),
                 future_empty_samples=((y*m).sum(axis=(2,3))==0).sum(axis=0).tolist(),
-                terrain_valid_fraction=float(static_valid.mean()))
+                terrain_valid_fraction=float(inputs.static_valid.mean()))
     tmp=Path(tempfile.mkdtemp(prefix=f".{path.name}.",dir=out))
     try:
         for name,array in dict(X=x,Y=y,M=m,P=p,issue=np.asarray(issues)).items():np.save(tmp/f"{name}.npy",array)
@@ -173,7 +129,7 @@ def main():
     cfg={k:str(v) if isinstance(v,Path) else v for k,v in vars(a).items()}
     cfg.update(archive=extraction["archive"],archive_end=str(end))
     code={p.name:file_hash(p) for p in Path(__file__).parent.glob("*.py")
-          if p.stem in ["common","extract","index","quality","terrain","weather","build"]}
+          if p.stem in ["common","extract","index","quality","terrain","weather","build","inputs"]}
     q=Quality(extraction["archive"])
     quality_files=[dict(path=str(p.relative_to(q.archive)),bytes=p.stat().st_size,mtime_ns=p.stat().st_mtime_ns)
                    for p in q.files.values()]
