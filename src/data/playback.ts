@@ -76,6 +76,10 @@ export class FirePlayback {
     await this.load(target);
   }
 
+  resumeLatest(): void {
+    if (this.request?.atSeconds === undefined) void this.retry();
+  }
+
   dispose(): void {
     this.pause();
     this.disposed = true;
@@ -99,7 +103,7 @@ export class FirePlayback {
       const data = await this.loadFires(seconds, request.signal);
       if (generation !== this.generation || this.disposed) return;
       const timeline = replayTimeline(data);
-      if (seconds !== undefined && data.provenance === 'replay' &&
+      if (seconds !== undefined &&
           (!timeline || Date.parse(data.asOf!) !== Math.min(Date.parse(timeline.start) + seconds * 1000, Date.parse(timeline.end)))) {
         throw new Error('The server returned a different observation time');
       }
@@ -111,13 +115,17 @@ export class FirePlayback {
           const next = Math.min(replayPosition(this.state.data) + 1800, timeline!.durationSeconds);
           void this.load(next);
         }, 500);
-      } else if (data.provenance === 'live') {
-        this.timer = setTimeout(() => void this.load(), 10 * 60 * 1000);
       }
     } catch (error) {
       if (generation !== this.generation || this.disposed) return;
       this.update({ loading: false, playing: false,
         error: error instanceof Error ? error.message : 'Fire data unavailable' });
+    } finally {
+      // Following latest survives fallback and transport failures. Explicit
+      // historical cursors keep their position until the user retries or seeks.
+      if (seconds === undefined && generation === this.generation && !this.disposed && !this.state.playing) {
+        this.timer = setTimeout(() => void this.load(), this.state.error ? 15_000 : 10 * 60 * 1000);
+      }
     }
   }
 }
@@ -130,8 +138,7 @@ export function bindPlaybackLifecycle(playback: FirePlayback, page: Window): () 
     else playback.dispose();
   };
   const onPageShow = (event: PageTransitionEvent) => {
-    const data = playback.getState().data;
-    if (event.persisted && (!data || data.provenance === 'live')) void playback.retry();
+    if (event.persisted) playback.resumeLatest();
   };
   page.addEventListener('pagehide', onPageHide);
   page.addEventListener('pageshow', onPageShow);

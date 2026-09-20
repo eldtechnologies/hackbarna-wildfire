@@ -147,3 +147,73 @@ test('a server that ignores the seek cannot relabel the latest frame as history'
   assert.equal(replayPosition(playback.getState().data),7200);
   assert.match(playback.getState().error!,/different observation time/);
 });
+
+test('client rejects success-shaped failures but accepts genuinely empty observations', async t => {
+  let payload: unknown;
+  t.mock.method(globalThis,'fetch',async()=>Response.json(payload));
+  for(payload of [null,{}, {error:'upstream timed out'}, {provenance:'replay'},
+    {...frame(),hotspots:undefined}, {...frame(),provenance:'unknown'}, {...frame(),fetchedAt:'bad'}]) {
+    await assert.rejects(fetchFires(),/invalid response/);
+  }
+  payload=frame();
+  assert.deepEqual((await fetchFires()).hotspots,[]);
+});
+
+test('live responses cannot fulfill a replay seek, and retry preserves its cursor', async t => {
+  let live=false;
+  const requests:(number|undefined)[]=[];
+  const playback=new FirePlayback(async at=>{requests.push(at);return {...frame(at),provenance:live?'live':'replay'};});
+  t.after(()=>playback.dispose());
+  await playback.start();
+  const committed=playback.getState().data;
+  live=true;await playback.seek(1800);
+  assert.equal(playback.getState().data,committed);
+  assert.match(playback.getState().error!,/different observation time/);
+  live=false;await playback.retry();
+  assert.equal(playback.getState().error,null);
+  assert.equal(replayPosition(playback.getState().data),1800);
+  assert.deepEqual(requests,[undefined,1800,1800]);
+});
+
+test('fractional recording bounds round up and inconsistent timeline duration disables replay', () => {
+  const data=frame();
+  data.timeline={...data.timeline!,start:'2026-07-09T00:00:00.893Z',end:'2026-07-09T02:00:00.100Z'};
+  data.asOf=data.timeline.end;
+  assert.ok(replayTimeline(data));
+  assert.equal(replayPosition(data),7200);
+  data.asOf='2026-07-09T00:00:01.100Z';
+  assert.equal(replayPosition(data),1);
+  data.timeline.durationSeconds=7199;
+  assert.equal(replayTimeline(data),null);
+});
+
+
+test('latest requests keep polling through live-to-replay fallback and recover live data', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});
+  let calls=0;
+  const playback=new FirePlayback(async()=>({...frame(),provenance:++calls===2?'replay':'live'}));
+  t.after(()=>playback.dispose());
+  await playback.start();
+  t.mock.timers.tick(600000);await flush();
+  assert.equal(calls,2);assert.equal(playback.getState().data?.provenance,'replay');
+  t.mock.timers.tick(600000);await flush();
+  assert.equal(calls,3);assert.equal(playback.getState().data?.provenance,'live');
+  playback.pause();t.mock.timers.tick(600000);await flush();assert.equal(calls,3);
+});
+
+
+test('latest polling retries initial and later transport failures, while pause cancels recovery', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});
+  let calls=0;const failing=new Set([1,3,5]);
+  const playback=new FirePlayback(async()=>{if(failing.has(++calls))throw new Error('offline');return {...frame(),provenance:'live'};});
+  t.after(()=>playback.dispose());
+  await playback.start();assert.equal(playback.getState().data,null);assert.equal(calls,1);
+  t.mock.timers.tick(14999);await flush();assert.equal(calls,1);
+  t.mock.timers.tick(1);await flush();assert.equal(calls,2);assert.equal(playback.getState().error,null);
+  const committed=playback.getState().data;
+  t.mock.timers.tick(600000);await flush();assert.equal(calls,3);
+  assert.equal(playback.getState().error,'offline');assert.equal(playback.getState().data,committed);
+  t.mock.timers.tick(15000);await flush();assert.equal(calls,4);assert.equal(playback.getState().error,null);
+  t.mock.timers.tick(600000);await flush();assert.equal(calls,5);
+  playback.pause();t.mock.timers.tick(3600000);await flush();assert.equal(calls,5);
+});

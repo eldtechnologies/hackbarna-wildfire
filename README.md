@@ -205,3 +205,6 @@ python -m pytest tools/next_run/test_next_run.py tools/pipeline -q
 for audit. They are not the next training dataset. Legacy build/scoring commands
 require `--legacy-reproduction`; see [`docs/growth-baselines-AP.md`](docs/growth-baselines-AP.md)
 for the old numbers and their limitations. Do not mix their shards with `tools/next_run`.
+
+
+Current replay UI at 1280×720: [Almería observations and infrastructure](docs/screenshots/observation-replay-after.jpg). The selected fire has 465 proximity matches, and the situation report shows the snapshot and operational limitations without scrolling. This replaces the earlier captures made before the Almería bundle was present.

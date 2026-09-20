@@ -44,6 +44,12 @@ test('real DOM controls seek, play, pause, show the committed date and handle bo
   const slider = root.querySelector<HTMLInputElement>('input')!;
   slider.value = '5100'; slider.dispatchEvent(new dom.window.Event('input')); await settle();
   assert.equal(replayPosition(playback.getState().data), 5100);
+  button('back').click(); await settle();
+  assert.equal(replayPosition(playback.getState().data), 1500);
+  button('forward').click(); await settle();
+  assert.equal(replayPosition(playback.getState().data), 5100);
+  button('forward').click(); await settle();
+  assert.equal(replayPosition(playback.getState().data), 7200);
   button('end').click(); await settle();
   assert.equal(button('play').textContent, 'REPLAY');
   assert.equal(button('end').disabled, true);
@@ -119,4 +125,41 @@ test('cached-page return restarts initial loading and live refresh without reset
   dom.window.dispatchEvent(new dom.window.PageTransitionEvent('pageshow',{persisted:true}));
   await Promise.resolve();await Promise.resolve();assert.equal(calls,3);
   t.mock.timers.tick(600000);await Promise.resolve();await Promise.resolve();assert.equal(calls,4);
+});
+
+test('initial fire failure has an alert, and later failure accurately describes retained data', async t => {
+  const dom=new JSDOM('<main></main>');
+  Object.defineProperty(globalThis,'document',{value:dom.window.document,configurable:true});
+  let fail=true;
+  const playback=new FirePlayback(async at=>{if(fail)throw new Error('offline');return data(at);});
+  t.after(()=>{playback.dispose();delete (globalThis as {document?:Document}).document;dom.window.close();});
+  const root=dom.window.document.querySelector('main')!;
+  initReplayPanel(playback,root);await playback.start();
+  const alert=root.querySelector<HTMLElement>('[role="alert"]')!;
+  const status=root.querySelector('.replay-status')!;
+  const retry=root.querySelector<HTMLButtonElement>('.replay-retry')!;
+  assert.equal(alert.hidden,false);assert.match(alert.textContent!,/FIRE DATA UNAVAILABLE/);
+  assert.match(status.textContent!,/No fire data has been loaded/);
+  assert.doesNotMatch(status.textContent!,/last loaded time/);
+  assert.equal(retry.hidden,false);
+  fail=false;retry.click();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(alert.hidden,true);assert.equal(retry.hidden,true);
+  fail=true;await playback.seek(0);
+  assert.equal(alert.hidden,true);assert.equal(retry.hidden,false);
+  assert.match(status.textContent!,/last loaded time/);
+});
+
+
+test('cached-page restoration follows latest intent through a replay fallback', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});
+  const dom=new JSDOM();let calls=0;
+  const playback=new FirePlayback(async()=>({...data(),provenance:++calls===2?'replay':'live'}));
+  const unbind=bindPlaybackLifecycle(playback,dom.window as unknown as Window);
+  t.after(()=>{unbind();playback.dispose();dom.window.close();});
+  await playback.start();t.mock.timers.tick(600000);await Promise.resolve();await Promise.resolve();
+  assert.equal(playback.getState().data?.provenance,'replay');
+  dom.window.dispatchEvent(new dom.window.PageTransitionEvent('pagehide',{persisted:true}));
+  dom.window.dispatchEvent(new dom.window.PageTransitionEvent('pageshow',{persisted:true}));
+  await Promise.resolve();await Promise.resolve();
+  assert.equal(calls,3);assert.equal(playback.getState().data?.provenance,'live');
 });

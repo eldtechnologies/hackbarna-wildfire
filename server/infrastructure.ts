@@ -128,12 +128,12 @@ export async function loadInfrastructure(directory: string): Promise<Infrastruct
     try {
       parsed = JSON.parse(await readFile(path.join(directory, file), 'utf8'));
       if (!parsed || !Array.isArray(parsed.features)) throw new Error('missing features array');
-      loadedFiles.push(file);
     } catch (err) {
       console.warn(`[infrastructure] ${file} missing or unreadable, skipping:`, err instanceof Error ? err.message : err);
       failedFiles.push(file);
       continue;
     }
+    const countBefore = assets.length;
     for (const f of parsed.features ?? []) {
       if (kind === 'point') {
         const asset = toAsset(f as RawPointFeature);
@@ -147,6 +147,8 @@ export async function loadInfrastructure(directory: string): Promise<Infrastruct
         } else rejectedFeatures++;
       }
     }
+    if (assets.length > countBefore) loadedFiles.push(file);
+    else failedFiles.push(file);
   }
 
   return { assets, powerLinePaths, status: {

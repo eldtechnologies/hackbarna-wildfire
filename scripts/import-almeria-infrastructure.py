@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import tempfile
 
 import osmium
 from shapely.geometry import LineString, Point, shape, box
@@ -83,7 +84,8 @@ class Infrastructure(osmium.SimpleHandler):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--pbf', type=Path, required=True)
-    ap.add_argument('--out', type=Path, default=Path('data/infrastructure'))
+    ap.add_argument('--base', type=Path, default=Path('data/infrastructure'))
+    ap.add_argument('--out', type=Path, required=True, help='Fresh directory for the complete bundle')
     a = ap.parse_args()
     reader = osmium.io.Reader(str(a.pbf))
     header = reader.header()
@@ -105,21 +107,33 @@ def main():
                     source_sha256=source_hash,
                     scope='OSM mapped assets; completeness not guaranteed. Snapshot postdates the July replay.',
                     counts={k: len(v) for k, v in handler.features.items()})
-    a.out.mkdir(parents=True, exist_ok=True)
-    prepared = []
-    for kind, filename in FILES.items():
-        target = a.out/filename
-        collection = json.loads(target.read_text()) if target.exists() else dict(type='FeatureCollection', properties={}, features=[])
-        collection['features'] = [f for f in collection['features'] if f.get('properties', {}).get('region') != REGION]
-        collection['features'].extend(sorted(handler.features[kind], key=lambda f: f['id']))
-        collection.setdefault('properties', {})['almeria_source'] = metadata
-        tmp = target.with_suffix('.geojson.tmp')
-        tmp.write_text(json.dumps(collection, ensure_ascii=False, separators=(',', ':'))+'\n')
-        prepared.append((tmp, target))
-    for tmp, target in prepared:
-        tmp.replace(target)
-    (a.out/'almeria-source.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2)+'\n')
+    publish_bundle(a.base, a.out, handler.features, metadata)
     print(json.dumps(metadata, ensure_ascii=False), flush=True)
+
+
+def publish_bundle(base, out, features, metadata):
+    """Prepare all categories, then publish one directory with one rename."""
+    if out.exists():
+        raise FileExistsError('Use a fresh output directory; never overwrite the serving bundle')
+    collections = {}
+    for kind, filename in FILES.items():
+        collection = json.loads((base / filename).read_text())
+        if collection.get('type') != 'FeatureCollection' or not collection.get('features'):
+            raise ValueError(f'Missing baseline features: {filename}')
+        retained = [f for f in collection['features'] if f.get('properties', {}).get('region') != REGION]
+        if not retained or not features[kind]:
+            raise ValueError(f'Refusing to lose baseline or regional coverage: {filename}')
+        collection['features'] = retained + sorted(features[kind], key=lambda f: f['id'])
+        collection.setdefault('properties', {})['almeria_source'] = metadata
+        collections[filename] = collection
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='.almeria-', dir=out.parent) as temporary:
+        bundle = Path(temporary) / 'bundle'
+        bundle.mkdir()
+        for filename, collection in collections.items():
+            (bundle / filename).write_text(json.dumps(collection, ensure_ascii=False, separators=(',', ':'))+'\n')
+        (bundle / 'almeria-source.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2)+'\n')
+        bundle.rename(out)
 
 
 if __name__ == '__main__':

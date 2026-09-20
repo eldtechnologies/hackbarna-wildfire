@@ -10,9 +10,9 @@ import { InfrastructureLayer } from './layers/infrastructure';
 import { FireSelectionLayer } from './layers/fireSelection';
 import { AgentPanel } from './hud/agentPanel';
 import { fetchFires } from './data/api';
-import { FirePlayback, replayPosition, replayTimeline, bindPlaybackLifecycle } from './data/playback';
+import { FirePlayback, bindPlaybackLifecycle } from './data/playback';
 import { initReplayPanel } from './hud/replayPanel';
-import type {FiresResponse} from '../shared/fires';
+import { connectFireViews } from './data/fireSession';
 
 const globeEl = document.getElementById('globe');
 const hudEl = document.getElementById('hud');
@@ -60,26 +60,7 @@ const fireSelection=new FireSelectionLayer(viewer, threatPanel, (fireId) => {
   }
 });
 
-let evidence: FiresResponse | null = null;
-fireLayer.onStateChange(({selectedId}) => {
-  const at = replayTimeline(evidence) ? replayPosition(evidence) : undefined;
-  const key = evidence?.asOf ?? evidence?.fetchedAt ?? 'latest';
-  fireSelection.track(selectedId, at, key);
-  agentPanel.track(selectedId, at, key);
-});
-
-playback.subscribe(({data}) => {
-  if (!data || data === evidence) return;
-  evidence = data;
-  hud.setMode(data.provenance);
-  viewer.entities.suspendEvents();
-  try {
-    hotspotLayer.setData(data);
-    fireSelection.setData(data);
-    fireLayer.setData(data);
-  } finally {
-    viewer.entities.resumeEvents();
-  }
-});
+connectFireViews(playback, {entities: viewer.entities, hud, hotspots: hotspotLayer,
+  fires: fireLayer, selection: fireSelection, agent: agentPanel});
 void playback.start();
 bindPlaybackLifecycle(playback, window);

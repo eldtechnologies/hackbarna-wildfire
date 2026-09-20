@@ -10,13 +10,17 @@ import hashlib
 import importlib
 import json
 from pathlib import Path
-import sys
 import time
 
 import numpy as np
 from scipy.ndimage import distance_transform_edt
 from sklearn.metrics import average_precision_score
 import torch
+
+if __package__:
+    from .frozen_inputs import frozen_trainer, load_checkpoint
+else:
+    from frozen_inputs import frozen_trainer, load_checkpoint
 
 
 def sha(path):
@@ -97,84 +101,82 @@ def main():
         raise ValueError('Manifest hash mismatch')
     if not (sha(a.trainer_root / 'tools/next_run/train.py') == protocol['trainer_sha256']):
         raise ValueError('Trainer hash mismatch')
-    sys.path.insert(0, str(a.trainer_root.resolve()))
-    trainer = importlib.import_module('tools.next_run.train')
-    if not (Path(trainer.__file__).resolve() == (a.trainer_root / 'tools/next_run/train.py').resolve()):
-        raise ValueError('Imported trainer is not the pinned source')
-    torch.set_num_threads(2)
-    saved = torch.load(a.checkpoint, map_location='cpu', weights_only=False)
-    if not (saved['manifest_sha256'] == protocol['manifest_sha256']):
-        raise ValueError('Checkpoint manifest provenance mismatch')
-    if not (saved['trainer_sha256'] == protocol['trainer_sha256']):
-        raise ValueError('Checkpoint trainer provenance mismatch')
-    manifest = json.loads((a.data / 'manifest.json').read_text())
-    if not (not manifest['smoke_only']):
-        raise ValueError('A smoke dataset cannot validate model accuracy')
-    channels = manifest['channels']
-    model = trainer.UNet(len(channels), saved['base']).eval().to(a.device)
-    model.load_state_dict(saved['state'])
-    events = [e for e in manifest['events'] if e['split'] == 'test' and e['samples'] > 0]
-    a.out.mkdir(parents=True)
-    pooled = {mask: {str(h): [] for h in [1, 3, 6]}
-              for mask in ['full', 'latest_clear', 'no_past_detection']}
-    per_event = {mask: {str(h): [] for h in [1, 3, 6]} for mask in pooled}
-    started = time.monotonic()
-    parity = None
-    for ei, e in enumerate(events):
-        path = a.data / e['file']
-        for name, expected in e['sha256'].items():
-            if sha(path / name) != expected:
-                raise ValueError(f'Hash mismatch: {e["event_id"]}/{name}')
-        x = np.load(path / 'X.npy', mmap_mode='r')
-        old = np.load(path / 'P.npy', mmap_mode='r')
-        predictions = []
-        with torch.inference_mode():
-            for start in range(0, len(x), a.batch_size):
-                batch = torch.from_numpy(x[start:start+a.batch_size].astype(np.float32))
-                p = model(batch.to(a.device)).cpu().numpy()
-                if not np.isfinite(p).all():
-                    raise ValueError('Non-finite predictions')
-                if parity is None:
-                    cpu = trainer.UNet(len(channels), saved['base']).eval()
-                    cpu.load_state_dict(saved['state'])
-                    cp = cpu(batch).numpy()
-                    parity = {'batch_samples': len(batch), 'max_abs_cpu_device_delta': float(np.abs(cp-p).max())}
-                    del cpu
-                predictions.append(trainer.calibrate(p, saved['calibration']))
-        pred = np.concatenate(predictions)
-        # Labels are first opened after this event's model inference has completed.
-        y = np.load(path / 'Y.npy', mmap_mode='r').astype(bool)
-        valid = np.load(path / 'M.npy', mmap_mode='r').astype(bool)
-        masks, past = novel_masks(x, old, channels)
-        dlast = np.stack([distance_score(p > 0) for p in old])
-        dhist = np.stack([distance_score(p) for p in past])
-        for maskname, eligibility in masks.items():
-            for hi, hours in enumerate([1, 3, 6]):
-                h = str(hours)
-                use = eligibility & valid[:, hi]
-                arrays = [y[:, hi][use], pred[:, hi][use], old[use].astype(np.float32), dlast[use], dhist[use]]
-                pooled[maskname][h].append(arrays)
+    with frozen_trainer(a.trainer_root) as namespace:
+        trainer = importlib.import_module(namespace + '.train')
+        torch.set_num_threads(2)
+        saved = load_checkpoint(a.checkpoint)
+        if not (saved['manifest_sha256'] == protocol['manifest_sha256']):
+            raise ValueError('Checkpoint manifest provenance mismatch')
+        if not (saved['trainer_sha256'] == protocol['trainer_sha256']):
+            raise ValueError('Checkpoint trainer provenance mismatch')
+        manifest = json.loads((a.data / 'manifest.json').read_text())
+        if not (not manifest['smoke_only']):
+            raise ValueError('A smoke dataset cannot validate model accuracy')
+        channels = manifest['channels']
+        model = trainer.UNet(len(channels), saved['base']).eval().to(a.device)
+        model.load_state_dict(saved['state'])
+        events = [e for e in manifest['events'] if e['split'] == 'test' and e['samples'] > 0]
+        a.out.mkdir(parents=True)
+        pooled = {mask: {str(h): [] for h in [1, 3, 6]}
+                  for mask in ['full', 'latest_clear', 'no_past_detection']}
+        per_event = {mask: {str(h): [] for h in [1, 3, 6]} for mask in pooled}
+        started = time.monotonic()
+        parity = None
+        for ei, e in enumerate(events):
+            path = a.data / e['file']
+            for name, expected in e['sha256'].items():
+                if sha(path / name) != expected:
+                    raise ValueError(f'Hash mismatch: {e["event_id"]}/{name}')
+            x = np.load(path / 'X.npy', mmap_mode='r')
+            old = np.load(path / 'P.npy', mmap_mode='r')
+            predictions = []
+            with torch.inference_mode():
+                for start in range(0, len(x), a.batch_size):
+                    batch = torch.from_numpy(x[start:start+a.batch_size].astype(np.float32))
+                    p = model(batch.to(a.device)).cpu().numpy()
+                    if not np.isfinite(p).all():
+                        raise ValueError('Non-finite predictions')
+                    if parity is None:
+                        cpu = trainer.UNet(len(channels), saved['base']).eval()
+                        cpu.load_state_dict(saved['state'])
+                        cp = cpu(batch).numpy()
+                        parity = {'batch_samples': len(batch), 'max_abs_cpu_device_delta': float(np.abs(cp-p).max())}
+                        del cpu
+                    predictions.append(trainer.calibrate(p, saved['calibration']))
+            pred = np.concatenate(predictions)
+            # Labels are first opened after this event's model inference has completed.
+            y = np.load(path / 'Y.npy', mmap_mode='r').astype(bool)
+            valid = np.load(path / 'M.npy', mmap_mode='r').astype(bool)
+            masks, past = novel_masks(x, old, channels)
+            dlast = np.stack([distance_score(p > 0) for p in old])
+            dhist = np.stack([distance_score(p) for p in past])
+            for maskname, eligibility in masks.items():
+                for hi, hours in enumerate([1, 3, 6]):
+                    h = str(hours)
+                    use = eligibility & valid[:, hi]
+                    arrays = [y[:, hi][use], pred[:, hi][use], old[use].astype(np.float32), dlast[use], dhist[use]]
+                    pooled[maskname][h].append(arrays)
+                    m = metrics(arrays[0], dict(zip(['model', 'persistence', 'dilation', 'history_dilation'], arrays[1:])))
+                    per_event[maskname][h].append({'event': e['event_id'], 'group': e['spatial_group'], 'metrics': m})
+            if (ei + 1) % 20 == 0 or ei + 1 == len(events):
+                print(json.dumps({'events': ei + 1, 'total': len(events), 'seconds': round(time.monotonic()-started, 1)}), flush=True)
+        report = {'protocol': protocol, 'torch': torch.__version__, 'numpy': np.__version__,
+                  'device': a.device, 'cpu_device_parity': parity, 'events': len(events),
+                  'samples': sum(e['samples'] for e in events), 'all_test_artifact_hashes_verified': True,
+                  'scores': {}, 'per_event': per_event}
+        for maskname, horizons in pooled.items():
+            report['scores'][maskname] = {}
+            for h, parts in horizons.items():
+                arrays = [np.concatenate([p[i] for p in parts]) for i in range(5)]
+                parts.clear()
                 m = metrics(arrays[0], dict(zip(['model', 'persistence', 'dilation', 'history_dilation'], arrays[1:])))
-                per_event[maskname][h].append({'event': e['event_id'], 'group': e['spatial_group'], 'metrics': m})
-        if (ei + 1) % 20 == 0 or ei + 1 == len(events):
-            print(json.dumps({'events': ei + 1, 'total': len(events), 'seconds': round(time.monotonic()-started, 1)}), flush=True)
-    report = {'protocol': protocol, 'torch': torch.__version__, 'numpy': np.__version__,
-              'device': a.device, 'cpu_device_parity': parity, 'events': len(events),
-              'samples': sum(e['samples'] for e in events), 'all_test_artifact_hashes_verified': True,
-              'scores': {}, 'per_event': per_event}
-    for maskname, horizons in pooled.items():
-        report['scores'][maskname] = {}
-        for h, parts in horizons.items():
-            arrays = [np.concatenate([p[i] for p in parts]) for i in range(5)]
-            parts.clear()
-            m = metrics(arrays[0], dict(zip(['model', 'persistence', 'dilation', 'history_dilation'], arrays[1:])))
-            m['paired_event_ap_group_bootstrap'] = {
-                b: paired_groups(per_event[maskname][h], b) for b in ['persistence', 'dilation', 'history_dilation']}
-            report['scores'][maskname][h] = m
-            del arrays
-    report['seconds'] = round(time.monotonic() - started, 1)
-    (a.out / 'results.json').write_text(json.dumps(report, indent=2) + '\n')
-    print(json.dumps({'finished': True, 'seconds': report['seconds'], 'out': str(a.out)}), flush=True)
+                m['paired_event_ap_group_bootstrap'] = {
+                    b: paired_groups(per_event[maskname][h], b) for b in ['persistence', 'dilation', 'history_dilation']}
+                report['scores'][maskname][h] = m
+                del arrays
+        report['seconds'] = round(time.monotonic() - started, 1)
+        (a.out / 'results.json').write_text(json.dumps(report, indent=2) + '\n')
+        print(json.dumps({'finished': True, 'seconds': report['seconds'], 'out': str(a.out)}), flush=True)
 
 
 if __name__ == '__main__':

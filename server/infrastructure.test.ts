@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import {toAsset, lineToAsset, coverageAt, getInfrastructure} from './infrastructure';
 
 test('coverage identifies the demo region without claiming the gap to Catalonia',()=>{
@@ -16,7 +17,17 @@ test('bundled demo infrastructure includes every category and retains Catalonia'
   assert.deepEqual([...new Set(local.map(a=>a.category))].sort(),['hospital','power-line','school','town']);
   assert.ok(local.some(a=>a.name==='Los Gallardos'));
   assert.ok(local.some(a=>a.name==='Bédar'));
-  assert.ok(data.assets.some(a=>a.position.lat>40.5 && a.position.lon>0));
+  const counts=(assets:typeof data.assets)=>Object.fromEntries(
+    ['hospital','school','town','power-line'].map(kind=>[kind,assets.filter(a=>a.category===kind).length]));
+  assert.deepEqual(counts(local),{hospital:10,school:153,town:601,'power-line':315});
+  assert.deepEqual(counts(data.assets.filter(a=>!a.id.startsWith('osm-eastern-almeria-'))),
+    {hospital:70,school:4742,town:947,'power-line':1241});
+  const metadata=JSON.parse(await readFile('data/infrastructure/almeria-source.json','utf8'));
+  assert.deepEqual(coverageAt({lat:37.17,lon:-1.95})!.bbox,metadata.bbox);
+  for(const file of ['hospitals','schools','towns','power-lines']) {
+    const collection=JSON.parse(await readFile(`data/infrastructure/${file}.geojson`,'utf8'));
+    assert.deepEqual(collection.properties.almeria_source,metadata);
+  }
   assert.equal(new Set(data.assets.map(a=>a.id)).size,data.assets.length);
   for(const a of local){
     assert.match(coverageAt(a.position)!.label,/Almería/);
