@@ -2,6 +2,7 @@
 // Displays detection time, confidence, and source satellite for the selected
 // hotspot, plus fire radiative power, position, and cluster context.
 
+import { clusterDisplayName } from '../fires/display';
 import type { FireCluster, Hotspot } from '../../shared/fires';
 
 export interface HotspotPanel {
@@ -80,7 +81,7 @@ export function createHotspotPanel(
       row('SATELLITE', hotspot.satellite ?? 'UNKNOWN'),
       row('FRP', hotspot.frpMw != null ? `${hotspot.frpMw.toFixed(1)} MW` : 'UNMEASURED'),
       row('POSITION', `${lat} / ${lon}`),
-      row('CLUSTER', cluster ? (cluster.name ?? cluster.id.slice(0, 8)) : 'UNCLUSTERED'),
+      row('CLUSTER', cluster ? (clusterDisplayName(cluster)) : 'UNCLUSTERED'),
     );
     panel.classList.add('open');
   }
