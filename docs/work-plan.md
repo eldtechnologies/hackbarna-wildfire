@@ -31,7 +31,7 @@ Recorded here so nobody re-litigates them at hour 30.
 | 4 | **The 600-day hotspot archive pull is dropped.** The labels it existed to manufacture already exist as PT-FireSprd and FireSpread_MedEU |
 | 5 | **The cut mask is hotspots + MTG + SEVIRI, sensor-footprint buffered, minus `deepfire:static-heat-sources`.** SEVIRI joined once its pixels were measured at ~3.1–4.2 km across rather than 12 km |
 | 6 | **Last safe departure is a band, not a time**, swept over an assumption set printed beside every number |
-| 7 | **The road graph comes from a local Overpass here, bbox only**, cached to JSON so the demo never depends on the container |
+| 7 | **The road graph comes from the OSM `/map` API, bbox only** — one tiled, rate-limited fetch, committed to JSON so the demo never depends on the network or the container. Amended 2026-09-20: the local Overpass it named is gone — nothing listens on `127.0.0.1:12345`, no `opdb` volume exists, and `/tmp/df/osm/andalucia.osm.pbf` is absent — and the committed graph records `api.openstreetmap.org` as its source. Geofabrik's andalucia PBF stays the fallback if the bbox ever widens |
 | 8 | **The unification refactor lands on `main` first**, then each open branch rebases onto it — one conflict resolution per branch, done once |
 | 9 | **The falsification test is re-run with the calibrated mask**, and whatever it shows goes on the slide |
 | 10 | **CAP is one `<alert>` per pocket, one `<info>` per language.** Sender, status and scope are configurable, defaulting to a fictional demo sender with `status=Test`, `scope=Private` |
@@ -106,8 +106,10 @@ two concurrent, so pre-warm and cache. The demo is designed to stand without it.
 Everything lives in `server/engine/`, consuming `getFires()` from the provider layer so `DATA_MODE`
 and the live→replay fallback are inherited.
 
-**Graph.** A local Overpass instance with just the Los Gallardos bbox, queried once and cached to
-JSON on disk. Small, fast to rebuild, and the demo never depends on the container running.
+**Graph.** One tiled, rate-limited fetch from the OSM `/map` API over a bbox around Los Gallardos
+and Bédar, committed to `data/graph/` as JSON. Small, fast to rebuild, and the demo never depends on
+the network or the container running. Geofabrik's andalucia PBF (194 MB, verified) is the documented
+fallback if the bbox ever widens.
 
 **Mask and cut times.** Accumulate Deepfire hotspots, the MTG archive and the SEVIRI series, each
 buffered by *sensor footprint* — MTG around 1 km, VIIRS 375 m, SEVIRI 3.1–4.2 km — after
