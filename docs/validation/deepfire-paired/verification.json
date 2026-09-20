@@ -5,5 +5,40 @@
     "event": "2521a4ba462377a0b4f2d393",
     "x_equal": true,
     "p_equal": true
+  },
+  "independent_review": {
+    "verdict": "BLESSED",
+    "scope": "d2bde48..2953443",
+    "cached_prediction_arrays_exact": 38,
+    "count_sets_exact": 2128,
+    "aggregate_summaries_exact": 8,
+    "equal_cluster_metrics_exact": true,
+    "raw_positive_cases_exact": 2,
+    "cohort_selection_exact": true,
+    "native_grid_max_center_difference_m": 0.16,
+    "deepfire_rasters_exact_vs_geometry": 151,
+    "deepfire_rasters_checked": 152,
+    "rasterizer_boundary_exception": {
+      "simulation_id": "cf02aece-9241-4c31-b8dd-ca874d6f3f28",
+      "horizon": 3,
+      "bracket": "earlier",
+      "cell_row_col": [
+        31,
+        32
+      ],
+      "intersection_m2": 44.248233,
+      "novel_metrics_changed": false,
+      "exact_geometry_alternative_all_mask_tp_delta": 1,
+      "exact_geometry_alternative_all_mask_fn_delta": -1
+    },
+    "limits": [
+      "Did not rebuild all38 model inputs from raw data",
+      "Did not prove DeepFire internal input causality;10 ignition records lack observation timestamps"
+    ]
+  },
+  "post_simplify_rerun": {
+    "all_case_metrics_exact": true,
+    "aggregate_metrics_exact": true,
+    "frame_files_exact": 114
   }
 }
