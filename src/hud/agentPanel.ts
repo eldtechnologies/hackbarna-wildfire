@@ -12,7 +12,9 @@ export class AgentPanel {
 
   constructor(private panel: HTMLElement) {}
 
-  /** Track a fire and render its situation report. Null clears the panel. */
+  /** Track a fire and render its situation report. Null clears the panel.
+   * Re-selecting the fire already tracked is a no-op: the response carries a
+   * 60 s server cache, so a re-render adds nothing new. */
   track(fireId: string | null): void {
     if (fireId === this.trackedId) return; // same fire re-selected, no re-fetch
     this.trackedId = fireId;
@@ -122,10 +124,10 @@ export class AgentPanel {
     this.panel.append(header, summary, figures);
 
     if (situation.recommendations.length > 0) {
-      const heading2 = document.createElement('div');
-      heading2.className = 'threat-ring-heading';
-      heading2.textContent = `EVACUATION PRIORITY (${situation.recommendations.length})`;
-      this.panel.appendChild(heading2);
+      const listTitle = document.createElement('div');
+      listTitle.className = 'threat-ring-heading';
+      listTitle.textContent = `EVACUATION PRIORITY (${situation.recommendations.length})`;
+      this.panel.appendChild(listTitle);
 
       const list = document.createElement('div');
       list.className = 'agent-list';

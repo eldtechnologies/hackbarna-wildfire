@@ -31,6 +31,11 @@ const threatPanel = document.createElement('div');
 threatPanel.className = 'threat-panel';
 hudRoot.appendChild(threatPanel);
 
+const agentRoot = document.createElement('div');
+agentRoot.className = 'agent-panel';
+hudRoot.appendChild(agentRoot);
+const agentPanel = new AgentPanel(agentRoot);
+
 new InfrastructureLayer(viewer.scene, (asset) => {
   viewer.camera.flyTo({
     destination: Cartesian3.fromDegrees(

@@ -28,7 +28,8 @@ const RING_RADII_KM: { ring: ThreatRing; radiusKm: number }[] = [
 export function latestPerimeter(fires: FiresResponse, fireId: string): FirePerimeter | null {
   let latest: FirePerimeter | null = null;
   for (const p of fires.perimeters) {
-    if (p.clusterId === fireId && (!latest || p.observedAt > latest.observedAt)) {
+    if (p.clusterId !== fireId) continue;
+    if (!latest || (p.observedAt ?? '') > (latest.observedAt ?? '')) {
       latest = p;
     }
   }
@@ -116,20 +117,28 @@ function powerLineThreat(
 
 // Per-fire TTL cache: /api/threats and /api/situation both run the same turf
 // analysis over the same infrastructure data, so a selection pays for it once
-// per window instead of twice per click.
+// per window instead of twice per click. The key includes the fires snapshot
+// it was computed from, so a new snapshot (new fetchedAt, or a scrubbed
+// timeline) recomputes rather than pairing with stale geometry.
 const THREATS_CACHE_TTL_MS = 60000;
 const threatsCache = new Map<string, { value: ThreatsResponse; expiresAt: number }>();
+
+function threatsCacheKey(fireId: string, fires: FiresResponse): string {
+  return `${fireId}@${fires.fetchedAt}`;
+}
 
 export async function getThreats(
   fireId: string,
   fires?: FiresResponse,
 ): Promise<ThreatsResponse | null> {
-  const cached = threatsCache.get(fireId);
+  const firesSnapshot = fires ?? (await getFires());
+  const key = threatsCacheKey(fireId, firesSnapshot);
+  const cached = threatsCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
-  const value = await computeThreats(fireId, fires);
+  const value = await computeThreats(fireId, firesSnapshot);
   if (value) {
-    threatsCache.set(fireId, { value, expiresAt: Date.now() + THREATS_CACHE_TTL_MS });
+    threatsCache.set(key, { value, expiresAt: Date.now() + THREATS_CACHE_TTL_MS });
   }
   return value;
 }

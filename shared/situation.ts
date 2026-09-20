@@ -14,13 +14,7 @@ export interface SituationThreat {
   inSpreadCorridor: boolean;
 }
 
-export interface EvacuationRecommendation {
-  assetId: string;
-  name: string;
-  category: InfrastructureCategory;
-  ring: ThreatRing;
-  distanceKm: number;
-  inSpreadCorridor: boolean;
+export interface EvacuationRecommendation extends SituationThreat {
   reason: string; // computed justification, template-phrased (the LLM only writes the summary)
   priority: 1 | 2 | 3; // 1 = act first (inside perimeter / corridor), 3 = monitor
 }
@@ -38,10 +32,10 @@ export interface SituationPacket {
   // not a measured wind. Degrees clockwise from north.
   spreadBearingDeg: number | null;
   spreadCompass: string | null; // 'NE', 'SSW' style 16-point label for spreadBearingDeg
-  totalFrpMw: number;
+  totalFrpMw: number | null; // null when no hotspot carries a measured FRP
   hotspotCount: number;
-  firstDetectedAt: string;
-  lastDetectedAt: string;
+  firstDetectedAt: string | null;
+  lastDetectedAt: string | null;
   threats: SituationThreat[];
   corridorCount: number;
   // Whether the fire sits inside the region the bundled infrastructure data

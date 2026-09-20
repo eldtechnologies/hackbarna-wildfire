@@ -12,13 +12,14 @@ import type {
 } from '../shared/threats';
 import type { LatLon } from '../shared/fires';
 
-// Where the bundled infrastructure data actually exists (matches the fetch
-// quadrants in scripts/fetch-infrastructure.mjs). Fires outside this region
-// get no threat hits because there is no data there, not because the area is
-// safe, so consumers must qualify an empty threat list with this.
+// Where the bundled infrastructure data actually exists. The extent is the
+// observed bbox of the committed point assets (Catalonia administrative
+// datasets, per scripts/fetch-infrastructure.mjs); it is not a guarantee of
+// complete coverage inside the rectangle. Consumers qualify an empty threat
+// list with this so "no assets" is not read as "safe".
 export const INFRASTRUCTURE_COVERAGE: InfrastructureCoverage = {
-  label: 'Catalonia',
-  bbox: [0.2, 40.5, 3.5, 42.9], // [west, south, east, north] degrees
+  label: 'Catalonia (bundled data extent)',
+  bbox: [0.25, 40.54, 3.28, 42.84], // [west, south, east, north] degrees
 };
 
 export function pointInCoverage(p: LatLon): boolean {

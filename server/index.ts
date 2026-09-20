@@ -69,7 +69,12 @@ app.get('/api/situation', async (req, res) => {
     return;
   }
   try {
-    const situation = await getSituation(fireId);
+    // Same timeline semantics as /api/fires: ?at=<seconds> scrubs a recorded
+    // event, absent serves the latest state.
+    const atRaw = req.query.at;
+    const atParsed = atRaw === '' ? NaN : Number(atRaw);
+    const atSeconds = Number.isFinite(atParsed) ? Math.max(0, atParsed) : undefined;
+    const situation = await getSituation(fireId, atSeconds);
     if (!situation) {
       res.status(404).json({ error: `unknown fireId ${fireId}` });
       return;

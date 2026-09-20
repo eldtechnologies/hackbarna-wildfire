@@ -103,6 +103,13 @@ function driftBearing(from: LatLon, to: LatLon): number | null {
   return Number.isFinite(bearing) ? bearing : null;
 }
 
+// Rounded to 0.1 deg and normalized to [0, 360); a drift just under 360
+// rounds to 360.0, which reads as a fourth rotation, so it maps to 0.
+function normalizeBearingDeg(bearing: number): number {
+  const norm = Math.round(((bearing % 360) + 360) % 360 * 10) / 10;
+  return norm >= 360 ? 0 : norm;
+}
+
 // --- Template narrator (fallback, also the keyless default) -----------
 
 function templateNarrate(packet: SituationPacket): { summary: string; recommendations: EvacuationRecommendation[] } {
@@ -113,14 +120,19 @@ function templateNarrate(packet: SituationPacket): { summary: string; recommenda
       : ' No satellite perimeter has been observed yet.';
   // Gate on the computed heading, never a fallback literal: without a real
   // bearing the report must not invent one.
-  const spread =
-    packet.spreadHorizonHours > 0 && packet.spreadCompass != null && packet.spreadBearingDeg != null
-      ? ` Projection over the next ${packet.spreadHorizonHours} h drifts ${packet.spreadCompass}` +
-        ` (bearing ${Math.round(packet.spreadBearingDeg) % 360} deg), so spread is expected toward ${packet.spreadCompass}.`
-      : packet.spreadHorizonHours > 0
-        ? ` Projection over the next ${packet.spreadHorizonHours} h, no drift heading available.`
-        : ' No spread projection is available.';
-  const frp = ` ${packet.hotspotCount} satellite hotspots, total FRP ${Math.round(packet.totalFrpMw)} MW, first detected ${packet.firstDetectedAt.slice(0, 10)}.`;
+  let spread: string;
+  if (packet.spreadHorizonHours <= 0) {
+    spread = ' No spread projection is available.';
+  } else if (packet.spreadCompass == null || packet.spreadBearingDeg == null) {
+    spread = ` Projection over the next ${packet.spreadHorizonHours} h, no drift heading available.`;
+  } else {
+    spread =
+      ` Projection over the next ${packet.spreadHorizonHours} h drifts ${packet.spreadCompass}` +
+      ` (bearing ${Math.round(packet.spreadBearingDeg) % 360} deg), so spread is expected toward ${packet.spreadCompass}.`;
+  }  const detected =
+    packet.firstDetectedAt != null
+      ? ` ${packet.hotspotCount} satellite hotspots, total FRP ${packet.totalFrpMw != null ? Math.round(packet.totalFrpMw) : 'unmeasured'} MW, first detected ${packet.firstDetectedAt.slice(0, 10)}.`
+      : ` ${packet.hotspotCount} satellite hotspots, total FRP ${packet.totalFrpMw != null ? Math.round(packet.totalFrpMw) : 'unmeasured'} MW.`;
 
   const insideCount = packet.threats.filter((t) => t.ring === 'inside').length;
   const corridorCount = packet.corridorCount;
@@ -142,7 +154,7 @@ function templateNarrate(packet: SituationPacket): { summary: string; recommenda
   }
 
   const summary =
-    `Situation report for fire ${name}.${area}${spread}${frp}${threatLine} ` +
+    `Situation report for fire ${name}.${area}${spread}${detected}${threatLine} ` +
     `Evacuation priorities below are ordered by proximity and projected impact.`;
 
   const recommendations = packet.threats.map((t) => ({
@@ -181,47 +193,73 @@ Return JSON: {"summary": string}`;
 
 interface LlmChoice { message?: { content?: string } }
 
-// Numeric cross-check: every number the summary states must be traceable to
-// the packet, otherwise the model invented one and the response is discarded
-// in favor of the template. A number passes when it appears in the serialized
-// packet JSON, one of the packet's counts and rounded figures, the ring
-// radii, the detection date components, or an asset name: those are
-// packet-derived vocabulary a faithful summary is expected to print. Counts
-// are not serialized by JSON.stringify (an array carries no length field), so
-// they are added explicitly.
-const RING_RADII = new Set(['5', '10', '20']);
+// Numeric cross-check: every number the summary states must equal a number
+// the packet actually carries, otherwise the model invented one and the
+// response is discarded in favor of the template. The allowed set is built
+// explicitly from the packet's figures in both raw and rendered form (counts,
+// rounded values, ring radii, the detection date slices and their components,
+// per-threat distances) plus the exact asset-name strings; membership is
+// numeric, not substring, so "100" does not pass because "10" is allowed.
+// This enforces "the model only narrates the packet" on the LLM output.
+const RING_RADII = [5, 10, 20];
 
 function numbersGroundedInPacket(summary: string, packet: SituationPacket): boolean {
-  const haystacks: string[] = [
-    JSON.stringify(packet),
-    String(packet.hotspotCount),
-    String(packet.threats.length),
-    String(packet.corridorCount),
-    String(Math.round(packet.totalFrpMw)),
-    String(packet.spreadHorizonHours),
-    ...(packet.spreadBearingDeg != null ? [String(Math.round(packet.spreadBearingDeg) % 360)] : []),
-    ...(packet.perimeterAreaKm2 != null ? [String(Math.round(packet.perimeterAreaKm2))] : []),
-    packet.firstDetectedAt.slice(0, 10),
-    packet.lastDetectedAt.slice(0, 10),
-    ...RING_RADII,
-    ...packet.threats.map((t) => t.name),
-  ];
-  const haystack = haystacks.join(' ');
+  const allowed = new Set<number>();
+  const add = (n: number) => {
+    if (Number.isFinite(n)) allowed.add(n);
+  };
+  add(packet.hotspotCount);
+  add(packet.threats.length);
+  add(packet.corridorCount);
+  if (packet.totalFrpMw != null) {
+    add(packet.totalFrpMw);
+    add(Math.round(packet.totalFrpMw));
+  }
+  add(packet.spreadHorizonHours);
+  if (packet.spreadBearingDeg != null) {
+    add(packet.spreadBearingDeg);
+    const norm = Math.round(((packet.spreadBearingDeg % 360) + 360) % 360);
+    add(norm === 360 ? 0 : norm);
+  }
+  if (packet.perimeterAreaKm2 != null) {
+    add(packet.perimeterAreaKm2);
+    add(Math.round(packet.perimeterAreaKm2));
+  }
+  for (const r of RING_RADII) add(r);
+  for (const t of packet.threats) {
+    add(t.distanceKm);
+    add(Number(t.distanceKm.toFixed(1)));
+  }
+  for (const at of [packet.firstDetectedAt, packet.lastDetectedAt]) {
+    if (at == null) continue;
+    add(Number(at.slice(0, 4))); // year
+    add(Number(at.slice(5, 7))); // month
+    add(Number(at.slice(8, 10))); // day
+  }
 
-  const stated = summary.match(/\d+(?:\.\d+)?/g) ?? [];
+  const stated = summary
+    // "km2" is the area unit the template prints; its trailing 2 is not a
+    // figure, so strip it before matching.
+    .replace(/km2/gi, ' km ')
+    .match(/\d+(?:\.\d+)?/g) ?? [];
   for (const num of stated) {
-    if (!haystack.includes(num)) return false;
+    if (!allowed.has(Number(num))) return false;
   }
   return true;
 }
 
 // One completion per fire per TTL, and one in flight at a time, so reselect
 // does not re-pay the round trip.
+// One completion per fire and fires-snapshot per TTL, and one in flight at a
+// time, so reselect does not re-pay the round trip. The cache key includes
+// fires.fetchedAt so a new snapshot (fresh data or a scrubbed timeline)
+// narrates from its own packet rather than reusing a summary for older data.
+// The per-fire, per-snapshot key must not use packet.computedAt: that changes
+// on every request and would defeat the cache.
 const llmCache = new Map<string, { summary: string; expiresAt: number }>();
 const llmInFlight = new Map<string, Promise<string | null>>();
 
 async function llmNarrateUncached(packet: SituationPacket): Promise<string | null> {
-  if (!LLM_API_KEY) return null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
   try {
@@ -268,34 +306,35 @@ async function llmNarrateUncached(packet: SituationPacket): Promise<string | nul
   }
 }
 
-async function llmNarrate(packet: SituationPacket): Promise<string | null> {
-  if (!LLM_API_KEY) return null;
+async function llmNarrate(packet: SituationPacket, snapshotKey: string): Promise<string | null> {
+  const key = `${packet.fireId}@${snapshotKey}`;
   const now = Date.now();
-  const hit = llmCache.get(packet.fireId);
+  const hit = llmCache.get(key);
   if (hit && hit.expiresAt > now) return hit.summary;
-  const pending = llmInFlight.get(packet.fireId);
+  const pending = llmInFlight.get(key);
   if (pending) return pending;
 
   const task = llmNarrateUncached(packet).then((summary) => {
     if (summary != null) {
-      llmCache.set(packet.fireId, { summary, expiresAt: Date.now() + LLM_CACHE_TTL_MS });
+      llmCache.set(key, { summary, expiresAt: Date.now() + LLM_CACHE_TTL_MS });
     }
     return summary;
   });
-  llmInFlight.set(packet.fireId, task);
+  llmInFlight.set(key, task);
   try {
     return await task;
   } finally {
-    llmInFlight.delete(packet.fireId);
+    llmInFlight.delete(key);
   }
 }
 
 // --- Packet assembly -------------------------------------------------
 
-export async function getSituation(fireId: string): Promise<SituationResponse | null> {
+export async function getSituation(fireId: string, atSeconds?: number): Promise<SituationResponse | null> {
   // One fires fetch for both the packet and the threat analysis, so the
-  // figures cannot come from different snapshots.
-  const fires = await getFires();
+  // figures cannot come from different snapshots. atSeconds scrubs a recorded
+  // timeline (same semantics as /api/fires?at=); absent serves the live edge.
+  const fires = await getFires(atSeconds);
   const cluster = fires.clusters.find((c) => c.id === fireId);
   if (!cluster) return null;
   const threats = await getThreats(fireId, fires);
@@ -315,7 +354,7 @@ export async function getSituation(fireId: string): Promise<SituationResponse | 
   const drift = from && to ? driftBearing(from, to) : null;
 
   const areaKm2 = perimeter
-    ? perimeter.areaKm2 > 0
+    ? perimeter.areaKm2 != null && perimeter.areaKm2 > 0
       ? perimeter.areaKm2
       : ringAreaKm2(perimeter.polygon)
     : null;
@@ -336,7 +375,7 @@ export async function getSituation(fireId: string): Promise<SituationResponse | 
     perimeterAreaKm2: areaKm2,
     perimeterObservedAt: perimeter?.observedAt ?? null,
     spreadHorizonHours: furthest?.horizonHours ?? 0,
-    spreadBearingDeg: drift != null ? Math.round(((drift % 360) + 360) % 360 * 10) / 10 : null,
+    spreadBearingDeg: drift != null ? normalizeBearingDeg(drift) : null,
     spreadCompass: drift != null ? compassLabel(drift) : null,
     totalFrpMw: cluster.totalFrpMw,
     hotspotCount: cluster.hotspotIds.length,
@@ -349,7 +388,7 @@ export async function getSituation(fireId: string): Promise<SituationResponse | 
   };
 
   const template = templateNarrate(packet);
-  const llmSummary = await llmNarrate(packet);
+  const llmSummary = await llmNarrate(packet, fires.fetchedAt);
 
   const recommendations = template.recommendations.sort(
     (a, b) =>
