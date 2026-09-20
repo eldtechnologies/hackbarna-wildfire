@@ -17,7 +17,18 @@ export function getProvider(): FireDataProvider {
   return DATA_MODE === 'live' ? live : replay;
 }
 
-export async function getFires(atSeconds?: number): Promise<FiresResponse> {
+// Fires-response memoization. fetchedAt is stamped at normalize() time, so
+// without this every getFires() call yields a new fetchedAt and any consumer
+// keying a cache on the snapshot identity (the situation agent's LLM and
+// threat caches) would never hit. Within the window every caller shares one
+// response object: same fetchedAt, same data, so keys on it are stable. A new
+// window is a new snapshot by definition, so the keys change and caches
+// keyed on fetchedAt recompute. The key includes atSeconds: a scrubbed
+// timeline is a different snapshot.
+const FIRES_MEMO_TTL_MS = 5000;
+let firesMemo: { value: FiresResponse; expiresAt: number; at: number | undefined } | null = null;
+
+async function getFiresUncached(atSeconds?: number): Promise<FiresResponse> {
   if (DATA_MODE !== 'live') {
     return replay.getFires(atSeconds);
   }
@@ -27,4 +38,13 @@ export async function getFires(atSeconds?: number): Promise<FiresResponse> {
     console.warn('[providers] live fetch failed, falling back to replay:', err);
     return replay.getFires(atSeconds);
   }
+}
+
+export async function getFires(atSeconds?: number): Promise<FiresResponse> {
+  if (firesMemo && firesMemo.expiresAt > Date.now() && firesMemo.at === atSeconds) {
+    return firesMemo.value;
+  }
+  const value = await getFiresUncached(atSeconds);
+  firesMemo = { value, expiresAt: Date.now() + FIRES_MEMO_TTL_MS, at: atSeconds };
+  return value;
 }

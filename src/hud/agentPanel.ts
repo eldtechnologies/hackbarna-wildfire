@@ -13,8 +13,9 @@ export class AgentPanel {
   constructor(private panel: HTMLElement) {}
 
   /** Track a fire and render its situation report. Null clears the panel.
-   * Re-selecting the fire already tracked is a no-op: the response carries a
-   * 60 s server cache, so a re-render adds nothing new. */
+   * Re-selecting the fire already tracked is a no-op: the server serves the
+   * same report from its caches while the fires memoization window holds, so
+   * a re-render adds nothing new. */
   track(fireId: string | null): void {
     if (fireId === this.trackedId) return; // same fire re-selected, no re-fetch
     this.trackedId = fireId;
@@ -113,11 +114,17 @@ export class AgentPanel {
     }
 
     // Outside infrastructure coverage, zero threats means no data there, not
-    // a safe area; say so next to the figure.
-    if (packet.threats.length === 0 && packet.infrastructureCoverage == null) {
+    // a safe area; say so next to the figure. Inside coverage the caveat
+    // names the coverage scope, mirroring the narrators' "bundled" wording:
+    // the rectangle can include areas (e.g. Andorra) where the dataset has
+    // no assets without the area being risk-free.
+    if (packet.threats.length === 0) {
       const caveat = document.createElement('div');
       caveat.className = 'agent-caveat';
-      caveat.textContent = 'NO INFRASTRUCTURE DATA FOR THIS REGION';
+      caveat.textContent =
+        packet.infrastructureCoverage != null
+          ? `NO BUNDLED ASSETS WITHIN 20 KM (COVERAGE: ${packet.infrastructureCoverage.label.toUpperCase()})`
+          : 'NO INFRASTRUCTURE DATA FOR THIS REGION';
       figures.appendChild(caveat);
     }
 

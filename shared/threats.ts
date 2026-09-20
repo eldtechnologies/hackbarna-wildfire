@@ -45,6 +45,12 @@ export interface ThreatsResponse {
 
 // Shared vocabulary so ring severity and category labels live in one place.
 
+export const RING_RADII_KM: { ring: ThreatRing; radiusKm: number }[] = [
+  { ring: 'ring-5km', radiusKm: 5 },
+  { ring: 'ring-10km', radiusKm: 10 },
+  { ring: 'ring-20km', radiusKm: 20 },
+];
+
 export const RING_SEVERITY: Record<ThreatRing, number> = {
   inside: 0,
   'ring-5km': 1,

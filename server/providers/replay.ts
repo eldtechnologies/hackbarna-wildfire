@@ -143,6 +143,7 @@ export class ReplayProvider implements FireDataProvider {
           ? sortedFrames(frames)[frames.length - 1]
           : frameAt(frames, atSeconds);
       const response = normalize(frame, 'replay', scenario);
+      if (atSeconds !== undefined) response.atSeconds = Math.max(0, atSeconds);
       response.timeline = buildTimeline(scenario, frames);
       return response;
     }

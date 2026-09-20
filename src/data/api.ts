@@ -49,6 +49,7 @@ export async function fetchThreats(fireId: string): Promise<ThreatsResponse> {
   };
 }
 
-export function fetchSituation(fireId: string): Promise<SituationResponse> {
-  return getJson<SituationResponse>(`/api/situation?fireId=${encodeURIComponent(fireId)}`);
+export function fetchSituation(fireId: string, atSeconds?: number): Promise<SituationResponse> {
+  const at = atSeconds != null ? `&at=${atSeconds}` : '';
+  return getJson<SituationResponse>(`/api/situation?fireId=${encodeURIComponent(fireId)}${at}`);
 }

@@ -64,6 +64,11 @@ function ringCentroid(ring: LatLon[]): LatLon | null {
 function ringAreaKm2(ring: LatLon[]): number {
   // Spherical excess (shoelace on the sphere). Ring is a closed loop (first
   // point repeated at the end).
+  // Deliberate divergence from src/fires/geometry.ts ringAreaKm2, which uses
+  // a local equirectangular projection: that variant is tuned for client-side
+  // interpolation performance, this one is the more accurate spherical form
+  // used for server-side reported figures. Not consolidated because the two
+  // have different precision/performance tradeoffs.
   const R = 6371.0088;
   const toRad = (d: number) => (d * Math.PI) / 180;
   let sum = 0;
@@ -129,7 +134,9 @@ function templateNarrate(packet: SituationPacket): { summary: string; recommenda
     spread =
       ` Projection over the next ${packet.spreadHorizonHours} h drifts ${packet.spreadCompass}` +
       ` (bearing ${Math.round(packet.spreadBearingDeg) % 360} deg), so spread is expected toward ${packet.spreadCompass}.`;
-  }  const detected =
+  }
+
+  const detected =
     packet.firstDetectedAt != null
       ? ` ${packet.hotspotCount} satellite hotspots, total FRP ${packet.totalFrpMw != null ? Math.round(packet.totalFrpMw) : 'unmeasured'} MW, first detected ${packet.firstDetectedAt.slice(0, 10)}.`
       : ` ${packet.hotspotCount} satellite hotspots, total FRP ${packet.totalFrpMw != null ? Math.round(packet.totalFrpMw) : 'unmeasured'} MW.`;
@@ -176,7 +183,13 @@ function templateNarrate(packet: SituationPacket): { summary: string; recommenda
 const LLM_BASE_URL = process.env.LLM_BASE_URL ?? 'https://api.openai.com/v1';
 const LLM_API_KEY = process.env.LLM_API_KEY ?? '';
 const LLM_MODEL = process.env.LLM_MODEL ?? 'gpt-4o-mini';
+// LLM_TIMEOUT_MS is the hard abort for the completion call. On the request
+// path the template is already computed synchronously, so the panel waits
+// LLM_REQUEST_BUDGET_MS at most for the LLM before the template answer ships;
+// both are constants, not env overrides (the only configurable knob is
+// LLM_API_KEY, per the README).
 const LLM_TIMEOUT_MS = 15000;
+const LLM_REQUEST_BUDGET_MS = 4000;
 const LLM_SUMMARY_MAX_CHARS = 1200;
 const LLM_CACHE_TTL_MS = 60000;
 
@@ -196,12 +209,15 @@ interface LlmChoice { message?: { content?: string } }
 // Numeric cross-check: every number the summary states must equal a number
 // the packet actually carries, otherwise the model invented one and the
 // response is discarded in favor of the template. The allowed set is built
-// explicitly from the packet's figures in both raw and rendered form (counts,
-// rounded values, ring radii, the detection date slices and their components,
-// per-threat distances) plus the exact asset-name strings; membership is
-// numeric, not substring, so "100" does not pass because "10" is allowed.
-// This enforces "the model only narrates the packet" on the LLM output.
-const RING_RADII = [5, 10, 20];
+// explicitly from the packet's figures in raw and rendered form (counts,
+// rounded values, ring radii, the detection date components, per-threat
+// distances); membership is numeric, not substring, so "100" does not pass
+// because "10" is allowed. Asset names are not enforced here: the prompt
+// forbids inventing them, but string-level verification would false-reject
+// ordinary capitalized prose, so the enforced guarantee is numeric only.
+// This enforces "the model only narrates the packet" on the LLM output's
+// figures.
+const RING_RADII = [5, 10, 20]; // ring radii, from shared RING_RADII_KM vocabulary
 
 function numbersGroundedInPacket(summary: string, packet: SituationPacket): boolean {
   const allowed = new Set<number>();
@@ -232,9 +248,16 @@ function numbersGroundedInPacket(summary: string, packet: SituationPacket): bool
   }
   for (const at of [packet.firstDetectedAt, packet.lastDetectedAt]) {
     if (at == null) continue;
-    add(Number(at.slice(0, 4))); // year
-    add(Number(at.slice(5, 7))); // month
-    add(Number(at.slice(8, 10))); // day
+    // Date components (year, month, day) are packet-derived but small, so
+    // they are only allowed when the summary actually states a date token:
+    // otherwise a fabricated "12 structures" would pass because 12 matches
+    // a month.
+    const hasDateToken = new RegExp(at.slice(0, 10).replace(/-/g, '\\-')).test(summary);
+    if (hasDateToken) {
+      add(Number(at.slice(0, 4))); // year
+      add(Number(at.slice(5, 7))); // month
+      add(Number(at.slice(8, 10))); // day
+    }
   }
 
   const stated = summary
@@ -248,14 +271,14 @@ function numbersGroundedInPacket(summary: string, packet: SituationPacket): bool
   return true;
 }
 
-// One completion per fire per TTL, and one in flight at a time, so reselect
-// does not re-pay the round trip.
 // One completion per fire and fires-snapshot per TTL, and one in flight at a
-// time, so reselect does not re-pay the round trip. The cache key includes
-// fires.fetchedAt so a new snapshot (fresh data or a scrubbed timeline)
-// narrates from its own packet rather than reusing a summary for older data.
-// The per-fire, per-snapshot key must not use packet.computedAt: that changes
-// on every request and would defeat the cache.
+// time, so reselect does not re-pay the round trip. The key is
+// fireId@fires.fetchedAt, which is stable while the fires memoization window
+// (providers/index.ts) holds: same snapshot, same summary. A new snapshot
+// (fresh data or a scrubbed timeline) stamps a new fetchedAt, so the key
+// changes and the packet is narrated from its own data rather than reusing a
+// summary for older data. The key must not use packet.computedAt: that
+// changes on every request and would defeat the cache.
 const llmCache = new Map<string, { summary: string; expiresAt: number }>();
 const llmInFlight = new Map<string, Promise<string | null>>();
 
@@ -307,6 +330,10 @@ async function llmNarrateUncached(packet: SituationPacket): Promise<string | nul
 }
 
 async function llmNarrate(packet: SituationPacket, snapshotKey: string): Promise<string | null> {
+  // Fast-fail keyless: without a key there is nothing to call, so the
+  // keyless demo works offline instead of hanging toward the request
+  // timeout on an unauthenticated fetch.
+  if (!LLM_API_KEY) return null;
   const key = `${packet.fireId}@${snapshotKey}`;
   const now = Date.now();
   const hit = llmCache.get(key);
@@ -314,6 +341,10 @@ async function llmNarrate(packet: SituationPacket, snapshotKey: string): Promise
   const pending = llmInFlight.get(key);
   if (pending) return pending;
 
+  // The template summary is already computed and is the fallback, so the
+  // panel response waits at most LLM_REQUEST_BUDGET_MS for the narration
+  // before shipping the template answer; the completion itself is aborted
+  // by LLM_TIMEOUT_MS inside llmNarrateUncached.
   const task = llmNarrateUncached(packet).then((summary) => {
     if (summary != null) {
       llmCache.set(key, { summary, expiresAt: Date.now() + LLM_CACHE_TTL_MS });
@@ -321,8 +352,11 @@ async function llmNarrate(packet: SituationPacket, snapshotKey: string): Promise
     return summary;
   });
   llmInFlight.set(key, task);
+  const budget = new Promise<null>((resolve) =>
+    setTimeout(() => resolve(null), LLM_REQUEST_BUDGET_MS),
+  );
   try {
-    return await task;
+    return await Promise.race([task, budget]);
   } finally {
     llmInFlight.delete(key);
   }

@@ -15,13 +15,7 @@ import { getFires } from './providers';
 import { getInfrastructure } from './infrastructure';
 import type { FirePerimeter, FiresResponse, LatLon } from '../shared/fires';
 import type { ThreatRing, ThreatsResponse } from '../shared/threats';
-import { RING_SEVERITY } from '../shared/threats';
-
-const RING_RADII_KM: { ring: ThreatRing; radiusKm: number }[] = [
-  { ring: 'ring-5km', radiusKm: 5 },
-  { ring: 'ring-10km', radiusKm: 10 },
-  { ring: 'ring-20km', radiusKm: 20 },
-];
+import { RING_RADII_KM, RING_SEVERITY } from '../shared/threats';
 
 // The one perimeter pick used everywhere a fire's current polygon matters
 // (threat rings, situation packet): the most recently observed one.
@@ -117,9 +111,10 @@ function powerLineThreat(
 
 // Per-fire TTL cache: /api/threats and /api/situation both run the same turf
 // analysis over the same infrastructure data, so a selection pays for it once
-// per window instead of twice per click. The key includes the fires snapshot
-// it was computed from, so a new snapshot (new fetchedAt, or a scrubbed
-// timeline) recomputes rather than pairing with stale geometry.
+// per window instead of twice per click. The key is fireId@fires.fetchedAt,
+// stable while the fires memoization window (providers/index.ts) holds; a new
+// snapshot stamps a new fetchedAt, so the key changes and the analysis
+// recomputes rather than pairing stale geometry with a fresh packet.
 const THREATS_CACHE_TTL_MS = 60000;
 const threatsCache = new Map<string, { value: ThreatsResponse; expiresAt: number }>();
 

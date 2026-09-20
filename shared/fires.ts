@@ -69,6 +69,10 @@ export interface FiresResponse {
   provenance: 'live' | 'replay';
   fetchedAt: string;
   scenario: string | null; // snapshot id when replaying, null when live
+  // The requested timeline position, echoed by the provider (undefined for
+  // the live edge, live mode, or flat snapshots). Lets cache keys and the
+  // client distinguish snapshots of the same scenario at different times.
+  atSeconds?: number;
   timeline?: ReplayTimeline; // only set when replaying a multi-frame recording
   hotspots: Hotspot[];
   clusters: FireCluster[];
