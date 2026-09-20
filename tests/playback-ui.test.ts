@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { FirePlayback, replayPosition } from '../src/data/playback';
+import { FirePlayback, replayPosition, bindPlaybackLifecycle } from '../src/data/playback';
 import { initReplayPanel } from '../src/hud/replayPanel';
 import { initFirePanels } from '../src/hud/firePanels';
 import { buildFireCases } from '../src/fires/spreadModel';
@@ -75,4 +75,48 @@ test('no forecasts disables all forecast controls and shows the reason; new fore
   assert.equal(root.querySelector<HTMLInputElement>('input')!.max,'2');
   assert.equal(play.disabled,false);
   play.click(); assert.equal(plays,1);
+});
+
+
+test('cached-page suspension preserves controls and subscriptions after browser return', async t => {
+  const dom=new JSDOM('<main></main>');
+  Object.defineProperty(globalThis,'document',{value:dom.window.document,configurable:true});
+  const playback=new FirePlayback(async at=>data(at));
+  const unbind=bindPlaybackLifecycle(playback,dom.window as unknown as Window);
+  t.after(()=>{unbind();playback.dispose();delete (globalThis as {document?:Document}).document;dom.window.close();});
+  const root=dom.window.document.querySelector('main')!;
+  initReplayPanel(playback,root);await playback.start();await playback.play();
+  dom.window.dispatchEvent(new dom.window.PageTransitionEvent('pagehide',{persisted:true}));
+  assert.equal(playback.getState().playing,false);
+  dom.window.dispatchEvent(new dom.window.PageTransitionEvent('pageshow',{persisted:true}));
+  await playback.seek(3600);
+  assert.equal(replayPosition(playback.getState().data),3600);
+  assert.match(root.querySelector('.replay-time')!.textContent!,/01:00:00 UTC/);
+  await playback.play();assert.equal(playback.getState().playing,true);
+  dom.window.dispatchEvent(new dom.window.PageTransitionEvent('pagehide',{persisted:true}));
+  assert.equal(playback.getState().playing,false,'suspension must work on subsequent visits too');
+  dom.window.dispatchEvent(new dom.window.PageTransitionEvent('pagehide',{persisted:false}));
+  const last=playback.getState().data;
+  await playback.seek(0);assert.equal(playback.getState().data,last,'terminal departure still disposes');
+});
+
+
+test('cached-page return restarts initial loading and live refresh without resetting replay time', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});
+  const dom=new JSDOM();
+  let calls=0;let finish!:(value:FiresResponse)=>void;
+  const live={...data(),provenance:'live' as const};
+  const playback=new FirePlayback(async()=>{calls++;return calls===1?new Promise(resolve=>{finish=resolve;}):live;});
+  const unbind=bindPlaybackLifecycle(playback,dom.window as unknown as Window);
+  t.after(()=>{unbind();playback.dispose();dom.window.close();});
+  const pending=playback.start();
+  dom.window.dispatchEvent(new dom.window.PageTransitionEvent('pagehide',{persisted:true}));
+  dom.window.dispatchEvent(new dom.window.PageTransitionEvent('pageshow',{persisted:true}));
+  await Promise.resolve();await Promise.resolve();
+  assert.equal(calls,2);assert.equal(playback.getState().data?.provenance,'live');
+  finish(data());await pending;assert.equal(playback.getState().data?.provenance,'live');
+  dom.window.dispatchEvent(new dom.window.PageTransitionEvent('pagehide',{persisted:true}));
+  dom.window.dispatchEvent(new dom.window.PageTransitionEvent('pageshow',{persisted:true}));
+  await Promise.resolve();await Promise.resolve();assert.equal(calls,3);
+  t.mock.timers.tick(600000);await Promise.resolve();await Promise.resolve();assert.equal(calls,4);
 });

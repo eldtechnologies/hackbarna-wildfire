@@ -10,7 +10,7 @@ import { InfrastructureLayer } from './layers/infrastructure';
 import { FireSelectionLayer } from './layers/fireSelection';
 import { AgentPanel } from './hud/agentPanel';
 import { fetchFires } from './data/api';
-import { FirePlayback, replayPosition, replayTimeline } from './data/playback';
+import { FirePlayback, replayPosition, replayTimeline, bindPlaybackLifecycle } from './data/playback';
 import { initReplayPanel } from './hud/replayPanel';
 import type {FiresResponse} from '../shared/fires';
 
@@ -82,4 +82,4 @@ playback.subscribe(({data}) => {
   }
 });
 void playback.start();
-window.addEventListener('pagehide', () => playback.dispose(), {once: true});
+bindPlaybackLifecycle(playback, window);

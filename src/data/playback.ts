@@ -31,7 +31,7 @@ export class FirePlayback {
   private state: PlaybackState = { data: null, loading: false, playing: false, error: null };
   private readonly listeners = new Set<(state: PlaybackState) => void>();
   private timer: ReturnType<typeof setTimeout> | undefined;
-  private request: AbortController | undefined;
+  private request: { controller: AbortController; atSeconds?: number } | undefined;
   private generation = 0;
   private disposed = false;
 
@@ -49,7 +49,7 @@ export class FirePlayback {
 
   pause(): void {
     clearTimeout(this.timer);
-    this.request?.abort();
+    this.request?.controller.abort();
     ++this.generation;
     this.update({ playing: false, loading: false });
   }
@@ -71,8 +71,9 @@ export class FirePlayback {
   }
 
   async retry(): Promise<void> {
+    const target = this.request?.atSeconds;
     this.pause();
-    await this.load(replayTimeline(this.state.data) ? replayPosition(this.state.data) : undefined);
+    await this.load(target);
   }
 
   dispose(): void {
@@ -89,8 +90,9 @@ export class FirePlayback {
   private async load(seconds?: number, playing = this.state.playing): Promise<void> {
     if (this.disposed) return;
     clearTimeout(this.timer);
-    this.request?.abort();
-    const request = this.request = new AbortController();
+    this.request?.controller.abort();
+    const request = new AbortController();
+    this.request = { controller: request, atSeconds: seconds };
     const generation = ++this.generation;
     this.update({ loading: true, error: null, playing });
     try {
@@ -118,4 +120,23 @@ export class FirePlayback {
         error: error instanceof Error ? error.message : 'Fire data unavailable' });
     }
   }
+}
+
+
+/** Cached pages can return with the same store and DOM; suspend them, do not destroy them. */
+export function bindPlaybackLifecycle(playback: FirePlayback, page: Window): () => void {
+  const onPageHide = (event: PageTransitionEvent) => {
+    if (event.persisted) playback.pause();
+    else playback.dispose();
+  };
+  const onPageShow = (event: PageTransitionEvent) => {
+    const data = playback.getState().data;
+    if (event.persisted && (!data || data.provenance === 'live')) void playback.retry();
+  };
+  page.addEventListener('pagehide', onPageHide);
+  page.addEventListener('pageshow', onPageShow);
+  return () => {
+    page.removeEventListener('pagehide', onPageHide);
+    page.removeEventListener('pageshow', onPageShow);
+  };
 }

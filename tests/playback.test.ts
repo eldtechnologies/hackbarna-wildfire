@@ -84,7 +84,9 @@ test('a newer seek wins even if the older server response ignores abort', async 
 
 test('failed seeks keep the committed time, expose an error, and allow retry', async t => {
   let fail = false;
+  const requested: (number | undefined)[] = [];
   const playback = new FirePlayback(async at => {
+    requested.push(at);
     if (fail) throw new Error('offline');
     return frame(at);
   });
@@ -96,6 +98,8 @@ test('failed seeks keep the committed time, expose an error, and allow retry', a
   assert.equal(playback.getState().playing, false);
   fail = false; await playback.retry();
   assert.equal(playback.getState().error, null);
+  assert.equal(replayPosition(playback.getState().data),1800);
+  assert.deepEqual(requested,[undefined,1800,1800]);
 });
 
 test('seeks clamp and round to legal seconds and never leave a replay refresh timer', async t => {
