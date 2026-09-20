@@ -85,6 +85,16 @@ test('a forged object-valued clusterId is a 400, not a crash', async () => {
   assert.equal((await get('/api/health')).status, 200, 'the process must survive the request');
 });
 
+test('threats use the replay cursor and reject malformed cursors', async () => {
+  const clusterId = await firstClusterId();
+  assert.equal((await get(`/api/threats?fireId=${clusterId}`)).status, 200);
+  // No detections were available at the capture start. A latest-state threat
+  // query incorrectly reports this future cluster as already known.
+  assert.equal((await get(`/api/threats?fireId=${clusterId}&at=0`)).status, 404);
+  assert.equal((await get(`/api/threats?fireId=${clusterId}&at=-1`)).status, 400);
+  assert.equal((await get(`/api/threats?fireId=${clusterId}&at[x]=1`)).status, 400);
+});
+
 test('a corrupt harness artifact is a 502, not an empty score list', async () => {
   const clusterId = await firstClusterId();
   const boom = (): Metrics => {

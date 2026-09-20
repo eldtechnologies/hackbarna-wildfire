@@ -14,7 +14,9 @@ import {
   ScreenSpaceEventType,
   Viewer,
 } from 'cesium';
-import { fetchFires, fetchThreats } from '../data/api';
+import { fetchThreats } from '../data/api';
+import type { FiresResponse } from '../../shared/fires';
+import { replayPosition, replayTimeline } from '../data/playback';
 import type { ThreatenedAsset, ThreatsResponse } from '../../shared/threats';
 import { isLayerVisible, onVisibilityChanged } from './registry';
 
@@ -43,6 +45,8 @@ export class FireSelectionLayer {
   private selectedId: string | null = null;
   private markerIds: string[] = [];
   private removeVisibilityListener: () => void;
+  private fires: FiresResponse | null = null;
+  private request: AbortController | undefined;
 
   constructor(
     private viewer: Viewer,
@@ -60,7 +64,7 @@ export class FireSelectionLayer {
         // plain asset ids and are handled by their own layer.
         if (typeof id === 'string' && id.startsWith('fire:')) {
           this.select(id.slice('fire:'.length));
-        } else {
+        } else if (!picked) {
           this.clear();
         }
       },
@@ -75,17 +79,13 @@ export class FireSelectionLayer {
       }
     });
 
-    void this.load();
   }
 
-  private async load(): Promise<void> {
-    let fires;
-    try {
-      fires = await fetchFires();
-    } catch (err) {
-      console.error('[fire-selection] fetch failed:', err);
-      return;
-    }
+  setData(fires: FiresResponse): void {
+    this.fires = fires;
+    this.request?.abort();
+    for (const id of this.markerIds) this.viewer.entities.removeById(id);
+    this.markerIds = [];
     const clustersVisible = isLayerVisible('clusters');
     for (const cluster of fires.clusters) {
       const id = `fire:${cluster.id}`;
@@ -112,22 +112,39 @@ export class FireSelectionLayer {
       });
       this.markerIds.push(id);
     }
+    if (this.selectedId) {
+      if (fires.clusters.some(cluster => cluster.id === this.selectedId)) {
+        this.loadThreats(this.selectedId);
+      } else {
+        this.clear();
+      }
+    }
   }
 
   select(fireId: string): void {
     this.selectedId = fireId;
+    this.onSelectionChange(fireId);
+    this.loadThreats(fireId);
+  }
+
+  private loadThreats(fireId: string): void {
+    this.request?.abort();
+    const request = this.request = new AbortController();
     this.renderLoading(fireId);
-    fetchThreats(fireId)
+    const at = replayTimeline(this.fires) ? replayPosition(this.fires) : undefined;
+    fetchThreats(fireId, at, request.signal)
       .then((threats) => {
-        if (this.selectedId === fireId) this.render(threats);
+        if (!request.signal.aborted && this.selectedId === fireId) this.render(threats);
       })
       .catch((err) => {
+        if (request.signal.aborted) return;
         console.error('[fire-selection] threats fetch failed:', err);
         if (this.selectedId === fireId) this.renderError(fireId);
       });
   }
 
   private clear(): void {
+    this.request?.abort();
     if (!this.selectedId) return;
     this.selectedId = null;
     this.panel.classList.remove('open');
@@ -145,7 +162,6 @@ export class FireSelectionLayer {
     body.className = 'threat-body';
     body.textContent = 'ANALYZING...';
     this.panel.append(title, body);
-    this.onSelectionChange(fireId);
   }
 
   private renderError(_fireId: string): void {

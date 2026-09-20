@@ -13,6 +13,8 @@
   box-sizing: border-box;
 }
 
+[hidden] { display: none !important; }
+
 html,
 body,
 #globe {
@@ -139,11 +141,16 @@ body,
 }
 
 /* FIRES list, left side under the telemetry block */
-.hud-fires {
+.hud-fire-panels {
   position: absolute;
-  bottom: 90px;
-  left: 52px;
-  min-width: 220px;
+  top: 72px;
+  left: 24px;
+  width: min(340px, calc(100vw - 240px));
+  max-height: calc(100vh - 320px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .hud-fires-empty {
@@ -152,6 +159,12 @@ body,
 }
 
 .hud-fire-row {
+  width: 100%;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   display: flex;
   justify-content: space-between;
   gap: 16px;
@@ -175,20 +188,19 @@ body,
 
 .hud-fire-name {
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hud-fire-meta {
   color: var(--dim);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* Spread scrubber, bottom center */
 .hud-scrubber {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 340px;
+  min-width: 0;
 }
 
 .hud-scrubber-head {
@@ -201,6 +213,7 @@ body,
 .hud-scrubber-name {
   color: var(--amber);
   font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 .hud-scrubber-close {
@@ -251,6 +264,30 @@ body,
 
 .hud-btn:hover {
   border-color: var(--cyan);
+}
+
+.hud-btn:disabled { opacity: 0.4; cursor: default; }
+.hud-btn:focus-visible, .hud-fire-row:focus-visible { outline: 2px solid var(--amber); }
+.forecast-availability { color: var(--dim); line-height: 1.6; margin-bottom: 8px; }
+.hud-replay {
+  position: absolute;
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(580px, calc(100vw - 48px));
+  background: rgba(10, 14, 18, 0.93);
+}
+.replay-time { color: var(--amber); font-variant-numeric: tabular-nums; margin-bottom: 10px; }
+.hud-replay .hud-btn { min-height: 30px; }
+.replay-slider { width: 100%; accent-color: var(--amber); }
+.replay-range { display: flex; justify-content: space-between; gap: 12px; font-size: 9px; color: var(--dim); }
+.replay-status { margin-top: 10px; line-height: 1.6; font-size: 10px; }
+.replay-retry { margin-top: 6px; width: 100%; }
+@media (max-width: 900px) {
+  .hud-title-sub { display: none; }
+  .hud-layers { right: 24px; }
+  .hud-header { left: 24px; right: 24px; }
+  .threat-panel { bottom: 275px; left: 24px; max-height: 30vh; width: min(340px, calc(100vw - 48px)); }
 }
 
 .hud-scrubber-slider input {

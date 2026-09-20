@@ -9,6 +9,9 @@ import { createFireLayer } from './layers/fireLayer';
 import { InfrastructureLayer } from './layers/infrastructure';
 import { FireSelectionLayer } from './layers/fireSelection';
 import { fetchFires } from './data/api';
+import { FirePlayback } from './data/playback';
+import { initReplayPanel } from './hud/replayPanel';
+import type { FiresResponse } from '../shared/fires';
 
 const globeEl = document.getElementById('globe');
 const hudEl = document.getElementById('hud');
@@ -22,9 +25,9 @@ const viewer = createGlobeViewer(container);
 const hud = initHud(viewer, hudRoot);
 const fireLayer = new FireLayer(viewer);
 initFirePanels(fireLayer, hudRoot);
-// Hotspot + cluster controller. Polls /api/fires on its own cadence and
-// drives the provenance badge.
-createFireLayer(viewer, hudRoot, hud.setMode);
+const hotspotLayer = createFireLayer(viewer, hudRoot);
+const playback = new FirePlayback(fetchFires);
+initReplayPanel(playback, hudRoot);
 
 const threatPanel = document.createElement('div');
 threatPanel.className = 'threat-panel';
@@ -43,7 +46,7 @@ new InfrastructureLayer(viewer.scene, (asset) => {
 
 // Selecting a fire's pick marker also selects it in the perimeter layer, so
 // the spread ghost and scrubber follow the threat analysis.
-new FireSelectionLayer(viewer, threatPanel, (fireId) => {
+const fireSelection = new FireSelectionLayer(viewer, threatPanel, (fireId) => {
   if (fireId) {
     fireLayer.select(fireId, { flyTo: true });
   } else {
@@ -51,18 +54,19 @@ new FireSelectionLayer(viewer, threatPanel, (fireId) => {
   }
 });
 
-async function loadFires(): Promise<void> {
+let rendered: FiresResponse | null = null;
+playback.subscribe(({ data }) => {
+  if (!data || data === rendered) return;
+  rendered = data;
+  hud.setMode(data.provenance);
+  viewer.entities.suspendEvents();
   try {
-    const response = await fetchFires();
-    hud.setMode(response.provenance);
-    fireLayer.setData(response);
-  } catch (err) {
-    const banner = document.createElement('div');
-    banner.className = 'hud-error';
-    banner.textContent = 'FIRE DATA UNAVAILABLE';
-    hudRoot.appendChild(banner);
-    throw err;
+    hotspotLayer.setData(data);
+    fireLayer.setData(data);
+    fireSelection.setData(data);
+  } finally {
+    viewer.entities.resumeEvents();
   }
-}
-
-void loadFires();
+});
+void playback.start();
+window.addEventListener('pagehide', () => playback.dispose(), { once: true });

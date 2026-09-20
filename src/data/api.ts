@@ -4,16 +4,17 @@
 import type { FiresResponse } from '../../shared/fires';
 import type { InfrastructureResponse, ThreatsResponse } from '../../shared/threats';
 
-async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(url, { signal });
   if (!res.ok) {
     throw new Error(`${url} returned ${res.status}`);
   }
   return (await res.json()) as T;
 }
 
-export async function fetchFires(): Promise<FiresResponse> {
-  const data = await getJson<Partial<FiresResponse>>('/api/fires');
+export async function fetchFires(atSeconds?: number, signal?: AbortSignal): Promise<FiresResponse> {
+  const query = atSeconds === undefined ? '' : `?at=${atSeconds}`;
+  const data = await getJson<Partial<FiresResponse>>(`/api/fires${query}`, signal);
   // Boundary guard: a partial payload defaults to empty lists instead of
   // throwing inside the layer.
   return {
@@ -25,6 +26,8 @@ export async function fetchFires(): Promise<FiresResponse> {
     perimeters: Array.isArray(data.perimeters) ? data.perimeters : [],
     spread: Array.isArray(data.spread) ? data.spread : [],
     timeline: data.timeline,
+    asOf: data.asOf,
+    availability: data.availability,
   };
 }
 
@@ -32,9 +35,10 @@ export function fetchInfrastructure(): Promise<InfrastructureResponse> {
   return getJson<InfrastructureResponse>('/api/infrastructure');
 }
 
-export async function fetchThreats(fireId: string): Promise<ThreatsResponse> {
+export async function fetchThreats(fireId: string, atSeconds?: number, signal?: AbortSignal): Promise<ThreatsResponse> {
+  const cursor = atSeconds === undefined ? '' : `&at=${atSeconds}`;
   const data = await getJson<Partial<ThreatsResponse>>(
-    `/api/threats?fireId=${encodeURIComponent(fireId)}`,
+    `/api/threats?fireId=${encodeURIComponent(fireId)}${cursor}`, signal,
   );
   // Same boundary guard as fetchFires: partial payloads default to empty
   // lists instead of throwing inside the panel render.

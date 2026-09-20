@@ -13,7 +13,7 @@ import union from '@turf/union';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { getFires } from './providers';
 import { getInfrastructure } from './infrastructure';
-import type { LatLon } from '../shared/fires';
+import type { FiresResponse, LatLon } from '../shared/fires';
 import type { ThreatRing, ThreatsResponse } from '../shared/threats';
 
 const RING_RADII_KM: { ring: ThreatRing; radiusKm: number }[] = [
@@ -108,8 +108,8 @@ function powerLineThreat(
   return best;
 }
 
-export async function getThreats(fireId: string): Promise<ThreatsResponse | null> {
-  const fires = await getFires();
+export async function getThreats(fireId: string, fires?: FiresResponse): Promise<ThreatsResponse | null> {
+  fires ??= await getFires();
   const cluster = fires.clusters.find((c) => c.id === fireId);
   if (!cluster) return null;
 

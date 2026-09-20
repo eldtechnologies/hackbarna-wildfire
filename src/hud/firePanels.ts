@@ -7,7 +7,7 @@
 import type { FireLayer, FireLayerState } from '../fires/fireLayer';
 import { driftLabel, SCRUB_SNAP } from '../fires/fireLayer';
 
-function el(tag: string, className = '', text = ''): HTMLElement {
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   node.className = className;
   if (text) node.textContent = text;
@@ -19,8 +19,10 @@ function formatClock(iso: string): string {
 }
 
 export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): void {
+  const panels = el('div', 'hud-fire-panels');
+  hudRoot.appendChild(panels);
   const listPanel = el('div', 'hud-panel hud-fires');
-  hudRoot.appendChild(listPanel);
+  panels.appendChild(listPanel);
 
   const scrubPanel = el('div', 'hud-panel hud-scrubber');
   scrubPanel.hidden = true;
@@ -59,13 +61,18 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): void {
 
   const tickRow = el('div', 'hud-scrubber-ticks');
   const statsRow = el('div', 'hud-scrubber-stats');
+  const availability = el('div', 'forecast-availability');
   const areaStat = el('span');
   const driftStat = el('span');
   statsRow.appendChild(areaStat);
   statsRow.appendChild(driftStat);
 
-  scrubPanel.append(titleRow, timeRow, controlsRow, sliderRow, tickRow, statsRow);
-  hudRoot.appendChild(scrubPanel);
+  scrubPanel.append(el('div', 'hud-panel-title', 'SPREAD FORECAST'), titleRow, availability, timeRow, controlsRow, sliderRow, tickRow, statsRow);
+  panels.appendChild(scrubPanel);
+  slider.setAttribute('aria-label', 'Forecast horizon');
+  play.setAttribute('aria-label', 'Play spread forecast');
+  stepBack.setAttribute('aria-label', 'Forecast back one hour');
+  stepFwd.setAttribute('aria-label', 'Forecast forward one hour');
 
   // Latest state, read by the step buttons. Kept current by render().
   const stateRef: FireLayerState = {
@@ -92,7 +99,7 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): void {
       return;
     }
     for (const caseData of state.cases) {
-      const row = el('div', 'hud-fire-row');
+      const row = el('button', 'hud-fire-row');
       row.classList.toggle(
         'hud-fire-row-selected',
         caseData.cluster.id === state.selectedCase?.cluster.id,
@@ -122,9 +129,16 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): void {
     play.textContent = state.playing ? 'PAUSE' : 'PLAY';
 
     const max = selected.maxHorizonHours;
-    if (ticksForId !== selected.cluster.id) {
+    const canForecast = max > 0;
+    availability.textContent = canForecast ? 'Forecast projection · not recorded observations'
+      : 'No spread forecast available at this observation time.';
+    play.disabled = stepBack.disabled = stepFwd.disabled = !canForecast;
+    slider.disabled = !canForecast;
+    sliderRow.hidden = tickRow.hidden = timeRow.hidden = !canForecast;
+    if (!canForecast) play.textContent = 'PLAY';
+    if (ticksForId !== selected) {
       // Rebuild the horizon ticks only when the selected fire changes.
-      ticksForId = selected.cluster.id;
+      ticksForId = selected;
       slider.max = String(max);
       slider.disabled = max === 0;
       tickRow.replaceChildren();
@@ -143,7 +157,7 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): void {
   };
 
   // Which cluster the horizon ticks were built for.
-  let ticksForId: string | null = null;
+  let ticksForId: FireLayerState['selectedCase'] = null;
 
   // While the user drags the slider, its own position wins over state pushes.
   let dragging = false;

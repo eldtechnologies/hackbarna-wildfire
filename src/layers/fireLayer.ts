@@ -14,15 +14,8 @@ import {
   Viewer,
 } from 'cesium';
 import type { FireCluster, FiresResponse, Hotspot } from '../../shared/fires';
-import { fetchFires } from '../data/api';
 import { createHotspotPanel } from '../hud/hotspotPanel';
 import { isLayerVisible, onVisibilityChanged } from './registry';
-
-// Poll cadence. MTG hotspot cadence is ~10 min live; replay snapshots are
-// static per request so we refresh faster to keep the demo responsive.
-const LIVE_POLL_MS = 10 * 60 * 1000;
-const REPLAY_POLL_MS = 60 * 1000;
-const RETRY_POLL_MS = 15 * 1000;
 
 // FRP ceiling that clamps marker size and color scaling (display only, not
 // simulated).
@@ -64,8 +57,7 @@ function pulsingSize(base: number, phase: number): CallbackProperty {
 export function createFireLayer(
   viewer: Viewer,
   hudRoot: HTMLElement,
-  onProvenance: (provenance: 'live' | 'replay') => void,
-): void {
+): { setData: (data: FiresResponse) => void } {
   const hotspotEntities = new Map<string, Entity>();
   const clusterEntities = new Map<string, Entity>();
   const hotspotsById = new Map<string, Hotspot>();
@@ -165,6 +157,9 @@ export function createFireLayer(
 
     if (selectedId && !hotspotEntities.has(selectedId)) {
       deselect();
+    } else if (selectedId) {
+      const hotspot = hotspotsById.get(selectedId)!;
+      panel.show(hotspot, hotspot.clusterId ? clustersById.get(hotspot.clusterId) ?? null : null);
     }
   }
 
@@ -216,24 +211,5 @@ export function createFireLayer(
     }
   }, ScreenSpaceEventType.LEFT_CLICK);
 
-  let pollTimer: ReturnType<typeof setTimeout> | undefined;
-
-  function schedule(delayMs: number): void {
-    clearTimeout(pollTimer);
-    pollTimer = setTimeout(() => void poll(), delayMs);
-  }
-
-  async function poll(): Promise<void> {
-    try {
-      const data = await fetchFires();
-      onProvenance(data.provenance);
-      renderFires(data);
-      schedule(data.provenance === 'live' ? LIVE_POLL_MS : REPLAY_POLL_MS);
-    } catch (err) {
-      console.error('[fire-layer] fetch failed, will retry', err);
-      schedule(RETRY_POLL_MS);
-    }
-  }
-
-  void poll();
+  return { setData: renderFires };
 }
