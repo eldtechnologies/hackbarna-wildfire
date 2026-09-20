@@ -95,6 +95,18 @@ export function knownFamilies(): string[] {
  * none of it — the same posture the mask takes on an empty field. A family absent from the list
  * would be indistinguishable from a family whose detections never reached a road, and the whole
  * point of publishing this is that an absent family be visible rather than implied.
+ *
+ * Two input properties this relies on and does not enforce, stated because a violation is silent:
+ *
+ *   * Detection ids are UNIQUE. `sourceOf` is last-write-wins while `detectionsByFamily` counts
+ *     entries, so a repeated id credits one detection to two families; the partition check in the
+ *     response test cannot see it, because the total is unchanged. `detectionsFromCapture` does not
+ *     deduplicate, and the committed capture has none.
+ *   * `usedDetectionIds` are ids drawn from `detections`. One that names no detection is dropped
+ *     without a counter, on the argument that the caller's own list is where it came from — the
+ *     evidence side does carry a counter, because there the ids come from a different place (the
+ *     cut field's per-segment citations) and the two can drift apart. Reachable only by a caller
+ *     that does not take its used list from `cutField`.
  */
 export function sensorFamilyRows(
   detections: Detection[],
@@ -105,10 +117,16 @@ export function sensorFamilyRows(
   const sourcesByFamily = new Map<string, Set<string>>();
   const detectionsByFamily = new Map<string, number>();
   for (const d of detections) {
-    sourceOf.set(d.id, d.source);
-    const family = familyOf(d.source);
+    // Coerced, because `Detection.source` is typed `string` but arrives from the capture
+    // unvalidated — the loader normalises `confidence` and passes `source` through — and every
+    // lookup below keys on it. Uncoerced, a numeric source missed `ownLookup`, came back unchanged,
+    // and put a number where `SensorFamilyRow.family` declares a string. The prototype route was
+    // closed; this is the type route, which the prototype guard does not cover.
+    const source = typeof d.source === 'string' ? d.source : String(d.source);
+    sourceOf.set(d.id, source);
+    const family = familyOf(source);
     if (!sourcesByFamily.has(family)) sourcesByFamily.set(family, new Set());
-    sourcesByFamily.get(family)!.add(d.source);
+    sourcesByFamily.get(family)!.add(source);
     detectionsByFamily.set(family, (detectionsByFamily.get(family) ?? 0) + 1);
   }
 

@@ -401,3 +401,18 @@ test('the cut-field payload carries what each sensor family contributed', async 
   const moving = JSON.parse((await get(`/api/egress?at=${AT}`)).body) as { sensorFamilies: unknown };
   assert.deepEqual(moving.sensorFamilies, body.sensorFamilies, 'both endpoints report the same families');
 });
+
+test('the cut-field payload carries the unattributed residual with the family rows', async () => {
+  // The residual is what makes zero a statement rather than a silence. It shipped on the moving
+  // endpoint and not on the fetch-once one, so a reader of the field payload saw per-family cut
+  // counts with nothing saying whether every cut had been attributed.
+  const res = await get('/api/egress/field');
+  assert.equal(res.status, 200);
+  const body = JSON.parse(res.body) as { sensorFamilies: unknown[]; unattributedCutSegments: number };
+  assert.ok(Array.isArray(body.sensorFamilies), 'the field carries the rows');
+  assert.equal(typeof body.unattributedCutSegments, 'number', 'and the residual beside them');
+  assert.equal(body.unattributedCutSegments, 0, 'which is zero on the committed capture');
+
+  const moving = JSON.parse((await get(`/api/egress?at=${AT}`)).body) as { unattributedCutSegments: number };
+  assert.equal(moving.unattributedCutSegments, body.unattributedCutSegments, 'both endpoints agree');
+});

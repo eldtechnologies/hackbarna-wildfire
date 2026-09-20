@@ -381,3 +381,20 @@ test('a cut whose evidence names no known detection is counted rather than dropp
   const { unattributedCutSegments: none } = sensorFamilyRows(detections, ['v1'], [[], [], []]);
   assert.equal(none, 0, 'an uncut segment is not an unattributed cut');
 });
+
+test('a source that is not a string is coerced, not published as itself', () => {
+  // `Detection.source` is typed `string` and arrives from the capture unvalidated — the loader
+  // normalises `confidence` and passes `source` through. Uncoerced, a numeric source missed the
+  // table lookup and came back unchanged, putting a number where `SensorFamilyRow.family` declares a
+  // string. Measured before the fix: a row reading `{"family":0,"sources":[0]}`.
+  const numeric = {
+    id: 'n1', source: 0, lat: 37, lon: -2, atSeconds: 0, confidence: 1, clusterId: null,
+  } as unknown as Detection;
+
+  const { rows } = sensorFamilyRows([numeric], ['n1'], [['n1']]);
+  const row = rows.find((r) => r.detections > 0);
+  assert.ok(row, 'the detection is counted in some family');
+  assert.equal(typeof row.family, 'string', `the family is a string: ${JSON.stringify(row.family)}`);
+  assert.deepEqual(row.sources, ['0'], 'and the source is the string form of what arrived');
+  assert.equal(row.cutSegments, 1, 'its cut still lands, rather than being dropped as unattributable');
+});

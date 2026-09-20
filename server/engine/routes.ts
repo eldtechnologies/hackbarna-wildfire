@@ -228,6 +228,11 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
         // endpoint is one a reader has to scrub to find. Which instruments contributed to the cut
         // field does not change with the moment being asked about.
         sensorFamilies: built.response.sensorFamilies,
+        // With the rows, not only on the moving endpoint. The residual is what makes zero a
+        // statement rather than a silence, and a reader of the fetch-once payload who sees per-family
+        // cut counts without it cannot tell "every cut was attributed" from "the response does not
+        // say" — which is the whole reason the field exists.
+        unattributedCutSegments: built.response.unattributedCutSegments,
         segments: built.response.segments.filter((s) => s.cutAt !== null),
         totalSegments: built.response.segments.length,
       });

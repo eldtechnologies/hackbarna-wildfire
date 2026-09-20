@@ -61,7 +61,15 @@ export interface SensorFamilyRow {
   family: string;
   /** The source keys this family comprises, as they appear in the capture. */
   sources: string[];
-  /** Detections the capture holds for this family. */
+  /**
+   * Detections of the grouped FIRE EVENT this response is about — not of the capture.
+   *
+   * The distinction is 83 detections on the committed data: the capture holds 2,743 across five
+   * clusters and the fire is two of them, so the mask sees 2,660. Decision 5 quotes the capture's
+   * totals, so a reader reconciling the amendment against these rows finds a gap; the response's own
+   * `detections` diagnostic has the same gap. Named here rather than left as the smaller version of
+   * the plan-versus-response divergence this issue was filed about.
+   */
   detections: number;
   /**
    * How many of those had a disc reach a road — whether or not they set a cut time.
