@@ -1,0 +1,104 @@
+{
+  "train": {
+    "samples": 60766,
+    "weather_valid_fraction": {
+      "forecast_h0_wind_east_valid": 1.0,
+      "forecast_h0_wind_north_valid": 1.0,
+      "forecast_h0_temperature_valid": 1.0,
+      "forecast_h0_humidity_valid": 0.9463351216140605,
+      "forecast_h0_precipitation_valid": 1.0,
+      "forecast_h1_wind_east_valid": 1.0,
+      "forecast_h1_wind_north_valid": 1.0,
+      "forecast_h1_temperature_valid": 1.0,
+      "forecast_h1_humidity_valid": 0.9461376427607544,
+      "forecast_h1_precipitation_valid": 1.0,
+      "forecast_h3_wind_east_valid": 1.0,
+      "forecast_h3_wind_north_valid": 1.0,
+      "forecast_h3_temperature_valid": 1.0,
+      "forecast_h3_humidity_valid": 0.9457920547674686,
+      "forecast_h3_precipitation_valid": 1.0,
+      "forecast_h6_wind_east_valid": 1.0,
+      "forecast_h6_wind_north_valid": 1.0,
+      "forecast_h6_temperature_valid": 1.0,
+      "forecast_h6_humidity_valid": 0.9459401639074483,
+      "forecast_h6_precipitation_valid": 1.0
+    },
+    "past_bin_mean_observable_fraction": [
+      0.6283029092271195,
+      0.6262286600978937,
+      0.6243219363260971,
+      0.621665195808179,
+      0.4131734606794618,
+      0.0
+    ],
+    "terrain_mean_valid_fraction": 0.9916738468636347
+  },
+  "calibration": {
+    "samples": 3731,
+    "weather_valid_fraction": {
+      "forecast_h0_wind_east_valid": 1.0,
+      "forecast_h0_wind_north_valid": 1.0,
+      "forecast_h0_temperature_valid": 1.0,
+      "forecast_h0_humidity_valid": 1.0,
+      "forecast_h0_precipitation_valid": 1.0,
+      "forecast_h1_wind_east_valid": 1.0,
+      "forecast_h1_wind_north_valid": 1.0,
+      "forecast_h1_temperature_valid": 1.0,
+      "forecast_h1_humidity_valid": 1.0,
+      "forecast_h1_precipitation_valid": 1.0,
+      "forecast_h3_wind_east_valid": 1.0,
+      "forecast_h3_wind_north_valid": 1.0,
+      "forecast_h3_temperature_valid": 1.0,
+      "forecast_h3_humidity_valid": 1.0,
+      "forecast_h3_precipitation_valid": 1.0,
+      "forecast_h6_wind_east_valid": 1.0,
+      "forecast_h6_wind_north_valid": 1.0,
+      "forecast_h6_temperature_valid": 1.0,
+      "forecast_h6_humidity_valid": 1.0,
+      "forecast_h6_precipitation_valid": 1.0
+    },
+    "past_bin_mean_observable_fraction": [
+      0.75966772471443,
+      0.7614843837060165,
+      0.757814459668443,
+      0.7591826462675374,
+      0.502918202702592,
+      0.0
+    ],
+    "terrain_mean_valid_fraction": 0.9967297196420196
+  },
+  "selection": {
+    "samples": 3712,
+    "weather_valid_fraction": {
+      "forecast_h0_wind_east_valid": 1.0,
+      "forecast_h0_wind_north_valid": 1.0,
+      "forecast_h0_temperature_valid": 1.0,
+      "forecast_h0_humidity_valid": 1.0,
+      "forecast_h0_precipitation_valid": 1.0,
+      "forecast_h1_wind_east_valid": 1.0,
+      "forecast_h1_wind_north_valid": 1.0,
+      "forecast_h1_temperature_valid": 1.0,
+      "forecast_h1_humidity_valid": 1.0,
+      "forecast_h1_precipitation_valid": 1.0,
+      "forecast_h3_wind_east_valid": 1.0,
+      "forecast_h3_wind_north_valid": 1.0,
+      "forecast_h3_temperature_valid": 1.0,
+      "forecast_h3_humidity_valid": 1.0,
+      "forecast_h3_precipitation_valid": 1.0,
+      "forecast_h6_wind_east_valid": 1.0,
+      "forecast_h6_wind_north_valid": 1.0,
+      "forecast_h6_temperature_valid": 1.0,
+      "forecast_h6_humidity_valid": 1.0,
+      "forecast_h6_precipitation_valid": 1.0
+    },
+    "past_bin_mean_observable_fraction": [
+      0.5797179650900692,
+      0.578702514814534,
+      0.5736574254416186,
+      0.5733671851520394,
+      0.3790650576160386,
+      0.0
+    ],
+    "terrain_mean_valid_fraction": 0.9887164543414938
+  }
+}
