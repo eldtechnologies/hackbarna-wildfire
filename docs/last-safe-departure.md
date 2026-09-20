@@ -57,8 +57,8 @@ Every experiment behind these results — method, result and figure — is recor
 
 ### Still open (not verified)
 
-- **Catastro INSPIRE building footprints** — the WFS answers `200` but rejects the bbox filter (*"No records founded for BBOX and SRS provided"*), the ATOM index path has moved, and TLS needs `-k`. **This is the values-at-risk blocker.**
-- **INE padrón** — API is open; the correct operation/table is not yet identified.
+- **Catastro INSPIRE building footprints — SOLVED.** The blocker was the request form, not the endpoint. The KVP parameter is **`TYPENAMES`** (uppercase), the CRS must be **EPSG:25830**, and the bbox must be small (**~500 m per side**) — larger boxes return *"Area of extension out of limits"*. Verified: **70 building footprints at Bédar**. Tile a municipality in ~500 m boxes to collect all footprints.
+- **INE padrón — SOLVED.** Operation **22** (*Cifras Oficiales de Población de los Municipios Españoles: Revisión del Padrón Municipal*); table `DATOS_TABLA/2857` returns **Bédar 2025 = 953 residents** (481 M / 472 F).
 - **ES-Alert second-language capability** and **Ley 17/2015 Art. 12.4** — unverified.
 - **Technosylva's actual scope**, **WUIVAC/PERIL** details — unverified.
 - Pending keys: **AEMET**, **OpenCelliD**, **Copernicus Data Space**, **EUMETSAT Data Store**, **TypeSafe/Jev**.
@@ -94,7 +94,7 @@ Track 4's actual wording: *"Build an **agentic** system that identifies the infr
 
 ### Satellites over Iberia
 
-Of the 15 sources Deepfire ingests, GOES-18/19 and Himawari-9 are irrelevant here. What matters over Spain: VIIRS ×3 (375 m, polar), Landsat 8/9 (30 m), Sentinel-3A/B SLSTR (1 km), MetOp-B/C (1.1 km), MODIS (1 km), and for temporal density MTG-I1 FCI (nominal 1 km) and Meteosat-9/10 SEVIRI (3 km).
+Of the 15 sources Deepfire ingests, GOES-18/19 and Himawari-9 are irrelevant here. What matters over Spain: VIIRS ×3 (375 m, polar), Landsat 8/9 (30 m), Sentinel-3A/B SLSTR (1 km), MetOp-B/C (1.1 km), MODIS (1 km), and for temporal density MTG-I1 FCI (nominal 1 km) and Meteosat-9/10 SEVIRI (**3.0 × 4.2 km** over Iberia, not 3 km — see A17).
 
 ## The thesis
 
@@ -375,9 +375,9 @@ curl -sG -H "Authorization: Bearer $TOKEN" \
 
 **Request a TypeSafe API key tonight** — access is a waitlist and it will not arrive on demand tomorrow. If it does not come through, the verification gate falls back to deterministic OSM checks and nothing else in the pipeline changes.
 
-Also: Catastro INSPIRE buildings for Los Gallardos, Bédar, Lubrín and Turre (ATOM, per-municipality GML), OSM extract for the same bbox, and an AEMET OpenData key (free, by email).
+Also: Catastro INSPIRE buildings for Los Gallardos, Bédar, Lubrín and Turre (WFS, tiled in ~500 m boxes — see A13), an OSM extract for the same bbox, and an AEMET OpenData key (free, by email).
 
-**Building footprints are one blocker; the evacuation dataset is the bigger one.** Catastro did not answer our query in the spike (the WFS rejects the bbox filter, the ATOM index path has moved, and its TLS needs `-k`), and OSM has only **3 buildings within 1 km of Bédar**. But even with footprints, an evacuation solve still needs occupancy, vehicle demand, departure delays, shelter capacity, a directed road graph, road capacities and usable destinations. None of that is in hand. See A13.
+**Building footprints are one blocker; the evacuation dataset is the bigger one.** Catastro **now answers** once the request form is right (see A13), but OSM carries only **3 buildings within 1 km of Bédar**. But even with footprints, an evacuation solve still needs occupancy, vehicle demand, departure delays, shelter capacity, a directed road graph, road capacities and usable destinations. None of that is in hand. See A13.
 
 ### Fallback if any test fails
 
@@ -694,7 +694,7 @@ Two sources we could not use in the spike: **Catastro** (see A13) and **Copernic
 
 **Result.** ~2,296 pixels flagged globally. The dense cluster over Africa is **agricultural burning, not wildfire** — the reason fire services filter by region and confidence. Over Iberia the product is sparse but decisive at 10-minute cadence.
 
-**Resolution and timeliness.** Nominal resolution is **1 km** at the sub-satellite point (Iberian detections span 1.34–1.59 km² each), not 2 km. Scans are every **10 minutes**, but the provider states typical delivery of around **20 minutes**, up to 45 — a 10-minute scan cadence does not mean a 10-minute alert. The 2026 archive also covers the whole fire history, not one scan.
+**Resolution and timeliness.** Nominal resolution is **1 km** at the sub-satellite point (Iberian detections span 1.34–1.59 km² each), not 2 km. Scans are every **10 minutes**, and the provider states typical delivery of around **20 minutes**, up to 45 — a 10-minute scan cadence does not mean a 10-minute alert. Measured from the archive's own file-creation timestamps (25,348 headers), the median is **~17 minutes** (typical 15–19, p95 20), so the provider's figure is the conservative one. The 2026 archive also covers the whole fire history, not one scan.
 
 ![10 — MTG-I1 FCI active-fire pixels, whole disk. Colour and size = FRP (MW).](img/10_mtg_fdir_disk.png)
 
@@ -779,7 +779,7 @@ The egress solver builds the 14,819-node graph, takes the Bédar pocket and two 
 
 **What we did.** Counted OSM buildings in the bbox and how many fall inside the burn; measured building density within 1.5 km of each settlement. Then tried the two authority sources: Catastro INSPIRE and INE padrón.
 
-**Result.** **OSM carries only 3 buildings within 1 km of Bédar**, so it is not the values-at-risk source here. Catastro did not answer our query in the spike (the WFS rejects the bbox filter, the ATOM index path has moved, and its TLS needs `-k`). INE's API is open but the correct operation is not yet identified.
+**Result.** **OSM carries only 3 buildings within 1 km of Bédar**, so it is not the values-at-risk source here. Both authority sources are reachable once the request is correct. **Catastro** needs `TYPENAMES=bu:Building`, CRS `EPSG:25830` and a ~500 m bbox — verified: **70 building footprints at Bédar**. **INE** operation 22, table `DATOS_TABLA/2857`, returns **Bédar 2025 = 953** residents (481 M / 472 F).
 
 ![20 — Values at risk: OSM buildings against the EFFIS burnt area and the Deepfire perimeter.](img/20_values_at_risk.png)
 
@@ -838,3 +838,36 @@ Caveats: the benchmark is US fires on LANDFIRE fuels; the no-output cases are pa
 | A13 | Values at risk | Catastro unanswered; the gap is the whole evacuation dataset, not just buildings |
 | A14 | Simulation ceiling | ELMFIRE median Jaccard 0.133 (n=561); FARSITE 0.137 |
 | A15 | Own model | MAE 10 h at R0=0.03 (area 3× over); area within 7 % at R0=0.01 (MAE 23 h) |
+
+### A17. The SEVIRI pixel footprint — measured, not read off the label
+
+The FRP-PIXEL product (LSA-502) reports a per-pixel `PIXEL_SIZE` field with the HDF5
+attribute `UNITS = 'Km'`. Read as a **length**, the median over Iberia is **12.58 km**,
+which would disqualify SEVIRI as a mask source for anything but a very large fire.
+
+That reading is wrong. `PIXEL_SIZE` is an **area in km²**, and the attribute is mislabelled.
+
+The test is the nadir limit. SEVIRI samples 3 × 3 km at the sub-satellite point, so its nadir
+footprint is **9 km²**. Measured over the pulled archive (5,922,602 detections):
+
+| view zenith angle | `PIXEL_SIZE` (median) |
+| --- | --- |
+| < 10° (near nadir, n = 9,499) | **9.08**, minimum **9.00** |
+| Iberia, median VZA 44.3° (n = 63,549) | **12.58** |
+
+Near nadir the value converges on **9**, not on 3. A length would converge on 3. So the field
+is an area, and `UNITS = 'Km'` means km².
+
+Over Iberia the area is 12.58 km², which decomposes as **3.0 km × 4.2 km** — the along-scan
+dimension stretches by 1/cos(VZA) while the other stays near 3 km. The fit `A = 9 / cos(VZA)`
+matches the measured values with correlation **1.0000**.
+
+So the pixel over Iberia is roughly **3.1–4.2 km across**: coarse, but not disqualified.
+
+Two consequences:
+
+- Any buffer or mask built from SEVIRI detections must use the **real footprint at that
+  latitude**, not the 3 km nadir figure and not the 12.58 figure read as a length. Buffer by
+  `sqrt(PIXEL_SIZE)` per pixel, which the product already provides.
+- The 12 km error propagated into at least one review as "SEVIRI cannot carry the mask". The
+  corrected reading is what put SEVIRI into the three-source cut mask.

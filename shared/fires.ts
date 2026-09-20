@@ -1,6 +1,12 @@
 // Normalized internal schema, shared by server and client. Every provider
 // (live Deepfire, replay snapshot) returns data in this shape so the frontend
 // never sees raw API formats.
+//
+// ONE RULE, applied everywhere below: a quantity the source did not supply is
+// null. Nothing is synthesised into a plausible number. A null FRP is "not
+// measured"; a 0 is "measured zero". The same holds for area, confidence and
+// timestamps. A consumer that needs a number must decide what a missing one
+// means for its own feature; the schema refuses to decide for it.
 
 export interface LatLon {
   lat: number;
@@ -10,9 +16,10 @@ export interface LatLon {
 export interface Hotspot {
   id: string;
   position: LatLon;
-  frpMw: number; // fire radiative power, drives marker size and color
-  confidence: number; // 0..1
-  detectedAt: string; // ISO timestamp
+  frpMw: number | null; // MW; null when the sensor reported none
+  confidence: number | null; // 0..1; null when the word was missing or unrecognised
+  detectedAt: string | null; // ISO timestamp; null when the source omitted it
+  satellite: string | null; // source satellite, e.g. 'MTG_I1'; null when omitted
   clusterId: string | null;
 }
 
@@ -22,16 +29,21 @@ export interface FireCluster {
   centroid: LatLon;
   hotspotIds: string[];
   bbox: [number, number, number, number]; // [west, south, east, north]
-  totalFrpMw: number;
-  firstDetectedAt: string;
-  lastDetectedAt: string;
+  totalFrpMw: number | null; // null when no member has a measured FRP
+  firstDetectedAt: string | null;
+  lastDetectedAt: string | null;
 }
 
 export interface FirePerimeter {
-  clusterId: string;
-  polygon: LatLon[]; // closed ring, first point repeated at the end
-  areaKm2: number;
-  observedAt: string;
+  clusterId: string | null; // null when the source omitted cluster_id
+  polygon: LatLon[]; // closed ring: >=4 positions, first point repeated at the end
+  areaKm2: number | null; // null when the source reported no area
+  observedAt: string | null;
+  // A MultiPolygon perimeter is emitted as one record per part. `areaKm2` is the
+  // parent feature's total and is repeated on every part, so a consumer that sums
+  // area must count each (clusterId, partCount) feature once, not each record.
+  partIndex: number;
+  partCount: number;
 }
 
 export interface SpreadStep {
@@ -41,10 +53,23 @@ export interface SpreadStep {
   polygon: LatLon[];
 }
 
+// Timeline metadata for a multi-frame recording. Frames are ISO timestamps
+// (the recording's t field) in ascending order. The spread scrubber plays
+// back the event as an accelerated timeline: event seconds 0..duration map
+// onto frames via /api/fires?at=<seconds>.
+export interface ReplayTimeline {
+  scenario: string;
+  start: string; // ISO timestamp of frame 0
+  end: string; // ISO timestamp of the last frame
+  durationSeconds: number;
+  frames: string[]; // frame timestamps, ascending
+}
+
 export interface FiresResponse {
   provenance: 'live' | 'replay';
   fetchedAt: string;
   scenario: string | null; // snapshot id when replaying, null when live
+  timeline?: ReplayTimeline; // only set when replaying a multi-frame recording
   hotspots: Hotspot[];
   clusters: FireCluster[];
   perimeters: FirePerimeter[];
@@ -53,5 +78,7 @@ export interface FiresResponse {
 
 export interface FireDataProvider {
   readonly mode: 'live' | 'replay';
-  getFires(): Promise<FiresResponse>;
+  // atSeconds: position in a recorded event timeline. Ignored by live
+  // providers, used by recordings to pick the frame at or before that time.
+  getFires(atSeconds?: number): Promise<FiresResponse>;
 }

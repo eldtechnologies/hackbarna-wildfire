@@ -119,8 +119,8 @@ hr{border:none;border-top:1px solid #eee}img{max-width:100%;height:auto;display:
 </ul>
 <h3>Still open (not verified)</h3>
 <ul>
-<li><strong>Catastro INSPIRE building footprints</strong> — the WFS answers <code>200</code> but rejects the bbox filter (<em>"No records founded for BBOX and SRS provided"</em>), the ATOM index path has moved, and TLS needs <code>-k</code>. <strong>This is the values-at-risk blocker.</strong></li>
-<li><strong>INE padrón</strong> — API is open; the correct operation/table is not yet identified.</li>
+<li><strong>Catastro INSPIRE building footprints — SOLVED.</strong> The blocker was the request form, not the endpoint. The KVP parameter is <strong><code>TYPENAMES</code></strong> (uppercase), the CRS must be <strong>EPSG:25830</strong>, and the bbox must be small (<strong>~500 m per side</strong>) — larger boxes return <em>"Area of extension out of limits"</em>. Verified: <strong>70 building footprints at Bédar</strong>. Tile a municipality in ~500 m boxes to collect all footprints.</li>
+<li><strong>INE padrón — SOLVED.</strong> Operation <strong>22</strong> (<em>Cifras Oficiales de Población de los Municipios Españoles: Revisión del Padrón Municipal</em>); table <code>DATOS_TABLA/2857</code> returns <strong>Bédar 2025 = 953 residents</strong> (481 M / 472 F).</li>
 <li><strong>ES-Alert second-language capability</strong> and <strong>Ley 17/2015 Art. 12.4</strong> — unverified.</li>
 <li><strong>Technosylva's actual scope</strong>, <strong>WUIVAC/PERIL</strong> details — unverified.</li>
 <li>Pending keys: <strong>AEMET</strong>, <strong>OpenCelliD</strong>, <strong>Copernicus Data Space</strong>, <strong>EUMETSAT Data Store</strong>, <strong>TypeSafe/Jev</strong>.</li>
@@ -176,7 +176,7 @@ hr{border:none;border-top:1px solid #eee}img{max-width:100%;height:auto;display:
 <li><strong>Perimeters start Jun 2026, hotspots start Jan 2025.</strong> The Jul 2026 Almería fire <strong>does</strong> have archived perimeters (12 snapshots, verified) — do not reconstruct it. Earlier events (the whole Aug 2025 season) you reconstruct yourself. Note the first Los Gallardos perimeter is <code>computed_at</code> 2026-07-10T00:24Z, ~10 h after ignition: no perimeter existed during the evacuation window.</li>
 </ul>
 <h3>Satellites over Iberia</h3>
-<p>Of the 15 sources Deepfire ingests, GOES-18/19 and Himawari-9 are irrelevant here. What matters over Spain: VIIRS ×3 (375 m, polar), Landsat 8/9 (30 m), Sentinel-3A/B SLSTR (1 km), MetOp-B/C (1.1 km), MODIS (1 km), and for temporal density MTG-I1 FCI (nominal 1 km) and Meteosat-9/10 SEVIRI (3 km).</p>
+<p>Of the 15 sources Deepfire ingests, GOES-18/19 and Himawari-9 are irrelevant here. What matters over Spain: VIIRS ×3 (375 m, polar), Landsat 8/9 (30 m), Sentinel-3A/B SLSTR (1 km), MetOp-B/C (1.1 km), MODIS (1 km), and for temporal density MTG-I1 FCI (nominal 1 km) and Meteosat-9/10 SEVIRI (<strong>3.0 × 4.2 km</strong> over Iberia, not 3 km — see A17).</p>
 <h2>The thesis</h2>
 <p>Burned area is not where people die. The road out closes before the fire reaches the house.</p>
 <p>2025 was genuinely the record: <a href="https://joint-research-centre.ec.europa.eu/jrc-news-and-updates/2025-was-eus-most-destructive-wildfire-season-record-2026-03-31_en">7,783 fires across 25 of 27 EU member states burned 1,079,538 hectares</a>, nearly double the 2006–2024 average, with Germany, Spain, Cyprus and Slovakia at all-time records. A heatwave in the first three weeks of August triggered 22 very large fires in Portugal and Spain almost simultaneously, burning 460,585 hectares — 43% of the EU total.</p>
@@ -491,8 +491,8 @@ curl -sG -H &quot;Authorization: Bearer $TOKEN&quot; \
   --data-urlencode &quot;f=application/geo+json&quot;
 </code></pre>
 <p><strong>Request a TypeSafe API key tonight</strong> — access is a waitlist and it will not arrive on demand tomorrow. If it does not come through, the verification gate falls back to deterministic OSM checks and nothing else in the pipeline changes.</p>
-<p>Also: Catastro INSPIRE buildings for Los Gallardos, Bédar, Lubrín and Turre (ATOM, per-municipality GML), OSM extract for the same bbox, and an AEMET OpenData key (free, by email).</p>
-<p><strong>Building footprints are one blocker; the evacuation dataset is the bigger one.</strong> Catastro did not answer our query in the spike (the WFS rejects the bbox filter, the ATOM index path has moved, and its TLS needs <code>-k</code>), and OSM has only <strong>3 buildings within 1 km of Bédar</strong>. But even with footprints, an evacuation solve still needs occupancy, vehicle demand, departure delays, shelter capacity, a directed road graph, road capacities and usable destinations. None of that is in hand. See A13.</p>
+<p>Also: Catastro INSPIRE buildings for Los Gallardos, Bédar, Lubrín and Turre (WFS, tiled in ~500 m boxes — see A13), an OSM extract for the same bbox, and an AEMET OpenData key (free, by email).</p>
+<p><strong>Building footprints are one blocker; the evacuation dataset is the bigger one.</strong> Catastro <strong>now answers</strong> once the request form is right (see A13), but OSM carries only <strong>3 buildings within 1 km of Bédar</strong>. But even with footprints, an evacuation solve still needs occupancy, vehicle demand, departure delays, shelter capacity, a directed road graph, road capacities and usable destinations. None of that is in hand. See A13.</p>
 <h3>Fallback if any test fails</h3>
 <p>Elliptical Rothermel propagation of your own: ESA WorldCover 10 m or CORINE as fuel proxy, Copernicus DEM GLO-30 for slope, AEMET hourly wind. Half a day of work. It de-risks everything downstream and it is worth building the interface for it even if Deepfire's model works, so the demo cannot die on stage.</p>
 <h2>Hour-by-hour</h2>
@@ -867,7 +867,7 @@ curl -sG -H &quot;Authorization: Bearer $TOKEN&quot; \
 <h2>Appendix A — Experiment log and figures</h2>
 <p>This appendix records every experiment the spike ran: what we did, the method, the result, and the figure. It is <strong>not a scientific study</strong> — no formal design, no replication, no peer review. It is what we saw when we ran the data, and some entries below are flagged as wrong, corrected, or withdrawn. All times are CEST (UTC+2) unless marked UTC.</p>
 <h3>A0. Method and data inventory</h3>
-<p>We pulled the data below, then ran the experiments that follow. The scripts live in <code>/tmp/df/scripts/</code>; the figures in <code>img/</code>.</p>
+<p>We pulled the data below, then ran the experiments that follow. The figures are in <code>img/</code>.</p>
 <table>
 <thead>
 <tr>
@@ -964,7 +964,7 @@ curl -sG -H &quot;Authorization: Bearer $TOKEN&quot; \
 <h3>A6. The MTG 10-minute layer</h3>
 <p><strong>What we did.</strong> Read the raw MTG-I1 FCI fire product (LSA-509 MTFRPPIXEL), rendered it three ways, and compared Iberia against Deepfire's clusters.</p>
 <p><strong>Result.</strong> ~2,296 pixels flagged globally. The dense cluster over Africa is <strong>agricultural burning, not wildfire</strong> — the reason fire services filter by region and confidence. Over Iberia the product is sparse but decisive at 10-minute cadence.</p>
-<p><strong>Resolution and timeliness.</strong> Nominal resolution is <strong>1 km</strong> at the sub-satellite point (Iberian detections span 1.34–1.59 km² each), not 2 km. Scans are every <strong>10 minutes</strong>, but the provider states typical delivery of around <strong>20 minutes</strong>, up to 45 — a 10-minute scan cadence does not mean a 10-minute alert. The 2026 archive also covers the whole fire history, not one scan.</p>
+<p><strong>Resolution and timeliness.</strong> Nominal resolution is <strong>1 km</strong> at the sub-satellite point (Iberian detections span 1.34–1.59 km² each), not 2 km. Scans are every <strong>10 minutes</strong>, and the provider states typical delivery of around <strong>20 minutes</strong>, up to 45 — a 10-minute scan cadence does not mean a 10-minute alert. Measured from the archive's own file-creation timestamps (25,348 headers), the median is <strong>~17 minutes</strong> (typical 15–19, p95 20), so the provider's figure is the conservative one. The 2026 archive also covers the whole fire history, not one scan.</p>
 <p><img alt="10 — MTG-I1 FCI active-fire pixels, whole disk. Colour and size = FRP (MW)." src="img/10_mtg_fdir_disk.png" /></p>
 <p><img alt="11 — MTG-I1 fire pixels over Iberia compared with Deepfire clusters." src="img/11_mtg_fdir_iberia_vs_deepfire.png" /></p>
 <p><img alt="12 — The African burning belt, labelled: Zambia, Zimbabwe, Mozambique, Malawi, Angola, Madagascar." src="img/12_mtg_africa_labeled.png" /></p>
@@ -1018,12 +1018,11 @@ curl -sG -H &quot;Authorization: Bearer $TOKEN&quot; \
 </table>
 <p>The first detection inside a 200 m buffer of AL-6109 is at <strong>19:38 CEST</strong>; the first deaths are reported ~21:00. This is <strong>not</strong> a demonstrated warning: the trigger is a single detection at 19:38:21, the data carries no availability timestamp, and a detection gap does not mean the fire stopped. It is also fragile — at a 100 m buffer the first in-buffer detection is 21:18, and with polar-only data 00:03. <strong>This is a retrospective sensitivity result, not verified lead time.</strong></p>
 <p><img alt="17 — Road-cut test: per-segment time-of-arrival against the observed timeline and the AL-6109 cut times. The buffer/source sensitivity is in the table above, not in the figure." src="img/17_falsification_test.png" /></p>
-<p>Full per-way table and sensitivity grid: <code>/tmp/df/enrich/falsif.txt</code>.</p>
 <h3>A11. The egress cut-time field</h3>
 <p><strong>What we did.</strong> Turned the per-way cut times into a continuous time-of-arrival field over the road network, so every segment carries a colour = when the fire reaches it.</p>
 <p><strong>Result.</strong> The gif we can hand a coordinator: the fire's approach to the road network as a clock, not a perimeter.</p>
 <p><img alt="18 — Egress cut-time field over the road network." src="img/18_egress_cuttime_field.png" /></p>
-<p>The egress solver itself (<code>/tmp/df/scripts/egress_spike.py</code>) builds the 14,819-node graph, takes the Bédar pocket and two candidate exits (south toward Los Gallardos, north toward Lubrín), and writes the last feasible departure per exit.</p>
+<p>The egress solver builds the 14,819-node graph, takes the Bédar pocket and two candidate exits (south toward Los Gallardos, north toward Lubrín), and writes the last feasible departure per exit.</p>
 <h3>A12. Ground-truth comparison</h3>
 <p><strong>What we did.</strong> Vectorised the EFFIS burnt area from its WMS layer and compared it with Deepfire's final perimeter and with the hotspot convex hull.</p>
 <p><strong>Result.</strong></p>
@@ -1057,7 +1056,7 @@ curl -sG -H &quot;Authorization: Bearer $TOKEN&quot; \
 <p><img alt="19 — Ground-truth comparison: EFFIS burnt area vs Deepfire perimeter vs hotspot extent." src="img/19_groundtruth_comparison.png" /></p>
 <h3>A13. Values at risk — what the data does and does not give us</h3>
 <p><strong>What we did.</strong> Counted OSM buildings in the bbox and how many fall inside the burn; measured building density within 1.5 km of each settlement. Then tried the two authority sources: Catastro INSPIRE and INE padrón.</p>
-<p><strong>Result.</strong> <strong>OSM carries only 3 buildings within 1 km of Bédar</strong>, so it is not the values-at-risk source here. Catastro did not answer our query in the spike (the WFS rejects the bbox filter, the ATOM index path has moved, and its TLS needs <code>-k</code>). INE's API is open but the correct operation is not yet identified.</p>
+<p><strong>Result.</strong> <strong>OSM carries only 3 buildings within 1 km of Bédar</strong>, so it is not the values-at-risk source here. Both authority sources are reachable once the request is correct. <strong>Catastro</strong> needs <code>TYPENAMES=bu:Building</code>, CRS <code>EPSG:25830</code> and a ~500 m bbox — verified: <strong>70 building footprints at Bédar</strong>. <strong>INE</strong> operation 22, table <code>DATOS_TABLA/2857</code>, returns <strong>Bédar 2025 = 953</strong> residents (481 M / 472 F).</p>
 <p><img alt="20 — Values at risk: OSM buildings against the EFFIS burnt area and the Deepfire perimeter." src="img/20_values_at_risk.png" /></p>
 <p><strong>Building footprints are not the whole blocker — the evacuation data is.</strong> Even with Catastro, an evacuation solve still needs occupancy, vehicle demand, departure delays, shelter capacity, a directed road graph that preserves real connectivity, road capacities, and usable destinations with capacities. The spike has none of these, and its road prototype merges nearby nodes, treats roads as bidirectional, and checks the next node rather than exposure along each segment. The missing test is one complete Bédar scenario: population and vehicle-demand ranges, a directed graph, and a calculation that shows how long the population takes to clear each bottleneck and when no feasible route remains.</p>
 <h3>A14. The simulation ceiling — ELMFIRE's own validation</h3>
@@ -1204,21 +1203,42 @@ curl -sG -H &quot;Authorization: Bearer $TOKEN&quot; \
 </tr>
 </tbody>
 </table>
-<h3>A17. Reproduce</h3>
-<p>The spike is reproducible from <code>/tmp/df/scripts/</code>:</p>
-<pre><code class="language-text">common.py            shared loaders, event times, map styling
-img01..img09.py      timeline, cadence, perimeter and cluster figures
-nc_clusters.py       MTG fire product, Africa belt
-nc_render.py         MTG whole-disk and Iberia renders
-nc_osm.py            MTG over OSM basemaps
-firms_xcheck.py      FIRMS x Deepfire x MTG cross-check
-terrain.py           slope + fuel from DEM and WorldCover
-falsif_analyze.py    per-way cut times and sensitivity   -&gt; enrich/falsif.txt
-falsif_fig.py        figure 17
-egress_spike.py      egress solver                        -&gt; enrich/egress.json
-egress_fig.py        figure 18
-groundtruth.py       EFFIS vs Deepfire vs hull           -&gt; figure 19
-pockets.py           buildings vs burn                    -&gt; figure 20
-own_sim.py, own_sim2.py, own_sim_fig.py   own model       -&gt; figure 21
-md2pdf.py            render this document to HTML
-</code></pre></body></html>
+<h3>A17. The SEVIRI pixel footprint — measured, not read off the label</h3>
+<p>The FRP-PIXEL product (LSA-502) reports a per-pixel <code>PIXEL_SIZE</code> field with the HDF5
+attribute <code>UNITS = 'Km'</code>. Read as a <strong>length</strong>, the median over Iberia is <strong>12.58 km</strong>,
+which would disqualify SEVIRI as a mask source for anything but a very large fire.</p>
+<p>That reading is wrong. <code>PIXEL_SIZE</code> is an <strong>area in km²</strong>, and the attribute is mislabelled.</p>
+<p>The test is the nadir limit. SEVIRI samples 3 × 3 km at the sub-satellite point, so its nadir
+footprint is <strong>9 km²</strong>. Measured over the pulled archive (5,922,602 detections):</p>
+<table>
+<thead>
+<tr>
+<th>view zenith angle</th>
+<th><code>PIXEL_SIZE</code> (median)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&lt; 10° (near nadir, n = 9,499)</td>
+<td><strong>9.08</strong>, minimum <strong>9.00</strong></td>
+</tr>
+<tr>
+<td>Iberia, median VZA 44.3° (n = 63,549)</td>
+<td><strong>12.58</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Near nadir the value converges on <strong>9</strong>, not on 3. A length would converge on 3. So the field
+is an area, and <code>UNITS = 'Km'</code> means km².</p>
+<p>Over Iberia the area is 12.58 km², which decomposes as <strong>3.0 km × 4.2 km</strong> — the along-scan
+dimension stretches by 1/cos(VZA) while the other stays near 3 km. The fit <code>A = 9 / cos(VZA)</code>
+matches the measured values with correlation <strong>1.0000</strong>.</p>
+<p>So the pixel over Iberia is roughly <strong>3.1–4.2 km across</strong>: coarse, but not disqualified.</p>
+<p>Two consequences:</p>
+<ul>
+<li>Any buffer or mask built from SEVIRI detections must use the <strong>real footprint at that
+  latitude</strong>, not the 3 km nadir figure and not the 12.58 figure read as a length. Buffer by
+  <code>sqrt(PIXEL_SIZE)</code> per pixel, which the product already provides.</li>
+<li>The 12 km error propagated into at least one review as "SEVIRI cannot carry the mask". The
+  corrected reading is what put SEVIRI into the three-source cut mask.</li>
+</ul></body></html>

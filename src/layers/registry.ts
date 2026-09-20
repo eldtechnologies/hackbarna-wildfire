@@ -1,8 +1,7 @@
 // Layer registry: visibility flags for the globe layers, driven by the HUD
 // checkboxes. Infrastructure is toggled per category (hospitals, schools,
-// towns, power lines). Layers without a consuming module yet are display
-// flags only: the fire layers (hotspots, clusters, perimeters, spread) are
-// wired by their own cards.
+// towns, power lines). One listener API: subscribers get the layer id and
+// the new visibility, and get a disposer back.
 
 import type { InfrastructureCategory } from '../../shared/threats';
 
@@ -39,16 +38,20 @@ const visibility = new Map<LayerId, boolean>(LAYERS.map((l) => [l.id, true]));
 type VisibilityListener = (id: LayerId, visible: boolean) => void;
 const listeners = new Set<VisibilityListener>();
 
+/** Fires when a layer's visibility is toggled from the HUD. */
+export function onVisibilityChanged(listener: VisibilityListener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 export function isLayerVisible(id: LayerId): boolean {
   return visibility.get(id) ?? true;
 }
 
 export function setLayerVisible(id: LayerId, visible: boolean): void {
+  if (visibility.get(id) === visible) return;
   visibility.set(id, visible);
-  for (const fn of listeners) fn(id, visible);
-}
-
-export function onLayerVisibilityChanged(fn: VisibilityListener): () => void {
-  listeners.add(fn);
-  return () => listeners.delete(fn);
+  for (const listener of listeners) listener(id, visible);
 }

@@ -9,6 +9,7 @@ import {
   Cartesian3,
   Color,
   ConstantProperty,
+  Entity,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
   Viewer,
@@ -16,6 +17,7 @@ import {
 import { fetchFires, fetchThreats } from '../data/api';
 import { CATEGORY_LABEL } from '../../shared/threats';
 import type { ThreatsResponse } from '../../shared/threats';
+import { isLayerVisible, onVisibilityChanged } from './registry';
 
 const FIRE_PICK_COLOR = Color.fromCssColorString('#ffb454').withAlpha(0.9);
 
@@ -27,12 +29,14 @@ const RING_LABEL: Record<ThreatsResponse['rings'][number]['ring'], string> = {
 };
 
 export interface FireSelectionChange {
-  (fireId: string | null, fireName: string | null): void;
+  (fireId: string | null): void;
 }
 
 export class FireSelectionLayer {
   private handler: ScreenSpaceEventHandler;
   private selectedId: string | null = null;
+  private markerIds: string[] = [];
+  private removeVisibilityListener: () => void;
 
   constructor(
     private viewer: Viewer,
@@ -43,7 +47,9 @@ export class FireSelectionLayer {
     this.handler.setInputAction(
       (click: ScreenSpaceEventHandler.PositionedEvent) => {
         const picked = viewer.scene.pick(click.position);
-        const id = picked?.id;
+        // Entity picks carry the Entity itself, primitives carry a raw id.
+        const pickedId = picked?.id;
+        const id = pickedId instanceof Entity ? pickedId.id : pickedId;
         // Entities created here carry fire:<clusterId>; infra points carry
         // plain asset ids and are handled by their own layer.
         if (typeof id === 'string' && id.startsWith('fire:')) {
@@ -54,6 +60,14 @@ export class FireSelectionLayer {
       },
       ScreenSpaceEventType.LEFT_CLICK,
     );
+
+    this.removeVisibilityListener = onVisibilityChanged((layer, visible) => {
+      if (layer !== 'clusters') return;
+      for (const id of this.markerIds) {
+        const entity = this.viewer.entities.getById(id);
+        if (entity) entity.show = visible;
+      }
+    });
 
     void this.load();
   }
@@ -66,9 +80,12 @@ export class FireSelectionLayer {
       console.error('[fire-selection] fetch failed:', err);
       return;
     }
+    const clustersVisible = isLayerVisible('clusters');
     for (const cluster of fires.clusters) {
+      const id = `fire:${cluster.id}`;
       this.viewer.entities.add({
-        id: `fire:${cluster.id}`,
+        id,
+        show: clustersVisible,
         position: Cartesian3.fromDegrees(cluster.centroid.lon, cluster.centroid.lat),
         point: {
           pixelSize: 9,
@@ -87,6 +104,7 @@ export class FireSelectionLayer {
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
       });
+      this.markerIds.push(id);
     }
   }
 
@@ -108,7 +126,7 @@ export class FireSelectionLayer {
     this.selectedId = null;
     this.panel.classList.remove('open');
     this.panel.replaceChildren();
-    this.onSelectionChange(null, null);
+    this.onSelectionChange(null);
   }
 
   private renderLoading(fireId: string): void {
@@ -121,7 +139,7 @@ export class FireSelectionLayer {
     body.className = 'threat-body';
     body.textContent = 'ANALYZING...';
     this.panel.append(title, body);
-    this.onSelectionChange(fireId, null);
+    this.onSelectionChange(fireId);
   }
 
   private renderError(_fireId: string): void {
@@ -176,11 +194,17 @@ export class FireSelectionLayer {
     }
 
     this.panel.append(title, meta, body);
-    this.onSelectionChange(threats.fireId, null);
+    this.onSelectionChange(threats.fireId);
   }
 
   destroy(): void {
     this.handler.destroy();
-    this.viewer.entities.removeAll();
+    this.removeVisibilityListener();
+    // Only this layer's own markers; viewer.entities is shared with the
+    // hotspot and cluster controllers.
+    for (const id of this.markerIds) {
+      this.viewer.entities.removeById(id);
+    }
+    this.markerIds = [];
   }
 }

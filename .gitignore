@@ -2,6 +2,11 @@ node_modules/
 dist/
 .env
 .env.*
+!.env.example
 *.log
 .creatumo/
+data/ledger/
+.claude/
+.flow/
+.decisions/
 .DS_Store

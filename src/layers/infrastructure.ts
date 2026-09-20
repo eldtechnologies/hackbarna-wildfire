@@ -5,6 +5,7 @@
 import {
   Cartesian3,
   Color,
+  Material,
   PointPrimitiveCollection,
   PolylineCollection,
   Scene,
@@ -16,7 +17,7 @@ import type { InfrastructureAsset, InfrastructureResponse } from '../../shared/t
 import {
   INFRA_CATEGORY_LAYERS,
   isLayerVisible,
-  onLayerVisibilityChanged,
+  onVisibilityChanged,
 } from './registry';
 
 const CYAN = Color.fromCssColorString('#4fd8e8');
@@ -49,7 +50,7 @@ export class InfrastructureLayer {
     scene.primitives.add(this.lines);
 
     this.disposers.push(
-      onLayerVisibilityChanged(() => this.refreshVisibility()),
+      onVisibilityChanged(() => this.refreshVisibility()),
     );
 
     this.wirePicking();
@@ -86,7 +87,8 @@ export class InfrastructureLayer {
         line: this.lines.add({
           positions: path.map((p) => Cartesian3.fromDegrees(p.lon, p.lat)),
           width: 1.5,
-          material: CYAN.withAlpha(0.5),
+          // PolylineCollection takes Material instances, not bare Colors.
+          material: Material.fromType('Color', { color: CYAN.withAlpha(0.5) }),
           clampToGround: true,
         }),
       });
