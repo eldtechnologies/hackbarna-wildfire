@@ -383,3 +383,36 @@ test('GET /api/reach serves the over-alerting figure with what it rests on', asy
   assert.deepEqual(body.unknownPopulation, [], 'the committed settlements all have a known population');
   assert.deepEqual(body.unusableSettlements, [], 'and all of them have a usable position');
 });
+
+test('the cut-field payload carries what each sensor family contributed', async () => {
+  // `/api/egress/field` names its fields one by one rather than spreading the response, so it is
+  // the endpoint that can silently drop a new one — and it is the payload a client fetches once,
+  // where a cursor-independent breakdown belongs. `/api/egress` spreads, so it carries it either
+  // way; this asserts the one that has to be told.
+  const res = await get('/api/egress/field');
+  assert.equal(res.status, 200);
+  const body = JSON.parse(res.body) as {
+    sensorFamilies: Array<{ family: string; sources: string[]; detections: number; usedDetections: number; cutSegments: number }>;
+  };
+  assert.ok(Array.isArray(body.sensorFamilies), 'the field carries the breakdown');
+  assert.deepEqual(body.sensorFamilies.map((r) => r.family), ['MODIS', 'MTG-I1', 'Sentinel-3', 'VIIRS']);
+
+  // And the moving endpoint carries the same rows, so a client reading either sees one answer.
+  const moving = JSON.parse((await get(`/api/egress?at=${AT}`)).body) as { sensorFamilies: unknown };
+  assert.deepEqual(moving.sensorFamilies, body.sensorFamilies, 'both endpoints report the same families');
+});
+
+test('the cut-field payload carries the unattributed residual with the family rows', async () => {
+  // The residual is what makes zero a statement rather than a silence. It shipped on the moving
+  // endpoint and not on the fetch-once one, so a reader of the field payload saw per-family cut
+  // counts with nothing saying whether every cut had been attributed.
+  const res = await get('/api/egress/field');
+  assert.equal(res.status, 200);
+  const body = JSON.parse(res.body) as { sensorFamilies: unknown[]; unattributedCutSegments: number };
+  assert.ok(Array.isArray(body.sensorFamilies), 'the field carries the rows');
+  assert.equal(typeof body.unattributedCutSegments, 'number', 'and the residual beside them');
+  assert.equal(body.unattributedCutSegments, 0, 'which is zero on the committed capture');
+
+  const moving = JSON.parse((await get(`/api/egress?at=${AT}`)).body) as { unattributedCutSegments: number };
+  assert.equal(moving.unattributedCutSegments, body.unattributedCutSegments, 'both endpoints agree');
+});

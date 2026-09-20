@@ -223,7 +223,16 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
         // way to resolve is a dead reference — the reader cannot see the values behind the
         // label without asking a second endpoint for them.
         profiles: built.response.profiles,
-        // Cursor-independent: the same field answers every `at`.
+        // Cursor-independent like `segments`, and here for the same reason they are: this is the
+        // payload a client fetches once, and a family breakdown that appears only on the moving
+        // endpoint is one a reader has to scrub to find. Which instruments contributed to the cut
+        // field does not change with the moment being asked about.
+        sensorFamilies: built.response.sensorFamilies,
+        // With the rows, not only on the moving endpoint. The residual is what makes zero a
+        // statement rather than a silence, and a reader of the fetch-once payload who sees per-family
+        // cut counts without it cannot tell "every cut was attributed" from "the response does not
+        // say" — which is the whole reason the field exists.
+        unattributedCutSegments: built.response.unattributedCutSegments,
         segments: built.response.segments.filter((s) => s.cutAt !== null),
         totalSegments: built.response.segments.length,
       });

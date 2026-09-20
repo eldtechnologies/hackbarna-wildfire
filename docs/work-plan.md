@@ -29,7 +29,7 @@ Recorded here so nobody re-litigates them at hour 30.
 | 2 | **Stream 3 is harness-first and the baseline is the shipped answer.** A model ships only if it beats the baseline on the harness |
 | 3 | **Ola's machine is the data box.** Stream 3 runs there; only the model artefact, its metrics and small fixture JSON cross back |
 | 4 | **The 600-day hotspot archive pull is dropped.** The labels it existed to manufacture already exist as PT-FireSprd and FireSpread_MedEU |
-| 5 | **The cut mask is hotspots + MTG + SEVIRI, sensor-footprint buffered, minus `deepfire:static-heat-sources`.** SEVIRI joined once its pixels were measured at ~3.1–4.2 km across rather than 12 km |
+| 5 | **The cut mask is hotspots + MTG + VIIRS + Sentinel-3 + MODIS, sensor-footprint buffered, minus `deepfire:static-heat-sources`.** Amended 2026-09-20 (issue #27). The decision first named SEVIRI, which joined once its pixels were measured at ~3.1–4.2 km across rather than 12 km. The July Los Gallardos capture carries no SEVIRI series at all — its 2,743 detections are MTG-I1 (2,010), VIIRS (570), Sentinel-3A/B (108) and MODIS (55) — so the mask could not include an uncertainty the data never carried. It now names the four families the capture does. Those totals are the capture's; the mask sees the fire's two clusters, 2,660 of the 2,743, and the response's per-family counts are that subset rather than these |
 | 6 | **Last safe departure is a band, not a time**, swept over an assumption set printed beside every number |
 | 7 | **The road graph comes from the OSM `/map` API, bbox only** — one tiled, rate-limited fetch, committed to JSON so the demo never depends on the network or the container. Amended 2026-09-20: the local Overpass it named is gone — nothing listens on `127.0.0.1:12345`, no `opdb` volume exists, and `/tmp/df/osm/andalucia.osm.pbf` is absent — and the committed graph records `api.openstreetmap.org` as its source. Geofabrik's andalucia PBF stays the fallback if the bbox ever widens |
 | 8 | **The unification refactor lands on `main` first**, then each open branch rebases onto it — one conflict resolution per branch, done once |
@@ -111,17 +111,29 @@ and Bédar, committed to `data/graph/` as JSON. Small, fast to rebuild, and the 
 the network or the container running. Geofabrik's andalucia PBF (194 MB, verified) is the documented
 fallback if the bbox ever widens.
 
-**Mask and cut times.** Accumulate Deepfire hotspots, the MTG archive and the SEVIRI series, each
-buffered by *sensor footprint* — MTG around 1 km, VIIRS 375 m, SEVIRI 3.1–4.2 km — after
-**subtracting `deepfire:static-heat-sources`**. That subtraction is not optional: the archive
-carries persistent industrial heat, including cells around 18 MW within about 20 km of Gallardos,
-and a mask built from raw detections would cut a road on a gas flare.
+**Mask and cut times.** Accumulate the recorded sensor series, each buffered by *sensor footprint* —
+MTG-I1 600 m, VIIRS 375 m, MODIS and Sentinel-3 1,000 m — after **subtracting
+`deepfire:static-heat-sources`**. That subtraction is not optional: the archive carries persistent
+industrial heat, including cells around 18 MW within about 20 km of Gallardos, and a mask built
+from raw detections would cut a road on a gas flare.
 
-Three sensors means three footprints and three latencies in the sweep, which widens the band. That
-is the honest result rather than a problem: SEVIRI rarely sets a cut time on a small fire — on
-Gallardos it starts about three hours after MTG and stops seven hours before it — so it mostly
-covers gaps and widens the estimate. The band is what ships, so a wider one that is true beats a
-narrow one that is not.
+Which instruments those are is a property of the capture, not of this decision. The July series
+carries four families and no SEVIRI, so the source axis of the sweep varies over those four, and
+every response reports what each family contributed to the cut field — including the families that
+contributed nothing — so a missing instrument is visible in the answer rather than only by reading
+this document against the code. Adding a family is a new capture and an amendment here.
+
+Four families means four footprints and four latencies in the sweep, which widens the band, and both
+sweep axes move it. Measured over the committed capture: scaling the per-sensor footprints from 1x
+to 0.5x moves 2,429 of the 4,225 cut segments by more than half an hour and 1,109 by more than six,
+while varying the source set at a fixed footprint moves 2,184 and 509. Both counts are load-bearing,
+which is why the band is the envelope of whole solves rather than a point estimate.
+
+An earlier draft of this paragraph said the radius axis was "nearly flat from 200 m to 1 km", which
+came from the spike's fixed-radius table — one flat buffer at 100/200/500 m — and does not describe
+this sweep, where the radius scale multiplies each sensor's own footprint. On the Bédar exit road the
+two axes move the cut by the same 4 h 25 m: `all-1x` reads 19:38 CEST and `all-0.5x` receives the
+00:03 CEST that the source axis alone had been credited with.
 
 A segment is cut at the first timestep whose accumulated mask intersects it. This replaces the
 point-radius cut that read 19:38, 21:18 or 00:03 for the same road depending on buffer and sensor
@@ -209,9 +221,12 @@ End to end, in order:
 
 - **Whether a model beats the baselines on bearing and rate.** The harness will say. Until it does,
   the baseline is what ships.
-- **How much the SEVIRI band actually widens.** Its per-sensor timing on Gallardos is known; whether
-  that holds across the other events belongs in the calibration sweep, because it moves the band
-  more than it moves the mean.
+- **How much the SEVIRI band actually widens — closed** (2026-09-20, issue #27). The July Los
+  Gallardos capture carries no SEVIRI detections, so the question cannot be answered from what is
+  committed, and the mask no longer claims to include the instrument. It is closed rather than left
+  standing: reopening it needs a capture that carries a SEVIRI series, at which point decision 5 is
+  amended again and the family joins the mask with its measured 3.0 × 4.2 km Iberian footprint
+  rather than a nominal 3 km.
 
 ## One thing to say out loud, early
 
