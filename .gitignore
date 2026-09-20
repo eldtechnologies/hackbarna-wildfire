@@ -10,3 +10,7 @@ data/ledger/
 .flow/
 .decisions/
 .DS_Store
+
+# Python
+__pycache__/
+*.pyc

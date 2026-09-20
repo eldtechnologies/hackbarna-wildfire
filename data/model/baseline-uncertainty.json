@@ -1,0 +1,70 @@
+{
+  "target": "offline_corpus_persistence",
+  "aggregation": "mean of per-fire mean errors",
+  "bootstrap_unit": "fire",
+  "bootstrap_draws": 2000,
+  "seed": 0,
+  "limitation": "Does not validate the online hotspot centroid estimator. MedEU rates are representative-point drift, not frontal speed.",
+  "rows": [
+    {
+      "fixture": "fixture-PT-FireSprd.json",
+      "max_gap_hours": 168.0,
+      "metrics": {
+        "bearing_error_deg": {
+          "fires": 69,
+          "mean": 54.344086520320474,
+          "bootstrap95": [
+            48.27138125975867,
+            60.518361076533694
+          ]
+        },
+        "rate_absolute_error_kmh": {
+          "fires": 69,
+          "mean": 0.634980423068381,
+          "bootstrap95": [
+            0.5128293816220717,
+            0.7736894593431145
+          ]
+        },
+        "area_absolute_percentage_error": {
+          "fires": 72,
+          "mean": 26.29580954251457,
+          "bootstrap95": [
+            23.041464552203237,
+            29.65436510320429
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "fixture-FireSpread_MedEU.json",
+      "max_gap_hours": 168.0,
+      "metrics": {
+        "area_absolute_percentage_error": {
+          "fires": 60,
+          "mean": 45.24016068074606,
+          "bootstrap95": [
+            40.51534398090228,
+            49.94495392500914
+          ]
+        },
+        "bearing_error_deg": {
+          "fires": 59,
+          "mean": 77.49307876896692,
+          "bootstrap95": [
+            65.80688824150286,
+            90.21838985386051
+          ]
+        },
+        "rate_absolute_error_kmh": {
+          "fires": 59,
+          "mean": 0.02500849589575454,
+          "bootstrap95": [
+            0.019790906082429716,
+            0.03101964106269228
+          ]
+        }
+      }
+    }
+  ]
+}

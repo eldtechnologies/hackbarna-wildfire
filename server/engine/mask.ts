@@ -18,8 +18,10 @@
 // for the July capture. Instead every pair is measured once at the largest radius any
 // configuration will use, and each configuration is then a filter over that pair list.
 
+import type { SensorFamilyRow } from '../../shared/egress';
 import type { LatLon } from '../../shared/fires';
 import { bboxOf, pointInRing, pointToSegmentMetres } from './geometry';
+import { ownLookup } from './tables';
 
 /**
  * Nominal detection footprint radius in metres — how far the fire could be from the
@@ -41,6 +43,138 @@ export const SENSOR_FOOTPRINT_M: Record<string, number> = {
 };
 
 export const DEFAULT_FOOTPRINT_M = 1000;
+
+/**
+ * The family each source belongs to.
+ *
+ * Several feeds are one instrument: the three VIIRS series are three satellites carrying the same
+ * sensor, and counting them as three would tell a reader the capture was seen by seven instruments
+ * when it was seen by four. A family is the unit a reader thinks in and the unit decision 5 names.
+ *
+ * A source with no entry here is its own family, which is how an unrecognised sensor stays visible
+ * in the breakdown rather than being folded into the default footprint's family.
+ */
+export const SENSOR_FAMILY: Record<string, string> = {
+  MTG_I1: 'MTG-I1',
+  VIIRS_SNPP_NRT: 'VIIRS',
+  VIIRS_NOAA20_NRT: 'VIIRS',
+  VIIRS_NOAA21_NRT: 'VIIRS',
+  MODIS_NRT: 'MODIS',
+  SENTINEL_3A: 'Sentinel-3',
+  SENTINEL_3B: 'Sentinel-3',
+};
+
+/** The family a source belongs to, or the source itself when it is not a known one. */
+export function familyOf(source: string): string {
+  return ownLookup(SENSOR_FAMILY, source) ?? source;
+}
+
+/** Every family the footprint table knows, in a stable order. */
+export function knownFamilies(): string[] {
+  return [...new Set(Object.values(SENSOR_FAMILY))].sort();
+}
+
+/**
+ * What each sensor family contributed to the field, one row per family.
+ *
+ * Per family rather than per source, and every known family appears even when the capture carries
+ * none of it — the same posture the mask takes on an empty field. A family absent from the list
+ * would be indistinguishable from a family whose detections never reached a road, and the whole
+ * point of publishing this is that an absent family be visible rather than implied.
+ *
+ * Two input properties this relies on and does not enforce, stated because a violation is silent:
+ *
+ *   * Detection ids are UNIQUE. `sourceOf` is last-write-wins while `detectionsByFamily` counts
+ *     entries, so a repeated id credits one detection to two families; the partition check in the
+ *     response test cannot see it, because the total is unchanged. `detectionsFromCapture` does not
+ *     deduplicate, and the committed capture has none.
+ *   * `usedDetectionIds` are ids drawn from `detections`. One that names no detection is dropped
+ *     without a counter, on the argument that the caller's own list is where it came from — the
+ *     evidence side does carry a counter, because there the ids come from a different place (the
+ *     cut field's per-segment citations) and the two can drift apart. Reachable only by a caller
+ *     that does not take its used list from `cutField`.
+ */
+export function sensorFamilyRows(
+  detections: Detection[],
+  usedDetectionIds: string[],
+  evidencePerSegment: string[][],
+): { rows: SensorFamilyRow[]; unattributedCutSegments: number } {
+  const sourceOf = new Map<string, string>();
+  const sourcesByFamily = new Map<string, Set<string>>();
+  const detectionsByFamily = new Map<string, number>();
+  for (const d of detections) {
+    // Coerced, because `Detection.source` is typed `string` but arrives from the capture
+    // unvalidated — the loader normalises `confidence` and passes `source` through — and every
+    // lookup below keys on it. Uncoerced, a numeric source missed `ownLookup`, came back unchanged,
+    // and put a number where `SensorFamilyRow.family` declares a string. The prototype route was
+    // closed; this is the type route, which the prototype guard does not cover.
+    const source = typeof d.source === 'string' ? d.source : String(d.source);
+    sourceOf.set(d.id, source);
+    const family = familyOf(source);
+    if (!sourcesByFamily.has(family)) sourcesByFamily.set(family, new Set());
+    sourcesByFamily.get(family)!.add(source);
+    detectionsByFamily.set(family, (detectionsByFamily.get(family) ?? 0) + 1);
+  }
+
+  // De-duplicated by id. The pipeline builds this list from a `Set` so it is unique today, but the
+  // uniqueness is a property of the caller's input and this function is exported — a repeated id
+  // would otherwise report a family as having used more detections than the capture holds.
+  const usedByFamily = new Map<string, number>();
+  for (const id of new Set(usedDetectionIds)) {
+    const source = sourceOf.get(id);
+    if (source === undefined) continue;
+    const family = familyOf(source);
+    usedByFamily.set(family, (usedByFamily.get(family) ?? 0) + 1);
+  }
+
+  // Counted as (family, segment) pairs. A segment attained by two feeds of one family is one cut
+  // for that family: summing per source would count the same road twice and inflate exactly the
+  // family with the most feeds, which is VIIRS.
+  const cutsByFamily = new Map<string, Set<number>>();
+  let unattributedCutSegments = 0;
+  for (let segment = 0; segment < evidencePerSegment.length; segment++) {
+    const ids = evidencePerSegment[segment] ?? [];
+    // No evidence at all is a segment the fire never cut, which is not an omission — the array
+    // covers every segment, and only the cut ones cite anything.
+    if (ids.length === 0) continue;
+
+    const families = new Set<string>();
+    for (const id of ids) {
+      const source = sourceOf.get(id);
+      if (source !== undefined) families.add(familyOf(source));
+    }
+    if (families.size === 0) {
+      // A segment carrying evidence that names no detection the capture holds: the cut exists and
+      // belongs to no family. Counted rather than dropped, so a reader can tell "no unattributable
+      // cuts" from "the response does not say" — and so a capture whose ids stopped matching its
+      // detections shows up as this number moving rather than as families quietly reading low.
+      unattributedCutSegments += 1;
+      continue;
+    }
+    for (const family of families) {
+      if (!cutsByFamily.has(family)) cutsByFamily.set(family, new Set());
+      cutsByFamily.get(family)!.add(segment);
+    }
+  }
+
+  // Every family the table knows, plus any the capture carries that the table does not — those
+  // keep their own name, so an unrecognised instrument shows up as itself.
+  const families = [...new Set([...knownFamilies(), ...sourcesByFamily.keys()])].sort();
+  // Frozen, because the context that holds these is cached and every response hands them out —
+  // the same reason `buildSegments` freezes its own.
+  const rows = Object.freeze(
+    families.map((family) =>
+      Object.freeze({
+        family,
+        sources: Object.freeze([...(sourcesByFamily.get(family) ?? [])].sort()) as unknown as string[],
+        detections: detectionsByFamily.get(family) ?? 0,
+        usedDetections: usedByFamily.get(family) ?? 0,
+        cutSegments: cutsByFamily.get(family)?.size ?? 0,
+      }),
+    ),
+  ) as SensorFamilyRow[];
+  return { rows, unattributedCutSegments };
+}
 
 /** Geostationary versus polar — the axis that actually moves the answer. */
 export const GEO_SOURCES = new Set(['MTG_I1']);
@@ -84,7 +218,7 @@ export interface SweepConfig {
 }
 
 export const SENSOR_RADIUS = (source: string, scale: number): number =>
-  (SENSOR_FOOTPRINT_M[source] ?? DEFAULT_FOOTPRINT_M) * scale;
+  (ownLookup(SENSOR_FOOTPRINT_M, source) ?? DEFAULT_FOOTPRINT_M) * scale;
 
 /** The radius this configuration applies to a detection from `source`. */
 export function radiusFor(config: SweepConfig, source: string): number {
@@ -237,6 +371,15 @@ export interface CutField {
   evidenceDetectionIds: string[][];
   /** Detections that passed the filter, for the "how much of the data was used" number. */
   usedDetections: number;
+  /**
+   * Those same detections, by id.
+   *
+   * The count above answers "how much of the data was used" for the whole field; the ids are what
+   * lets the response answer it per sensor family, which is a question the count cannot: a family
+   * whose detections never reach a road and one that reaches every road are the same number here
+   * and different numbers once they are told apart.
+   */
+  usedDetectionIds: string[];
 }
 
 export function configAllows(config: SweepConfig, det: Detection): boolean {
@@ -284,7 +427,15 @@ export function cutField(
   }
 
   for (const list of evidence) list.sort();
-  return { configId: config.id, cutAtSeconds, evidenceDetectionIds: evidence, usedDetections: used.size };
+  return {
+    configId: config.id,
+    cutAtSeconds,
+    evidenceDetectionIds: evidence,
+    usedDetections: used.size,
+    // `used` holds indices; the response needs ids, because an index means nothing outside the
+    // array it came from and the breakdown is published.
+    usedDetectionIds: [...used].map((i) => detections[i].id),
+  };
 }
 
 /**

@@ -1,0 +1,22 @@
+{
+  "candidates": [],
+  "manifest_sha256": "6a892f380242c2a253393daf59e92c0b84326b7171355db860cae1080e78e31e",
+  "note": "Not a registered protocol. Predeclare seeds and budgets; freeze candidate hashes on selection data before any final-test access. See docs/thermal-evaluation.md.",
+  "policy": {
+    "bootstrap_draws": 2000,
+    "confidence": 0.95,
+    "maximum_brier_regression": 0.0,
+    "maximum_false_positive_rate_at_05": 0.01,
+    "minimum_geographic_groups": 10,
+    "minimum_seeds": 3,
+    "schema": "thermal-acceptance-v1",
+    "scope": "research thermal forecast only; not physical fire arrival or road safety"
+  },
+  "schema": "thermal-evaluation-protocol-v1",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "status": "unregistered_template"
+}

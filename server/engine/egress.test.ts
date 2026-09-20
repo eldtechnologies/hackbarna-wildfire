@@ -8,7 +8,7 @@ import { buildAlerts } from './alerts';
 import { nearestNode } from './graph';
 import { ASSUMPTION_PROFILES, withAssumedSpeeds } from './assumptions';
 import { allNodesSafe, bottleneckOf, latestDeparture } from './solve';
-import { SWEEP_CONFIGS } from './sweep';
+import { NOMINAL_ID, SWEEP_CONFIGS } from './sweep';
 import { DEFAULT_LATENCY_SECONDS } from './time';
 
 /**
@@ -610,4 +610,108 @@ test('the frozen field is still serialisable and still identical between respons
   const b = buildEgress({ atSeconds: 17 * 3600 }).response.segments;
   assert.equal(a, b, 'the same frozen array is reused rather than rebuilt');
   assert.equal(JSON.parse(JSON.stringify(a)).length, a.length, 'it survives serialisation');
+});
+
+test('the engine names exactly the settlements the fire reaches', () => {
+  // This is the threat set the reach figure complements: every settlement NOT in this list is
+  // counted as receiving an alert for a fire that does not threaten it.
+  //
+  // The version this is written against returned an EMPTY list. It indexed the node cut field
+  // at `segments.length + node` when `sweepField` had already sliced the segment prefix off,
+  // so the read went past the end, `Number.isFinite(undefined)` is false, and every settlement
+  // filtered out. Nothing threw and nothing else in the suite noticed — because an empty
+  // result is a well-formed array. It is also the most misleading possible answer: "this fire
+  // threatens nobody" makes the over-alerting figure the whole population of every covered
+  // village, the largest number the model can produce, arrived at by a bug rather than by the
+  // fire. Only asserting the RESULT catches this; the array's length is right either way.
+  //
+  // The expected names are the engine's own claim, stated independently at the settlement
+  // pre-filter in egress.ts: this fire spreads over 10 July, so Los Gallardos and Lubrín are
+  // both reached and neither may be dropped from the threat set.
+  const { threatenedSettlementIds } = buildEgress({}).diagnostics;
+  assert.deepEqual(
+    [...threatenedSettlementIds].sort(),
+    ['bedar', 'los-gallardos', 'lubrin'],
+    'the fire reaches the three western settlements, and not Turre or Mojácar',
+  );
+
+  // And it does not move with the cursor, which is why `/api/reach` takes no `?at=`. The
+  // threat is a property of the fire's whole extent, not of how much of it has happened yet.
+  const early = buildEgress({ atSeconds: 0 }).diagnostics.threatenedSettlementIds;
+  const late = buildEgress({ atSeconds: 17 * 3600 }).diagnostics.threatenedSettlementIds;
+  assert.deepEqual([...early].sort(), [...threatenedSettlementIds].sort(), 'at the window start');
+  assert.deepEqual([...late].sort(), [...threatenedSettlementIds].sort(), 'and at 17:00');
+});
+
+test('the response reports what each sensor family contributed to the cut field', () => {
+  // Source of expected: the committed capture, read through the mask. The counts are lower than the
+  // raw series the issue quotes (MTG-I1 2,010, VIIRS 570, Sentinel-3 108, MODIS 55 -> 2,743)
+  // because of the FIRE EVENT GROUPING, not heat subtraction: the capture holds five clusters and
+  // the fire is two of them, so the other 83 detections are excluded before the mask sees anything.
+  // Static-heat subtraction removes nothing at all on this capture — `diagnostics.staticHeat` is
+  // `{polygons: 65, removed: 0}`, and an earlier version of this comment blamed it, which is the
+  // same unmeasured-cause mistake this issue is about.
+  const built = buildEgress({ atSeconds: 61200 });
+  const rows = built.response.sensorFamilies;
+  const by = new Map(rows.map((r) => [r.family, r]));
+
+  // Four instruments, not seven feeds: the three VIIRS series are one sensor on three satellites,
+  // and a response listing them separately would tell a reader the capture was seen by seven.
+  assert.deepEqual([...by.keys()], ['MODIS', 'MTG-I1', 'Sentinel-3', 'VIIRS']);
+  assert.deepEqual(by.get('VIIRS')?.sources, ['VIIRS_NOAA20_NRT', 'VIIRS_NOAA21_NRT', 'VIIRS_SNPP_NRT']);
+
+  // Nothing is double-counted and nothing is dropped.
+  assert.equal(
+    rows.reduce((sum, r) => sum + r.detections, 0),
+    built.diagnostics.detections,
+    'every detection in the capture belongs to exactly one family',
+  );
+  // And the used counts are a partition of the nominal configuration's own used set, not a number
+  // that merely looks plausible. `used <= detections` follows from counting ids drawn from the same
+  // list and cannot fail for any implementation; this can, and it is what ties the published rows
+  // back to the sweep that produced them.
+  const nominalUsed = built.diagnostics.sweep.find((s) => s.configId === NOMINAL_ID)?.detectionsUsed;
+  assert.ok(nominalUsed !== undefined && nominalUsed > 0, 'the nominal configuration used detections');
+  assert.equal(
+    rows.reduce((sum, r) => sum + r.usedDetections, 0),
+    nominalUsed,
+    'and every one of them belongs to exactly one family',
+  );
+
+  // The reading the field exists for: reaching a road is not the same as setting a cut time. VIIRS
+  // has 483 detections whose discs reach a road and attains a cut on 2 segments — the other
+  // families get there first — so `usedDetections` equal to `detections`, or `cutSegments` equal to
+  // `usedDetections`, would both be the wrong version of this number.
+  for (const row of rows) {
+    assert.ok(row.usedDetections <= row.detections, `${row.family}: used cannot exceed the capture`);
+    assert.ok(row.cutSegments >= 0);
+  }
+  assert.ok((by.get('VIIRS')?.usedDetections ?? 0) > 0, 'VIIRS detections do reach roads');
+  assert.ok(
+    (by.get('VIIRS')?.cutSegments ?? 0) < (by.get('VIIRS')?.usedDetections ?? 0),
+    'but reach them less often than they set a time',
+  );
+  // And reaching a road is not the same as being in the capture. This strict inequality is the
+  // only assertion here that distinguishes the two: a mutation setting `usedDetectionIds` to every
+  // detection id satisfies `used <= detections`, `used > 0` and `cutSegments < used` unchanged,
+  // and survived the whole suite until this line existed.
+  assert.ok(
+    (by.get('VIIRS')?.usedDetections ?? 0) < (by.get('VIIRS')?.detections ?? 0),
+    'and not every VIIRS detection reaches a road',
+  );
+
+  // The omission this issue is about would be visible here: a family the decision named and the
+  // capture never carried appears with zeroes, not by its absence from the list.
+  assert.equal(rows.some((r) => /seviri/i.test(r.family)), false, 'no family claims an instrument the capture lacks');
+  // Deliberately NOT `every(r => r.detections > 0)`: that is true of this capture and is not a
+  // contract. A known family this capture lacked would appear with a zero row — the response has to
+  // say "this instrument contributed nothing" rather than omit it — so asserting non-zero here
+  // would encode a fact about one fixture as a rule, and break the day a family legitimately reads
+  // zero. The zero-row behaviour is pinned at the function level in `mask.test.ts`.
+
+  // Cut counts are per segment, so no family can have attained more cuts than the field holds.
+  const cutSegments = built.response.segments.filter((s) => s.cutAt !== null).length;
+  for (const row of rows) {
+    assert.ok(row.cutSegments <= cutSegments, `${row.family}: cuts cannot exceed the cut field`);
+  }
 });

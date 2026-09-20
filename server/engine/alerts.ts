@@ -21,6 +21,7 @@ import { ASSUMPTION_PROFILES } from './assumptions';
 import { LEDGER_PATH } from '../config';
 import { findEntry, fingerprintInputs, ledgerName, openLedger, type LedgerStore, type StoredEntry } from './ledger';
 import { PESSIMISTIC_DELAY_MINUTES, buildEgress, loadContext, type EgressOptions, type Settlement } from './egress';
+import { ownLookup } from './tables';
 import { capIdentifier, emitCap, groupByPocket, validateCapSemantics } from './cap/emit';
 import { fillTemplate, languagesFor, templateFor, unresolvedPlaceholders } from './cap/templates';
 import { verifySentence, type Place } from './cap/verify';
@@ -395,7 +396,7 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
         : undefined;
     const bottleneckCapacityPerHour =
       bottleneckHighway !== undefined && clearanceProfile !== undefined
-        ? clearanceProfile.assumptions.capacityPerHour[bottleneckHighway]
+        ? ownLookup(clearanceProfile.assumptions.capacityPerHour, bottleneckHighway)
         : undefined;
 
     const fresh: StoredEntry = {
@@ -514,7 +515,16 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
   // CAP is one <alert> per pocket, one <info> per language; a multi-pocket send is
   // several documents, because <alert> is the document root.
   const documents = new Map<string, string>();
-  const validation: Record<string, ReturnType<typeof validateCapSemantics>> = {};
+  // A null-prototype object, because `pocketId` is the key and it comes from the settlement
+  // fixture. On a plain literal, `validation['__proto__'] = result` invokes the inherited accessor
+  // and sets the object's prototype instead of storing an entry — so no own entry exists, and a
+  // later read of that id returns whichever result was written last. A pocket whose CAP failed its
+  // own checks would then be served on another pocket's validation. Last of the class found by
+  // sweeping every bracket-index in `server/`; the route that reads it is guarded by a Map lookup,
+  // but the write runs for every pocket and is not.
+  const validation: Record<string, ReturnType<typeof validateCapSemantics>> = Object.create(
+    null,
+  ) as Record<string, ReturnType<typeof validateCapSemantics>>;
   for (const [pocketId, pocketPackages] of groupByPocket(packages)) {
     const settlement = byPocket.get(pocketId);
     if (!settlement) continue;

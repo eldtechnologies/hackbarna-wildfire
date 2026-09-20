@@ -90,7 +90,10 @@ export async function getInfrastructure(): Promise<InfrastructureResponse> {
   };
 
   const assets: InfrastructureAsset[] = [];
-  const powerLinePaths: Record<string, LatLon[]> = {};
+  // A null-prototype object, because the key is an asset id from the fixture: assigning through
+  // `__proto__` on a plain literal invokes the inherited accessor, so the entry is never stored as
+  // data and every later `powerLinePaths[id]` reads the prototype instead of the path.
+  const powerLinePaths: Record<string, LatLon[]> = Object.create(null) as Record<string, LatLon[]>;
 
   for (const [file, kind] of Object.entries(files)) {
     let parsed: { features?: unknown[] };

@@ -29,6 +29,20 @@ API endpoints:
 - `GET /api/infrastructure`: all bundled infrastructure assets (point assets + power line paths).
 - `GET /api/threats?fireId=<clusterId>`: server-side turf.js analysis. For the fire's perimeter, lists every asset inside the perimeter, inside the 5/10/20 km buffer rings, or inside the projected spread corridor, with per-asset distance and category.
 
+## Growth model
+
+`GET /api/growth?clusterId=<id>&at=<seconds>` returns descriptive detection-centroid motion and corpus baseline scores. Its `validation=diagnostic_only` and `roadUse=unsupported` fields are explicit: those scores do not validate fire-front arrival. See [the current architecture decision](docs/model-proposal.md).
+
+`GET /api/forecasts` lists prepared native-grid thermal forecasts; `?eventId=<id>&issue=<ISO timestamp>` serves one validated artifact. The [handoff contract](docs/forecast-contract.md) includes coverage, provenance, calibration and fallback semantics. Set `FORECAST_DIR=data/forecasts/example` to serve the real archived persistence example. Model promotion follows the [prospective evaluation gate](docs/thermal-evaluation.md).
+
+The scores live in `data/model/metrics.json`, produced by `tools/model/harness.py` against corpora that stay on the data box. The corpus metrics carry `source` and `generator`; separate diagnostic and uncertainty artifacts name their targets and limitations. Regenerate with:
+
+```bash
+STREAM3_DATA_DIR=<corpora> uv run --with geopandas --with pandas --with scikit-learn python tools/model/harness.py
+```
+
+The harness writes nothing unless every corpus scored, so a run without the data cannot overwrite the committed artifact.
+
 ## Data modes
 
 The server has two data sources, selected with `DATA_MODE`:
@@ -103,6 +117,7 @@ but "when does the road out close, and can this village still leave".
 | `GET /api/alerts?at=<seconds>` | The alert packages, the rejection log and the decision ledger |
 | `GET /api/cap/:pocketId?at=<seconds>` | One CAP 1.2 XML document for that pocket |
 | `GET /api/ledger?limit=<n>` | The whole recommendation history, in the order it was recorded. No cursor: the point is reading the incident without already knowing which moments to ask for. `limit` takes the most recent n; `total` reports what the store holds |
+| `GET /api/reach` | The over-alerting figure: population inside a mobile cell's served footprint for a fire that does not reach it. No cursor — both inputs are whole-window properties. Published with the proportion of cells carrying a measured range rather than the operator's fallback, and with the survey box the cells were drawn from |
 
 `?at=` is seconds since the scenario origin, matching `/api/fires`. Responses publish the
 origin they resolved, because the client's globe and this engine have to agree on what
@@ -117,7 +132,11 @@ Rebuild the committed data with:
 ```bash
 node scripts/fetch-roads.mjs     # OSM road graph       -> data/graph/
 node scripts/fetch-pockets.mjs   # Catastro footprints  -> data/pockets/
+node scripts/fetch-reach.mjs     # OpenCelliD cells     -> data/reach/   (needs OPENCELLID_TOKEN)
 ```
+
+`fetch-reach.mjs` is the only one that needs a credential; it exits non-zero if any tile
+failed, so a partial survey cannot be mistaken for a complete one.
 
 `npm run test` runs the suite (Node's built-in runner). The CAP tests validate the emitted
 XML against the official OASIS schema with `xmllint`, so that binary needs to be present
@@ -137,3 +156,19 @@ The response carries `access_token`, `token_type: "Bearer"` and `expires_in` —
 days, with no refresh token, so re-exchange the same credentials when it lapses. Put both
 values in `.env` (gitignored) and send the token as `Authorization: Bearer …`. Scripts
 reading `.env` directly should note the values may be quoted there.
+
+## Data pipeline
+
+Use [`tools/next_run/README.md`](tools/next_run/README.md) for the corrected extraction,
+weather joins, masked labels, isolated evaluation roles, and training commands.
+Run Python checks from the repository root:
+
+```bash
+python -m pip install -r tools/next_run/requirements.txt
+python -m pytest tools/next_run/test_next_run.py tools/pipeline -q
+```
+
+`tools/pipeline/` and `data/wildfire-spread/` retain the historical Iberian experiment
+for audit. They are not the next training dataset. Legacy build/scoring commands
+require `--legacy-reproduction`; see [`docs/growth-baselines-AP.md`](docs/growth-baselines-AP.md)
+for the old numbers and their limitations. Do not mix their shards with `tools/next_run`.

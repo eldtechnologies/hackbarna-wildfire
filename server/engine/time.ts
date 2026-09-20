@@ -14,38 +14,10 @@
 //    Floats are avoided deliberately: `min` and subtraction on integers make ties
 //    exact, which removes a whole class of nondeterminism from the route tie-break.
 
-/** Sensor delivery latency, seconds from observation to availability. */
-export const LATENCY_SECONDS: Record<string, number> = {
-  // The spike measured MTG-I1 delivery from the archive's own file-creation
-  // timestamps: median ~17 min, p95 20 min (docs/last-safe-departure.md A6).
-  MTG_I1: 17 * 60,
-  // Polar overpasses are not real-time; the data arrives with the downlink. Not
-  // measured in the spike, so this is a stated assumption rather than a reading.
-  VIIRS_SNPP_NRT: 3 * 60 * 60,
-  VIIRS_NOAA20_NRT: 3 * 60 * 60,
-  VIIRS_NOAA21_NRT: 3 * 60 * 60,
-  MODIS_NRT: 3 * 60 * 60,
-  SENTINEL_3A: 6 * 60 * 60,
-  SENTINEL_3B: 6 * 60 * 60,
-};
+export { LATENCY_SECONDS, DEFAULT_LATENCY_SECONDS } from '../providers/availability';
 
-export const DEFAULT_LATENCY_SECONDS = 3 * 60 * 60;
-
-/**
- * Parse an ISO 8601 timestamp to epoch milliseconds.
- *
- * Returns null for anything without an explicit UTC offset or 'Z'. A zone-less
- * string does not mean UTC — JavaScript treats it as local time, so the same
- * fixture would produce different instants on different laptops and shift the
- * headline cut time by exactly the amount the confidence band is about.
- */
-export function toEpochMs(iso: string | null | undefined): number | null {
-  if (typeof iso !== 'string' || iso.length === 0) return null;
-  // Offset required: either a trailing Z, or ±HH:MM / ±HHMM after the time.
-  if (!/(Z|[+-]\d{2}:?\d{2})$/.test(iso)) return null;
-  const ms = Date.parse(iso);
-  return Number.isFinite(ms) ? ms : null;
-}
+import { epoch as toEpochMs } from '../providers/availability';
+export { toEpochMs };
 
 export function fromEpochMs(ms: number): string {
   return new Date(ms).toISOString();
