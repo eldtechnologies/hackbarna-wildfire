@@ -1,5 +1,6 @@
 import express from 'express';
-import { SERVER_HOST, SERVER_PORT } from './config';
+import { LEDGER_PATH, SERVER_HOST, SERVER_PORT } from './config';
+import { openLedger } from './engine/ledger';
 import { getFires } from './providers';
 import { getInfrastructure } from './infrastructure';
 import { getThreats } from './threats';
@@ -59,6 +60,23 @@ app.get('/api/threats', async (req, res) => {
     res.status(502).json({ error: 'threat analysis unavailable' });
   }
 });
+
+// Open the recommendation ledger before anything is served.
+//
+// The store documents that an unusable path is "an error at startup that names the path", and
+// until this call existed that was not true: `openLedger` ran only per request, so a
+// misconfigured LEDGER_PATH produced a server that started healthy and then answered 502 on
+// `/api/alerts` and `/api/cap/:pocketId` — the two routes that exist to tell people to leave —
+// with the real reason visible only in the log. Refusing to start is the promise the store makes,
+// and it is the right one for a setting an operator can fix before anyone depends on the process.
+try {
+  openLedger(LEDGER_PATH);
+} catch (err) {
+  console.error(
+    `[server] refusing to start: the recommendation ledger is unusable: ${err instanceof Error ? err.message : String(err)}`,
+  );
+  process.exit(1);
+}
 
 app.listen(SERVER_PORT, SERVER_HOST, () => {
   console.log(`[server] ojo-de-fuego server listening on http://${SERVER_HOST}:${SERVER_PORT}`);

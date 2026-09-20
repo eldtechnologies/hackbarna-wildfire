@@ -14,10 +14,13 @@
 //    that it could not demonstrate lead time partly because it conflated them. The
 //    physical cut time stays physical; a separate offset decides when it became known.
 
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type {
+  AssumptionProfile,
+  ClearanceRange,
   CutTime,
   EgressAssumptions,
   EgressResponse,
@@ -26,19 +29,44 @@ import type {
   TimeBand,
 } from '../../shared/egress';
 import type { LatLon } from '../../shared/fires';
+import {
+  ASSUMPTION_PROFILES,
+  NOMINAL_CAPACITY_PER_HOUR,
+  profileById,
+  withAssumedSpeeds,
+} from './assumptions';
 import { detectionsFromCapture, groupClustersIntoEvents, loadCapture, pickEventForWindow } from './capture';
 import { DEFAULT_GRAPH_PATH, loadGraph, nearestNode, type LoadedGraph } from './graph';
 import { subtractStaticHeatSources, type Detection } from './mask';
 import { loadPocketGeometry } from './pockets';
-import { allNodesSafe, bottleneckOf, latestDeparture, routeTo, type RoadGraph, type Route } from './solve';
-import { SWEEP_CONFIGS, basisFor, sweepField } from './sweep';
+import {
+  allNodesSafe,
+  bottleneckOf,
+  edgesById,
+  latestDeparture,
+  routeTo,
+  type RoadGraph,
+  type Route,
+} from './solve';
+import { SWEEP_CONFIGS, basisFor, configLabel, sweepField } from './sweep';
 
 import { DEFAULT_LATENCY_SECONDS, LATENCY_SECONDS, fromEpochMs, resolveTimelineOrigin } from './time';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const CAPTURE_PATH = resolve(HERE, '../../data/snapshots/los-gallardos-2026-07-09.json');
+export const CAPTURE_PATH = resolve(HERE, '../../data/snapshots/los-gallardos-2026-07-09.json');
 const SETTLEMENTS_PATH = resolve(HERE, '../../data/pockets/settlements.json');
-const STATIC_HEAT_PATH = resolve(HERE, '../../data/fixtures/static-heat-sources.json');
+export const STATIC_HEAT_PATH = resolve(HERE, '../../data/fixtures/static-heat-sources.json');
+
+/**
+ * A short content digest of a file.
+ *
+ * Used to key the recommendation ledger on the inputs a recommendation was computed from. A path
+ * cannot serve: a re-import leaves the path exactly where it was while changing everything the
+ * file describes, which is the case the key has to catch.
+ */
+function digestOf(path: string): string {
+  return createHash('sha256').update(readFileSync(path)).digest('hex').slice(0, 16);
+}
 
 interface StaticHeatFile {
   source: string;
@@ -102,24 +130,75 @@ export const ASSUMPTIONS: Omit<EgressAssumptions, 'speedByHighway'> = {
   departureDelayMinutes: 15,
   vehicleOccupancy: 1.4,
   /**
-   * Vehicles per hour by road class. There is no measurement behind any of these — they
-   * are order-of-magnitude figures for a single carriageway, and the clearance number
-   * they produce is therefore an assumption, not a finding. Stated here so it is printed
-   * beside every clearance figure rather than buried.
+   * Vehicles per hour by road class — the NOMINAL centre, which the swept profiles are
+   * scaled from. There is no measurement behind any of these; they are order-of-magnitude
+   * figures for a single carriageway, and the clearance they produce is an assumption
+   * rather than a finding.
+   *
+   * Aliased to the table in `assumptions.ts` rather than repeated, because the two are the
+   * same claim: the profile scaling divides by this table, so a copy that drifted would
+   * make the published centre and the swept ends disagree about what "nominal" means.
    */
-  capacityPerHour: {
-    motorway: 3600, trunk: 2400, primary: 1800, secondary: 1500, tertiary: 1200,
-    unclassified: 900, residential: 600, living_street: 400, service: 300, track: 300, road: 600,
-  },
+  capacityPerHour: NOMINAL_CAPACITY_PER_HOUR,
 };
 
 const DEFAULT_CAPACITY_PER_HOUR = 600;
 
+/**
+ * The longest time from decision to first vehicle moving, across the swept profiles.
+ *
+ * The gate is a statement about whether the coordinator can still start in time, so the
+ * delay it subtracts has to be the pessimistic one for the same reason the departure and
+ * the clearance are.
+ */
+export const PESSIMISTIC_DELAY_MINUTES = Math.max(
+  ...ASSUMPTION_PROFILES.map((p) => p.assumptions.departureDelayMinutes),
+);
+
 interface Context {
   loaded: LoadedGraph;
   graph: RoadGraph;
+  /**
+   * The road graph under each swept assumption profile, keyed by profile id.
+   *
+   * Only travel times differ between them, and they are built once here rather than per
+   * request because the profiles are fixed. Each is a scaled copy of the committed graph;
+   * `graph` itself remains the nominal answer, which is what the response's `assumptions`
+   * describes and what an unscaled solve would use.
+   */
+  graphsByProfile: Map<string, RoadGraph>;
+  /**
+   * The banded cut field as the response publishes it.
+   *
+   * Cursor-independent — a cut time is a whole-window property and the cursor only decides
+   * which of them have happened yet — so it is built once and reused rather than
+   * reconstructed on every scrub frame. Measured at 12.5 ms of a 156 ms request.
+   */
+  segments: CutTime[];
   detections: Detection[];
   originMs: number;
+  /**
+   * A digest of the road data this context was built from.
+   *
+   * The recommendation ledger keys entries on the inputs they were computed from, and the graph
+   * is one of them: a re-imported OSM extract changes the routes, the distances and the travel
+   * times, so an entry computed on the old geometry must not answer for the new one. A content
+   * digest rather than the path, because the path is precisely what stays the same across a
+   * re-import.
+   */
+  graphHash: string;
+  /**
+   * A digest of the detection capture, and of the persistent-heat fixture.
+   *
+   * Both were previously represented in the ledger's key by a count — the number of detections,
+   * the number of heat polygons and removals — and a count is not an input. A re-fetched capture
+   * with the same number of detections, or a re-exported heat fixture with the same geometry
+   * count and different geometry, changes the mask and therefore the answer while leaving the key
+   * where it was, so a recorded entry answers for inputs it never saw. Same reasoning as
+   * `graphHash`: a digest of the bytes, because the path survives the change.
+   */
+  captureHash: string;
+  heatFixtureHash: string;
   scenario: string;
   settlements: Settlement[];
   sweep: ReturnType<typeof sweepField>;
@@ -138,11 +217,76 @@ let cached: Context | null = null;
  * one — a caller silently solving on the wrong road network. */
 let cachedPath: string | null = null;
 
+/**
+ * The banded cut field as the response publishes it.
+ *
+ * Depends on the graph, the sweep and the timeline origin and on nothing else — the cursor
+ * only decides which cuts have happened yet, which is a filter over this array rather than
+ * a change to it. Building it inside the request path rebuilt 29,834 objects on every
+ * scrub frame for an identical answer.
+ */
+function buildSegments(graph: RoadGraph, sweep: Context['sweep'], originMs: number): CutTime[] {
+  const segments = graph.edges.map((edge, i) => {
+    const cut = sweep.field.nominalCutAtSeconds[i];
+    const earliest = sweep.field.earliestCutAtSeconds[i];
+    const latest = sweep.field.latestCutAtSeconds[i];
+    const banded = Number.isFinite(earliest) && Number.isFinite(latest);
+    return {
+      segmentId: edge.id,
+      // null means never within the modelled window, which is a different statement
+      // from "not yet" — the contract's own distinction, and it is kept here.
+      cutAt: Number.isFinite(cut) ? fromEpochMs(originMs + cut * 1000) : null,
+      band: banded
+        ? {
+            earliest: fromEpochMs(originMs + earliest * 1000),
+            latest: fromEpochMs(originMs + latest * 1000),
+            // `contributorCount` is passed here for the same reason the route band below
+            // passes its own: a configuration that never closes this segment contributes
+            // nothing to its band, and a basis line claiming all twelve while most of
+            // them stood down overstates the evidence behind the number. Measured on the
+            // committed capture, fewer than twelve configurations cut most segments.
+            basis: basisFor(
+              sweep.field.earliestConfigId[i],
+              sweep.field.latestConfigId[i],
+              sweep.field.contributorCount[i],
+            ),
+          }
+        : null,
+      evidenceHotspotIds: sweep.field.nominalEvidence[i] ?? [],
+    };
+  });
+
+  // Frozen, all the way down, before it is shared.
+  //
+  // Hoisting this array into the context made every response hand out the SAME 29,834
+  // objects — verified by identity, and by an in-place edit through one response coming
+  // back out of the next build — where the previous code rebuilt them per request and so
+  // could not share them. The response is memoised and re-served on top of that, so a
+  // future in-place edit anywhere on the response path would persist for the process
+  // rather than for one answer. Freezing turns that from a silent corruption into a
+  // TypeError at the point of the write.
+  for (const segment of segments) {
+    Object.freeze(segment.evidenceHotspotIds);
+    if (segment.band) Object.freeze(segment.band);
+    Object.freeze(segment);
+  }
+  return Object.freeze(segments) as CutTime[];
+}
+
 /** Everything that does not depend on the cursor, built once. */
 export function loadContext(graphPath: string = DEFAULT_GRAPH_PATH): Context {
   if (cached && cachedPath === graphPath) return cached;
 
   const loaded = loadGraph(graphPath);
+
+  // Read a second time to digest them, rather than threading the raw bytes through the loaders.
+  // Paid once per process, against a cold build already measured in seconds. The heat fixture is
+  // digested only if it is there; a missing fixture is itself an input, and 'absent' says so
+  // without pretending to be a digest.
+  const graphHash = digestOf(graphPath);
+  const captureHash = digestOf(CAPTURE_PATH);
+  const heatFixtureHash = existsSync(STATIC_HEAT_PATH) ? digestOf(STATIC_HEAT_PATH) : 'absent';
+
   const capture = loadCapture(JSON.parse(readFileSync(CAPTURE_PATH, 'utf8')));
   const originMs = resolveTimelineOrigin(
     capture.hotspots.map((h) => h.properties.observed_at ?? null),
@@ -210,8 +354,21 @@ export function loadContext(graphPath: string = DEFAULT_GRAPH_PATH): Context {
     raw,
   );
 
+  // The graphs the band is solved over, built once because the profiles are fixed. Every
+  // swept profile scales the committed graph; the committed graph itself is the nominal
+  // answer and is what the response's `assumptions` describes, but it is not a swept point
+  // — a centre is never an end of an envelope.
+  const graphsByProfile = new Map<string, RoadGraph>();
+  for (const profile of ASSUMPTION_PROFILES) {
+    graphsByProfile.set(
+      profile.id,
+      withAssumedSpeeds(loaded.graph, loaded.speedByHighway, profile.assumptions.speedByHighway),
+    );
+  }
+
   cached = {
-    loaded, graph: loaded.graph, detections, originMs,
+    loaded, graph: loaded.graph, graphsByProfile, segments: buildSegments(loaded.graph, sweep, originMs),
+    detections, originMs, graphHash, captureHash, heatFixtureHash,
     scenario: capture.scenario, settlements, sweep,
     staticHeatRemoved: removed.length, staticHeatPolygons: heatRings.length, heatFixtureLoaded,
     fireClusterIds: fire.clusterIds,
@@ -238,8 +395,19 @@ export interface BuiltEgress {
     windowEnd: string;
     /** Persistent-heat polygons loaded, and detections dropped for sitting on one. */
     staticHeat: { polygons: number; removed: number; fixtureLoaded: boolean };
-    /** Per configuration: how many detections it used, and the pocket's departure. */
-    sweep: Array<{ id: string; label: string; detectionsUsed: number; departureSeconds: number | null }>;
+    /**
+     * Per combination of road-cut configuration and assumption profile: how many
+     * detections it used, and the pocket's departure under it. The two axes are separate
+     * fields rather than a composite string so a consumer never has to parse one back out.
+     */
+    sweep: Array<{
+      id: string;
+      configId: string;
+      profileId: string;
+      label: string;
+      detectionsUsed: number;
+      departureSeconds: number | null;
+    }>;
   };
 }
 
@@ -253,6 +421,105 @@ export interface BuiltEgress {
  * `null` is reserved for it. Publishing `+Infinity` as `null` inverted the meaning, the
  * same way serialising an infinite departure would have.
  */
+function profileLabelOf(id: string): string {
+  return profileById(id)?.label ?? id;
+}
+
+/**
+ * A route band's basis, naming BOTH axes that attained each end.
+ *
+ * The mask sweep alone used to be enough to describe a band, so `basisFor` names a
+ * configuration and stops. With a second axis that is no longer a complete description:
+ * "earliest from polar-only" does not say whether that was under cautious or optimistic
+ * assumptions, and those are different claims about the world. Each end therefore names
+ * its configuration and its profile.
+ */
+export function routeBasisFor(
+  earliest: { configId: string; profileId: string },
+  latest: { configId: string; profileId: string },
+  contributors: number,
+  total: number,
+): string {
+  const scope =
+    contributors >= total
+      ? `across all ${total} combinations of configuration and assumption profile`
+      : `across ${contributors} of ${total} combinations of configuration and assumption profile ` +
+        // "Found no route" is the -Infinity case, and it is what a route band drops. The
+        // phrase "never close this route inside the window" belongs to the segment bands,
+        // where the excluded configurations gave Infinity; carried over here it made the
+        // opposite and more reassuring claim about the combinations that were excluded.
+        `(${total - contributors} found no route under these assumptions)`;
+  const describe = (combo: { configId: string; profileId: string }): string =>
+    `${configLabel(combo.configId)} under ${profileLabelOf(combo.profileId)}`;
+  if (earliest.configId === latest.configId && earliest.profileId === latest.profileId) {
+    return `all contributing combinations agree (${describe(earliest)}); ${scope}`;
+  }
+  return `earliest from ${describe(earliest)}; latest from ${describe(latest)}; ${scope}`;
+}
+
+interface ClearanceEntry {
+  profile: AssumptionProfile;
+  bottleneck: { segmentId: string; clearMinutes: number };
+}
+
+/**
+ * The entries with the largest and smallest value, chosen by comparing values.
+ *
+ * Exported and pure because the profile labels cannot be trusted to encode direction, and
+ * on the shipped profiles that is currently unfalsifiable: measured over every road class,
+ * `cautious` is never faster than `optimistic` and never has a higher capacity, so it is
+ * dominated on every axis and always IS the pessimistic end. A "select by label"
+ * implementation would therefore be observationally identical on every input this system
+ * can generate — which is exactly why the selection has to be callable with a pair of its
+ * own, where the labels disagree with the values, or the row that names this case has no
+ * discriminating test at all.
+ *
+ * The band's ends are selected by `indexOf` over the value array for the same reason; there
+ * is no label involved in that path, so no equivalent seam is needed.
+ */
+export function extremesBy<T>(entries: readonly T[], value: (entry: T) => number): { max: T; min: T } {
+  if (entries.length === 0) throw new RangeError('extremesBy needs at least one entry');
+  let max = entries[0];
+  let min = entries[0];
+  for (const entry of entries) {
+    if (value(entry) > value(max)) max = entry;
+    if (value(entry) < value(min)) min = entry;
+  }
+  return { max, min };
+}
+
+/**
+ * The clearance range's basis, naming the values behind each end rather than only the
+ * profiles — the point of publishing a range is that the reader can see which assumption
+ * moved it, and "cautious to optimistic" does not say which number did the moving.
+ */
+function clearanceBasis(
+  population: number,
+  worst: ClearanceEntry,
+  best: ClearanceEntry,
+  graph: RoadGraph,
+): string {
+  const byId = edgesById(graph);
+  const part = (entry: ClearanceEntry): string => {
+    const a = entry.profile.assumptions;
+    const edge = byId.get(entry.bottleneck.segmentId);
+    const highway = edge?.highway ?? 'unknown class';
+    const capacity = (edge && a.capacityPerHour[edge.highway]) ?? DEFAULT_CAPACITY_PER_HOUR;
+    // The road class and the segment are named, not just the throughput. The contract
+    // promises the basis says which segment produced each end, and the class is the part a
+    // reader can act on: "track" is why a village of 953 takes three hours to leave.
+    return (
+      `${entry.bottleneck.clearMinutes.toFixed(0)} min under ${entry.profile.label} ` +
+      `(${a.mobileFraction} mobile ÷ ${a.vehicleOccupancy} per vehicle, ` +
+      `${capacity} vehicles/h on ${highway} at ${entry.bottleneck.segmentId})`
+    );
+  };
+  return (
+    `${population} residents: worst ${part(worst)}; best ${part(best)}. ` +
+    'The action gate reads the worst.'
+  );
+}
+
 function departureFor(value: number, windowEndSeconds: number): number | null {
   if (value === Number.NEGATIVE_INFINITY) return null;
   return Math.min(value, windowEndSeconds);
@@ -340,35 +607,10 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
   const pocketIds = options.pocketIds ?? ['bedar'];
   const pockets = ctx.settlements.filter((s) => pocketIds.includes(s.id));
 
-  const segments: CutTime[] = graph.edges.map((edge, i) => {
-    const cut = ctx.sweep.field.nominalCutAtSeconds[i];
-    const earliest = ctx.sweep.field.earliestCutAtSeconds[i];
-    const latest = ctx.sweep.field.latestCutAtSeconds[i];
-    const banded = Number.isFinite(earliest) && Number.isFinite(latest);
-    return {
-      segmentId: edge.id,
-      // null means never within the modelled window, which is a different statement
-      // from "not yet" — the contract's own distinction, and it is kept here.
-      cutAt: Number.isFinite(cut) ? fromEpochMs(origin + cut * 1000) : null,
-      band: banded
-        ? {
-            earliest: fromEpochMs(origin + earliest * 1000),
-            latest: fromEpochMs(origin + latest * 1000),
-            // `contributorCount` is passed here for the same reason the route band below
-            // passes its own: a configuration that never closes this segment contributes
-            // nothing to its band, and a basis line claiming all twelve while most of
-            // them stood down overstates the evidence behind the number. Measured on the
-            // committed capture, fewer than twelve configurations cut most segments.
-            basis: basisFor(
-              ctx.sweep.field.earliestConfigId[i],
-              ctx.sweep.field.latestConfigId[i],
-              ctx.sweep.field.contributorCount[i],
-            ),
-          }
-        : null,
-      evidenceHotspotIds: ctx.sweep.field.nominalEvidence[i] ?? [],
-    };
-  });
+  // Cursor-independent and identical on every request, so it comes from the context rather
+  // than being rebuilt here. Only the hypothesis about which cuts have arrived yet is a
+  // function of the cursor, and that is a filter the route layer applies on the way out.
+  const segments = ctx.segments;
 
   const sweepDiagnostics: BuiltEgress['diagnostics']['sweep'] = [];
   const pocketResults: PocketEgress[] = [];
@@ -382,63 +624,122 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
 
     interface RouteAccumulator {
       departures: number[];
-      configIds: string[];
+      /** Which combination attained each departure, so the basis can name both axes. */
+      combos: Array<{ configId: string; profileId: string }>;
       /** The raw solve route, so the clearance calculation can reuse its segment list. */
       route: Route | null;
+      /** The profile the route above was solved under, so its numbers can be attributed. */
+      routeProfileId: string | null;
     }
     const byDestination = new Map<string, RouteAccumulator>();
 
-    for (const config of SWEEP_CONFIGS) {
-      const cuts = knownCut(config.id);
-      const nodeCut = knownNodeCut(config.id);
+    // Profiles are iterated outermost and in declared order — cautious first — because the
+    // route published is the first one a combination yields, and the road a sentence names
+    // should be one that survives the pessimistic assumptions rather than one that only
+    // works if the optimistic ones are true. That is the spike's own failure: people left
+    // by a track that led nowhere.
+    // The masked fields depend on the configuration and the cursor, not on the profile, so
+    // they are computed once per configuration and read by both profiles. Rebuilding them
+    // per profile was 2.6 ms of a ~250 ms request spent producing an identical pair of
+    // arrays twice.
+    //
+    // The loops are NOT swapped to config-major to get this. Profile-major is what makes
+    // the first route found the one that survives the pessimistic assumptions; config-major
+    // would pick whichever configuration happened to come first and could name a road that
+    // only works under the optimistic profile.
+    const maskedByConfig = new Map<string, { cuts: number[]; nodeCut: number[] }>();
+    const maskedField = (configId: string): { cuts: number[]; nodeCut: number[] } => {
+      let field = maskedByConfig.get(configId);
+      if (field === undefined) {
+        field = { cuts: knownCut(configId), nodeCut: knownNodeCut(configId) };
+        maskedByConfig.set(configId, field);
+      }
+      return field;
+    };
 
-      // The pocket is not a destination for its own residents. Including it does not
-      // merely add a zero-length route: with the node deadline in place the solve's value
-      // at the pocket is at least the pocket's own burn time, so the number published as
-      // this configuration's departure was the moment the fire reaches the village — 134 s
-      // later than every route the same response publishes, in the permissive direction.
-      const escapeNodes = new Set([...destinations].filter((n) => n !== pocketNode));
+    for (const profile of ASSUMPTION_PROFILES) {
+      // Refused rather than falling back to the committed graph. The fallback would solve
+      // the nominal road network and then publish the answer under this profile's label and
+      // this profile's assumptions — a basis citing an end no combination attained, which
+      // is the plausible-but-wrong number the rest of this file is written to avoid. The map
+      // is built from this same constant in the same call, so the branch is unreachable
+      // today; it is the reachable-tomorrow shape that matters.
+      const profileGraph = ctx.graphsByProfile.get(profile.id);
+      if (profileGraph === undefined) {
+        throw new Error(`no road graph was built for assumption profile "${profile.id}"`);
+      }
 
-      // Primary number: the latest departure to any destination that is not the pocket.
-      const primary = latestDeparture(graph, cuts, escapeNodes, { nodeCutSeconds: nodeCut });
-      sweepDiagnostics.push({
-        id: config.id,
-        label: config.label,
-        detectionsUsed: ctx.sweep.usedByConfig.get(config.id) ?? 0,
-        departureSeconds: departureFor(primary.latestDeparture[pocketNode], windowEndSeconds),
-      });
+      for (const config of SWEEP_CONFIGS) {
+        const { cuts, nodeCut } = maskedField(config.id);
 
-      // Per-destination detail, so each route can report its own band. The destination
-      // set is small (four settlements), so one extra solve each is affordable.
-      for (const { settlement, node } of settlementNodes) {
-        if (node === null || !destinations.has(node)) continue;
-        // The pocket's own node is excluded here too. It is not in `escapeNodes`, so it
-        // cannot be a destination, and solving for it costs a full `latestDeparture` per
-        // configuration to produce a value `routeTo` can never fill — a route to where it
-        // already is does not exist — which the accumulator then drops.
-        if (node === pocketNode) continue;
-        const solo = latestDeparture(graph, cuts, [node], { nodeCutSeconds: nodeCut });
-        const value = solo.latestDeparture[pocketNode];
-        // Infinity is a real answer — nothing on this route is ever cut under this
-        // configuration — and skipping it silently dropped whole configurations from
-        // the band while the published basis still claimed all twelve contributed.
-        // Only -Infinity, which means no route at all, is a non-answer.
-        if (value === Number.NEGATIVE_INFINITY) continue;
+        // The pocket is not a destination for its own residents, and its own node is
+        // excluded from the per-destination solves too. Including it does not merely add a
+        // zero-length route: with the node deadline in place the solve's value at the
+        // pocket is at least the pocket's own burn time, so the number published as this
+        // combination's departure was the moment the fire reaches the village — 134 s later
+        // than every route the same response publishes, in the permissive direction. It
+        // also costs a full `latestDeparture` to produce a value `routeTo` can never fill.
+        const values: number[] = [];
 
-        const acc = byDestination.get(settlement.id) ?? { departures: [], configIds: [], route: null };
-        acc.departures.push(value);
-        acc.configIds.push(config.id);
-        if (acc.route === null) {
-          const r = routeTo(solo, graph, cuts, pocketNode, [node]);
-          if (r) acc.route = r;
+        for (const { settlement, node } of settlementNodes) {
+          if (node === null || !destinations.has(node)) continue;
+          if (node === pocketNode) continue;
+          const solo = latestDeparture(profileGraph, cuts, [node], { nodeCutSeconds: nodeCut });
+          const value = solo.latestDeparture[pocketNode];
+          values.push(value);
+          // Infinity is a real answer — nothing on this route is ever cut under this
+          // combination — and skipping it silently dropped whole combinations from the
+          // band while the published basis still claimed they all contributed. Only
+          // -Infinity, which means no route at all, is a non-answer.
+          if (value === Number.NEGATIVE_INFINITY) continue;
+
+          const acc =
+            byDestination.get(settlement.id) ??
+            { departures: [], combos: [], route: null, routeProfileId: null };
+          acc.departures.push(value);
+          acc.combos.push({ configId: config.id, profileId: profile.id });
+          if (acc.route === null) {
+            const r = routeTo(solo, profileGraph, cuts, pocketNode, [node]);
+            if (r) {
+              acc.route = r;
+              // Remembered because this profile's travel times become the route's published
+              // `travelMinutes`, `distanceKm` and `segmentIds`. Iterating pessimistic-first
+              // is deliberate — the named road should be one that survives the pessimistic
+              // assumptions — but it left those numbers unattributed against a response
+              // that names the nominal set.
+              acc.routeProfileId = profile.id;
+            }
+          }
+          byDestination.set(settlement.id, acc);
         }
-        byDestination.set(settlement.id, acc);
+
+        // The pocket's overall departure is DERIVED, not solved. It is the pointwise max of
+        // the per-destination values, because the multi-destination solve is the fixed point
+        // of a monotone max-plus system seeded with every destination at once. Checked
+        // rather than asserted: across all twelve configurations and all 13,069 nodes,
+        // 156,828 values, the derived figure matched a full multi-destination solve exactly.
+        // Deriving it removes 12 of the 60 solves this request used to run.
+        const primaryValue = values.length > 0 ? Math.max(...values) : Number.NEGATIVE_INFINITY;
+        sweepDiagnostics.push({
+          id: `${profile.id}/${config.id}`,
+          configId: config.id,
+          profileId: profile.id,
+          label: `${config.label} under ${profile.label}`,
+          detectionsUsed: ctx.sweep.usedByConfig.get(config.id) ?? 0,
+          departureSeconds: departureFor(primaryValue, windowEndSeconds),
+        });
       }
     }
 
     const routes: EgressRoute[] = [];
     for (const [settlementId, acc] of byDestination) {
       if (acc.route === null || acc.departures.length === 0) continue;
+      // The two are set together, so one without the other is a programming error rather
+      // than a state to paper over — the fallback here would be exactly the plausible-but-
+      // wrong attribution the rest of this file argues against.
+      if (acc.routeProfileId === null) {
+        throw new Error(`${settlementId} has a route solved under no profile; refusing to publish it unattributed`);
+      }
       const minValue = Math.min(...acc.departures);
       const maxValue = Math.max(...acc.departures);
       const minIndex = acc.departures.indexOf(minValue);
@@ -452,14 +753,15 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
       // modelled window — the honest reading is "no departure deadline exists inside the
       // window" — and `latest` becomes null, which the contract added for exactly this.
       const neverClosed = !Number.isFinite(minValue);
+      const totalCombos = SWEEP_CONFIGS.length * ASSUMPTION_PROFILES.length;
       const band: TimeBand = {
         earliest: fromEpochMs(origin + Math.min(minValue, windowEndSeconds) * 1000),
         latest: Number.isFinite(maxValue) ? fromEpochMs(origin + maxValue * 1000) : null,
         basis: neverClosed
-          ? `no configuration closes this route inside the modelled window ` +
-            `(all ${acc.departures.length} of ${SWEEP_CONFIGS.length} unbounded); ` +
-            'earliest is the end of the window, not a departure deadline'
-          : basisFor(acc.configIds[minIndex], acc.configIds[maxIndex], acc.departures.length),
+          ? `no combination of road-cut configuration and assumption profile closes this ` +
+            `route inside the modelled window (all ${acc.departures.length} of ${totalCombos} ` +
+            'unbounded); earliest is the end of the window, not a departure deadline'
+          : routeBasisFor(acc.combos[minIndex], acc.combos[maxIndex], acc.departures.length, totalCombos),
       };
       const settlement = ctx.settlements.find((s) => s.id === settlementId);
       // The bypass gate: vehicles divided by the tightest road's throughput. It is what
@@ -471,20 +773,44 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
       // fourteen-hour clearance for a village of under a thousand — an eight-fold error
       // in the number the acceptance criterion is written around.
       const population = pocket.population ?? null;
-      let clearanceMinutes: number | null = null;
+      let clearanceMinutes: ClearanceRange | null = null;
       let bottleneckSegmentId: string | null = null;
-      if (population !== null && population > 0) {
-        const vehicles = (population * ASSUMPTIONS.mobileFraction) / ASSUMPTIONS.vehicleOccupancy;
-        const bottleneck = bottleneckOf(
-          acc.route,
-          graph,
-          vehicles,
-          ASSUMPTIONS.capacityPerHour,
-          DEFAULT_CAPACITY_PER_HOUR,
-        );
-        if (bottleneck) {
-          clearanceMinutes = Number(bottleneck.clearMinutes.toFixed(1));
-          bottleneckSegmentId = bottleneck.segmentId;
+      // `> 0` used to guard this, so a settlement whose population is a KNOWN zero fell
+      // through with a null clearance and the gate reported "pocket population is unknown,
+      // which is false about data we hold. The contract already distinguishes null (unknown)
+      // from 0 (nobody), so a zero flows through the arithmetic: no vehicles, no clearance,
+      // and the gate turns on the departure alone.
+      if (population !== null) {
+        // One clearance per swept profile, over the same segment list. This is where the
+        // assumption set actually bites: measured on the committed capture the span is 89
+        // to 185 minutes, against a departure band the speed axis moves by under one.
+        const perProfile: ClearanceEntry[] = [];
+        for (const profile of ASSUMPTION_PROFILES) {
+          const a = profile.assumptions;
+          const vehicles = (population * a.mobileFraction) / a.vehicleOccupancy;
+          const bottleneck = bottleneckOf(
+            acc.route,
+            graph,
+            vehicles,
+            a.capacityPerHour,
+            DEFAULT_CAPACITY_PER_HOUR,
+          );
+          if (bottleneck) perProfile.push({ profile, bottleneck });
+        }
+        if (perProfile.length > 0) {
+          // Selected by VALUE, never by the profile's name. See `extremesBy` for why that
+          // distinction is currently unfalsifiable on the shipped profiles, and why the
+          // selection is therefore testable on its own.
+          const { max: worst, min: best } = extremesBy(perProfile, (e) => e.bottleneck.clearMinutes);
+          clearanceMinutes = {
+            pessimisticMinutes: Number(worst.bottleneck.clearMinutes.toFixed(1)),
+            optimisticMinutes: Number(best.bottleneck.clearMinutes.toFixed(1)),
+            pessimisticProfileId: worst.profile.id,
+            optimisticProfileId: best.profile.id,
+            basis: clearanceBasis(population, worst, best, graph),
+          };
+          // The pessimistic bottleneck is the one that decides, so it is the one named.
+          bottleneckSegmentId = worst.bottleneck.segmentId;
         }
       }
       routes.push({
@@ -496,6 +822,8 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
         slowestHighway: acc.route.slowestHighway,
         clearanceMinutes,
         bottleneckSegmentId,
+        // The drive time, distance and segment list above are this profile's, not nominal.
+        solvedUnderProfileId: acc.routeProfileId,
         // Filled by the gate below; the object is pushed with the provisional values so
         // the gate reads the same shape the response will.
         usable: true,
@@ -543,7 +871,13 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
         return { ...r, usable: false, unusableReason: 'pocket population is unknown, so clearance cannot be verified' };
       }
       const departure = Date.parse(r.lastSafeDeparture.earliest) / 1000 - origin / 1000;
-      const startBy = departure - r.clearanceMinutes * 60 - ASSUMPTIONS.departureDelayMinutes * 60;
+      // All three terms are now swept, so all three are read at their pessimistic end: the
+      // earliest the band permits, the longest the pocket could take to clear, and the
+      // slowest the coordinator could start. Taking the pessimistic clearance and then a
+      // nominal delay would mix the axes and understate the deadline by the width of the
+      // delay's own spread.
+      const startBy =
+        departure - r.clearanceMinutes.pessimisticMinutes * 60 - PESSIMISTIC_DELAY_MINUTES * 60;
       return {
         ...r,
         usable: startBy >= cursor,
@@ -573,7 +907,28 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
     response: {
       provenance: 'replay',
       at: fromEpochMs(origin + cursor * 1000),
-      assumptions: { ...ASSUMPTIONS, speedByHighway: ctx.loaded.speedByHighway },
+      // Copied, not shared. `ctx.loaded.speedByHighway` is the very table the solver scales
+      // travel times with, and the response is memoised and re-served, so a consumer that
+      // touched it in place would not merely misprint an assumption — it would change the
+      // road network every later request is solved on. The `profiles` array below is copied
+      // for the same reason, and this line was the remaining hole.
+      assumptions: {
+        ...ASSUMPTIONS,
+        speedByHighway: { ...ctx.loaded.speedByHighway },
+        capacityPerHour: { ...ASSUMPTIONS.capacityPerHour },
+      },
+      // Copied all the way down. Spreading only the top level leaves `speedByHighway` and
+      // `capacityPerHour` as the very objects the solver reads at context load, and the
+      // response is memoised and re-served — so a consumer that normalised a table in place
+      // would corrupt the process-wide profile for every later request.
+      profiles: ASSUMPTION_PROFILES.map((profile) => ({
+        ...profile,
+        assumptions: {
+          ...profile.assumptions,
+          speedByHighway: { ...profile.assumptions.speedByHighway },
+          capacityPerHour: { ...profile.assumptions.capacityPerHour },
+        },
+      })),
       fireId: ctx.scenario,
       clusterIds: ctx.fireClusterIds,
       origin: fromEpochMs(origin),
