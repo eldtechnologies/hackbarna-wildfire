@@ -46,7 +46,7 @@ export interface ThreatsResponse {
   infrastructureStatus: InfrastructureStatus;
   infrastructureCoverage: InfrastructureCoverage | null;
   fireId: string;
-  hasPerimeter: boolean;
+  hasPerimeter: boolean; // false: rings surround a synthetic 50 m detection-centroid disc
   rings: { ring: ThreatRing; radiusKm: number | null }[]; // display order
   threatened: ThreatenedAsset[]; // sorted: innermost ring first, then distance
   corridorCount: number; // assets flagged inSpreadCorridor

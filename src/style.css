@@ -138,13 +138,23 @@ body,
   margin-bottom: 6px;
 }
 
-/* FIRES list, left side under the telemetry block */
-.hud-fires {
+/* One scrollable inspector owns the fire list, forecast controls and threats. */
+.hud-fire-panels {
   position: absolute;
-  bottom: 90px;
+  top: 72px;
   left: 52px;
-  min-width: 220px;
+  width: min(340px, calc(50vw - 68px));
+  max-height: calc(100vh - 180px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  pointer-events: auto;
 }
+
+.hud-fire-panels > * { flex-shrink: 0; }
+.hud-fires, .hud-scrubber { width: 100%; }
+
 
 .hud-fires-empty {
   color: var(--dim);
@@ -175,6 +185,8 @@ body,
 
 .hud-fire-name {
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hud-fire-meta {
@@ -182,14 +194,6 @@ body,
   font-variant-numeric: tabular-nums;
 }
 
-/* Spread scrubber, bottom center */
-.hud-scrubber {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 340px;
-}
 
 .hud-scrubber-head {
   display: flex;
@@ -199,6 +203,10 @@ body,
 }
 
 .hud-scrubber-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--amber);
   font-size: 11px;
 }
@@ -383,11 +391,8 @@ body,
 
 /* Threat analysis panel (selected fire) */
 .threat-panel {
-  position: absolute;
-  top: 72px;
-  left: 52px;
-  width: 340px;
-  max-height: min(55vh, calc(100vh - 250px));
+  width: 100%;
+  max-height: 40vh;
   display: none;
   flex-direction: column;
   border: 1px solid var(--line);
@@ -576,8 +581,8 @@ body,
 
 /* Keep reports clear of the fire controls and layer list on narrow screens. */
 @media (max-width: 860px) {
-  .threat-panel, .agent-panel { width:calc(50vw - 24px); }
-  .threat-panel { left:16px; }
+  .hud-fire-panels, .agent-panel { width:calc(50vw - 24px); }
+  .hud-fire-panels { left:16px; }
   .agent-panel { right:16px; }
 }
 

@@ -86,14 +86,18 @@ function ringAreaKm2(ring: LatLon[]): number {
 // (people density: hospitals and towns/schools before power lines), then
 // distance as tie-breaker.
 
-function recommendationPriority(t: SituationPacket['threats'][number]): 1 | 2 | 3 {
+function recommendationPriority(t: SituationPacket['threats'][number], hasPerimeter: boolean): 1 | 2 | 3 {
+  if (!hasPerimeter && t.ring === 'inside') return t.inSpreadCorridor ? 1 : 2;
   if (t.ring === 'inside' || (t.ring === 'ring-5km' && t.inSpreadCorridor)) return 1;
   if (t.ring === 'ring-5km' || (t.ring === 'ring-10km' && t.inSpreadCorridor)) return 2;
   return 3;
 }
 
-function reasonFor(t: SituationPacket['threats'][number]): string {
-  const parts = [`${CATEGORY_LABEL[t.category]} ${t.name} ${RING_LABEL[t.ring]}`];
+function reasonFor(t: SituationPacket['threats'][number], hasPerimeter: boolean): string {
+  const proximity = !hasPerimeter && t.ring === 'inside'
+    ? 'within the 50 m detection-centroid search disc' : RING_LABEL[t.ring];
+  const parts = [`${CATEGORY_LABEL[t.category]} ${t.name} ${proximity}`];
+  if (!hasPerimeter && t.ring !== 'inside') parts[0] += ' of the detection-centroid search disc';
   if (t.ring !== 'inside') parts[0] += ` (${t.distanceKm.toFixed(1)} km)`;
   if (t.inSpreadCorridor) parts.push('in the projected spread corridor');
   return parts.join(', ');
@@ -137,8 +141,8 @@ export function situationFacts(packet: SituationPacket): NarrationFact[] {
 
   const detected =
     packet.firstDetectedAt != null
-      ? ` ${packet.hotspotCount} satellite hotspots, total FRP ${packet.totalFrpMw != null ? Math.round(packet.totalFrpMw) : 'unmeasured'} MW, first detected ${packet.firstDetectedAt.slice(0, 10)}.`
-      : ` ${packet.hotspotCount} satellite hotspots, total FRP ${packet.totalFrpMw != null ? Math.round(packet.totalFrpMw) : 'unmeasured'} MW.`;
+      ? ` ${packet.hotspotCount} recorded satellite hotspots, recorded FRP sum ${packet.totalFrpMw != null ? Math.round(packet.totalFrpMw) : 'unmeasured'} MW, first detected ${packet.firstDetectedAt.slice(0, 10)}.`
+      : ` ${packet.hotspotCount} recorded satellite hotspots, recorded FRP sum ${packet.totalFrpMw != null ? Math.round(packet.totalFrpMw) : 'unmeasured'} MW.`;
 
   const insideCount = packet.threats.filter((t) => t.ring === 'inside').length;
   const corridorCount = packet.corridorCount;
@@ -155,9 +159,11 @@ export function situationFacts(packet: SituationPacket): NarrationFact[] {
         : ' No bundled infrastructure within 20 km, and this region is outside the infrastructure coverage area, so an empty list does not mean the area is safe.';
   } else {
     const bits: string[] = [];
-    if (insideCount > 0) bits.push(`${insideCount} asset(s) already inside the perimeter`);
+    if (insideCount > 0) bits.push(packet.hasPerimeter
+      ? `${insideCount} asset(s) inside the observed perimeter`
+      : `${insideCount} asset(s) within the 50 m detection-centroid search disc`);
     if (corridorCount > 0) bits.push(`${corridorCount} in the projected spread corridor`);
-    bits.push(`${packet.threats.length} threatened within 20 km`);
+    bits.push(`${packet.threats.length} proximity matches within 20 km`);
     threatLine = ` ${bits.join(', ')}.`;
   }
 
@@ -175,8 +181,8 @@ function recommendationsFor(packet:SituationPacket): EvacuationRecommendation[] 
     ring: t.ring,
     distanceKm: t.distanceKm,
     inSpreadCorridor: t.inSpreadCorridor,
-    reason: reasonFor(t),
-    priority: recommendationPriority(t),
+    reason: reasonFor(t, packet.hasPerimeter),
+    priority: recommendationPriority(t, packet.hasPerimeter),
   }));
 
   return recommendations;
@@ -232,6 +238,7 @@ export async function getSituation(fireId: string, atSeconds?: number): Promise<
     fireId,
     fireName: cluster.name,
     dataProvenance: fires.provenance,
+    hasPerimeter: threats.hasPerimeter,
     perimeterAreaKm2: areaKm2,
     perimeterObservedAt: perimeter?.observedAt ?? null,
     spreadHorizonHours: furthest?.horizonHours ?? 0,

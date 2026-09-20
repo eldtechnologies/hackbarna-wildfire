@@ -160,7 +160,8 @@ export class FireSelectionLayer {
     meta.className = 'threat-meta';
     const corridorNote =
       threats.corridorCount > 0 ? `${threats.corridorCount} IN SPREAD CORRIDOR` : '';
-    meta.textContent = `${threats.threatened.length} ASSETS ${corridorNote}`.trim();
+    meta.textContent = `${threats.threatened.length} ASSETS ${corridorNote}`.trim()
+      + (threats.hasPerimeter ? '' : ' / CENTROID PROXIMITY, NO OBSERVED PERIMETER');
 
     const body = document.createElement('div');
     body.className = 'threat-body';
@@ -178,7 +179,9 @@ export class FireSelectionLayer {
         if (group.length === 0) continue;
         const heading = document.createElement('div');
         heading.className = 'threat-ring-heading';
-        heading.textContent = `${RING_LABEL[ring.ring]} (${group.length})`;
+        const label = ring.ring === 'inside' && !threats.hasPerimeter
+          ? 'WITHIN 50 M OF DETECTION CENTROID' : RING_LABEL[ring.ring];
+        heading.textContent = `${label} (${group.length})`;
         body.appendChild(heading);
         for (const t of group) {
           const row = document.createElement('div');

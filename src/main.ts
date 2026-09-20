@@ -23,14 +23,14 @@ const hudRoot = hudEl;
 const viewer = createGlobeViewer(container);
 const hud = initHud(viewer, hudRoot);
 const fireLayer = new FireLayer(viewer);
-initFirePanels(fireLayer, hudRoot);
+const firePanels = initFirePanels(fireLayer, hudRoot);
 // Hotspot + cluster controller. Polls /api/fires on its own cadence and
 // drives the provenance badge.
 createFireLayer(viewer, hudRoot, hud.setMode);
 
 const threatPanel = document.createElement('div');
 threatPanel.className = 'threat-panel';
-hudRoot.appendChild(threatPanel);
+firePanels.appendChild(threatPanel);
 
 const agentRoot = document.createElement('div');
 agentRoot.className = 'agent-panel';
