@@ -30,7 +30,9 @@ export interface SituationPacket {
   hasPerimeter: boolean; // false means screening uses a 50 m detection-centroid disc
   perimeterAreaKm2: number | null; // null when the fire has no observed perimeter
   perimeterObservedAt: string | null;
-  spreadHorizonHours: number; // 0 when there is no projection
+  spreadHorizonHours: number; // hours after perimeter observation, not after evidenceAsOf
+  spreadValidAt: string | null;
+  spreadStatus: 'future' | 'expired' | 'unavailable';
   // Direction derived from perimeter-centroid drift toward the furthest
   // projection. The schema has no wind field, so this is the spread heading,
   // not a measured wind. Degrees clockwise from north.

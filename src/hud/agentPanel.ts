@@ -91,10 +91,10 @@ export class AgentPanel {
     summary.textContent = situation.summary;
 
     const spreadValue =
-      packet.spreadHorizonHours > 0
+      packet.spreadStatus === 'expired' ? 'EXPIRED' : packet.spreadStatus === 'future'
         ? packet.spreadBearingDeg != null && packet.spreadCompass != null
-          ? `${packet.spreadCompass} / ${packet.spreadHorizonHours} H`
-          : `NO HEADING / ${packet.spreadHorizonHours} H`
+          ? packet.spreadCompass
+          : 'NO HEADING'
         : 'NO PROJECTION';
 
     const figures = document.createElement('div');
@@ -102,13 +102,14 @@ export class AgentPanel {
     const rows: [string, string][] = [
       ['PERIMETER', packet.perimeterAreaKm2 != null ? `${packet.perimeterAreaKm2.toFixed(0)} KM2` : 'NONE OBSERVED'],
       ['SPREAD', spreadValue],
+      ...(packet.spreadValidAt ? [['PROJECTION VALID', packet.spreadValidAt] as [string, string]] : []),
       ['HOTSPOTS', String(packet.hotspotCount)],
       ['PROXIMITY MATCHES', String(packet.threats.length)],
       ['IN CORRIDOR', String(packet.corridorCount)],
     ];
     for (const [label, value] of rows) {
       const row = document.createElement('div');
-      row.className = 'agent-figure';
+      row.className = 'agent-figure' + (label === 'PROJECTION VALID' ? ' agent-figure-wide' : '');
       const left = document.createElement('span');
       left.textContent = label;
       const right = document.createElement('span');

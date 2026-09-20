@@ -64,3 +64,39 @@ test('centroid screening never becomes observed containment or containment prior
   assert.equal(observed.recommendations.find(r => r.assetId === hospital.id)?.priority, 1);
   assert.match(observed.summary, /inside the observed perimeter/);
 });
+
+test('projection validity survives reporting and expiry removes future corridor priority', async (t) => {
+  const {getProvider} = await import('./providers');
+  const {getInfrastructure} = await import('./infrastructure');
+  const {getThreats} = await import('./threats');
+  const fires = await new ReplayProvider().getFires();
+  const hospital = (await getInfrastructure()).assets.find(a => a.name === 'Hospital de Mataró')!;
+  const {lat,lon} = hospital.position;
+  const cluster = {...fires.clusters[0], id:'projection-expiry-probe', centroid: hospital.position};
+  const polygon = [{lat:lat-.01,lon:lon-.01},{lat:lat-.01,lon:lon+.01},
+    {lat:lat+.01,lon:lon+.01},{lat:lat+.01,lon:lon-.01},{lat:lat-.01,lon:lon-.01}];
+  const evidence: FiresResponse = {...fires, asOf:'2026-07-09T14:00:00Z', clusters:[cluster], perimeters:[],
+    spread:[{clusterId:cluster.id,at:'2026-07-09T18:00:00Z',horizonHours:6,polygon}]};
+  t.mock.method(getProvider(),'getFires',async()=>evidence);
+  const keyBefore = threatsCacheKey(cluster.id,evidence);
+  const current = await getSituation(cluster.id,123456791);
+  assert.ok(current);
+  assert.equal(current.packet.spreadStatus,'future');
+  assert.equal(current.packet.spreadValidAt,'2026-07-09T18:00:00Z');
+  assert.match(current.summary,/valid at 2026-07-09T18:00:00Z \(6 h after the perimeter observation\)/);
+  assert.doesNotMatch(current.summary,/next 6 h/);
+  assert.equal(current.recommendations.find(r=>r.assetId===hospital.id)?.inSpreadCorridor,true);
+  assert.equal(current.recommendations.find(r=>r.assetId===hospital.id)?.priority,1);
+  evidence.asOf='2026-07-09T20:00:00Z';
+  assert.notEqual(threatsCacheKey(cluster.id,evidence),keyBefore);
+  const expired = await getSituation(cluster.id,123456792);
+  assert.ok(expired);
+  assert.equal(expired.packet.spreadStatus,'expired');
+  assert.equal(expired.packet.spreadValidAt,'2026-07-09T18:00:00Z');
+  assert.equal(expired.packet.spreadBearingDeg,null);
+  assert.match(expired.summary,/expired at 2026-07-09T18:00:00Z/);
+  assert.doesNotMatch(expired.summary,/next 6 h|drifts/);
+  assert.equal(expired.packet.corridorCount,0);
+  assert.equal(expired.recommendations.find(r=>r.assetId===hospital.id)?.priority,2);
+  assert.equal((await getThreats(cluster.id,evidence))?.corridorCount,0);
+});

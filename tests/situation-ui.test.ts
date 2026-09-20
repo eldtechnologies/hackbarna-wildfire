@@ -5,7 +5,7 @@ import {AgentPanel} from '../src/hud/agentPanel';
 
 function report(fireId:string) {
   return {fireId,summary:`Server facts for ${fireId}`,recommendations:[],narrator:'template',packet:{
-    fireId,fireName:null,dataProvenance:'replay',perimeterAreaKm2:null,spreadHorizonHours:0,
+    fireId,fireName:null,dataProvenance:'replay',perimeterAreaKm2:null,spreadHorizonHours:0,spreadStatus:'unavailable',spreadValidAt:null as string|null,
     hotspotCount:2,threats:[],corridorCount:0,infrastructureCoverage:null,
     infrastructureStatus:{state:'unavailable',loadedFiles:[],failedFiles:['towns.geojson'],rejectedFeatures:0},
     evidenceAsOf:'2026-07-09T12:00:00Z',availabilityPolicy:'capture-test',computedAt:'2026-09-20T00:00:00Z',
@@ -47,4 +47,21 @@ test('report retry preserves the selected evidence cursor',async(t)=>{
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(urls.length,2);assert.equal(urls[0],urls[1]);assert.match(urls[1],/&at=7200$/);
   assert.match(root.textContent!,/Server facts for b/);
+});
+
+
+test('report marks an expired projection with its absolute valid time', async (t) => {
+  const dom=new JSDOM('<main></main>');
+  Object.defineProperty(globalThis,'document',{value:dom.window.document,configurable:true});
+  t.after(()=>{delete (globalThis as {document?:Document}).document;dom.window.close();});
+  const response=report('expired');
+  response.packet.spreadStatus='expired';response.packet.spreadHorizonHours=6;
+  response.packet.spreadValidAt='2026-07-09T18:00:00Z';
+  t.mock.method(globalThis,'fetch',async()=>Response.json(response));
+  const root=dom.window.document.querySelector('main')!;
+  new AgentPanel(root).track('expired');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.match(root.textContent!,/SPREADEXPIRED/);
+  assert.match(root.textContent!,/PROJECTION VALID2026-07-09T18:00:00Z/);
+  assert.doesNotMatch(root.textContent!,/6 H/);
 });

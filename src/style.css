@@ -546,6 +546,8 @@ body,
   color: var(--dim);
 }
 
+.agent-figure-wide { grid-column: 1 / -1; flex-wrap: wrap; }
+
 .agent-figure span:last-child {
   color: var(--cyan);
 }

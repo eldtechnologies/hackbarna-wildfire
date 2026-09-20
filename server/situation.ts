@@ -7,7 +7,7 @@
 
 import { getFires } from './providers';
 import {FactNarrator, type NarrationFact} from './narration';
-import { getThreats, latestPerimeter } from './threats';
+import { getThreats, latestPerimeter, futureSpreadSteps } from './threats';
 import type { LatLon } from '../shared/fires';
 import { CATEGORY_LABEL, RING_SEVERITY } from '../shared/threats';
 import type {
@@ -129,14 +129,16 @@ export function situationFacts(packet: SituationPacket): NarrationFact[] {
   // Gate on the computed heading, never a fallback literal: without a real
   // bearing the report must not invent one.
   let spread: string;
-  if (packet.spreadHorizonHours <= 0) {
+  if (packet.spreadStatus === 'unavailable') {
     spread = ' No spread projection is available.';
-  } else if (packet.spreadCompass == null || packet.spreadBearingDeg == null) {
-    spread = ` Projection over the next ${packet.spreadHorizonHours} h, no drift heading available.`;
+  } else if (packet.spreadStatus === 'expired') {
+    spread = ` Latest available projection expired at ${packet.spreadValidAt}; no future spread projection is available.`;
   } else {
-    spread =
-      ` Projection over the next ${packet.spreadHorizonHours} h drifts ${packet.spreadCompass}` +
-      ` (bearing ${Math.round(packet.spreadBearingDeg) % 360} deg), a geometric projection rather than measured wind.`;
+    const validity = ` Projection valid at ${packet.spreadValidAt} (${packet.spreadHorizonHours} h after the perimeter observation)`;
+    spread = packet.spreadCompass == null || packet.spreadBearingDeg == null
+      ? `${validity}, no drift heading available.`
+      : `${validity} drifts ${packet.spreadCompass}`
+        + ` (bearing ${Math.round(packet.spreadBearingDeg) % 360} deg), a geometric projection rather than measured wind.`;
   }
 
   const detected =
@@ -209,14 +211,16 @@ export async function getSituation(fireId: string, atSeconds?: number): Promise<
   const perimeter = latestPerimeter(fires, fireId);
 
   const steps = fires.spread
-    .filter((s) => s.clusterId === fireId && s.horizonHours > 0 && s.polygon.length >= 4)
-    .sort((a, b) => a.horizonHours - b.horizonHours);
-  const furthest = steps.length > 0 ? steps[steps.length - 1] : null;
+    .filter(s => s.clusterId === fireId && s.horizonHours > 0 && s.polygon.length >= 4 && Number.isFinite(Date.parse(s.at)))
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const future = futureSpreadSteps(fires, fireId);
+  const furthest = steps.at(-1) ?? null;
+  const spreadStatus = future.length > 0 ? 'future' : furthest ? 'expired' : 'unavailable';
 
   // With no observed perimeter the bearing still derives from the cluster
   // centroid, matching how the threat analysis substitutes a point disc.
   const from = perimeter ? ringCentroid(perimeter.polygon) : cluster.centroid;
-  const to = furthest ? ringCentroid(furthest.polygon) : null;
+  const to = spreadStatus === 'future' && furthest ? ringCentroid(furthest.polygon) : null;
   const drift = from && to ? driftBearing(from, to) : null;
 
   const areaKm2 = perimeter
@@ -242,6 +246,8 @@ export async function getSituation(fireId: string, atSeconds?: number): Promise<
     perimeterAreaKm2: areaKm2,
     perimeterObservedAt: perimeter?.observedAt ?? null,
     spreadHorizonHours: furthest?.horizonHours ?? 0,
+    spreadValidAt: furthest?.at ?? null,
+    spreadStatus,
     spreadBearingDeg: drift != null ? normalizeBearingDeg(drift) : null,
     spreadCompass: drift != null ? compassLabel(drift) : null,
     totalFrpMw: cluster.totalFrpMw,

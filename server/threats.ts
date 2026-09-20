@@ -32,6 +32,13 @@ export function latestPerimeter(fires: FiresResponse, fireId: string): FirePerim
   return latest;
 }
 
+/** Only projections valid after the evidence clock contribute to future exposure. */
+export function futureSpreadSteps(fires: FiresResponse, fireId: string) {
+  const evidenceMs = Date.parse(fires.asOf ?? fires.fetchedAt);
+  return fires.spread.filter(s => s.clusterId === fireId && s.horizonHours > 0
+    && s.polygon.length >= 4 && Date.parse(s.at) > evidenceMs);
+}
+
 function turfPoint(p: LatLon) {
   return point([p.lon, p.lat]);
 }
@@ -119,7 +126,7 @@ export function threatsCacheKey(fireId:string,fires:FiresResponse):string {
     provenance:fires.provenance,scenario:fires.scenario,
     cluster:fires.clusters.find(c=>c.id===fireId),
     perimeters:fires.perimeters.filter(p=>p.clusterId===fireId),
-    spread:fires.spread.filter(s=>s.clusterId===fireId),
+    spread:futureSpreadSteps(fires,fireId),
   })).digest('hex');
 }
 
@@ -158,7 +165,7 @@ async function computeThreats(
 
   const corridor = spreadCorridor(
     fireId,
-    fires.spread.map((s) => ({
+    futureSpreadSteps(fires, fireId).map((s) => ({
       clusterId: s.clusterId,
       horizonHours: s.horizonHours,
       polygon: s.polygon,
