@@ -1,6 +1,6 @@
 # Paired DeepFire / frozen-model benchmark
 
-Measured 20 September 2026. Protocol fixed at 09:23:36 UTC before inference and scoring. This is a retrospective pilot on **38 forecasts from 36 clusters**, with later dates than the frozen model's training data. **All 38 overlap training geography. Only two forecasts contain new positive satellite cells.**
+Measured 20 September 2026. Protocol fixed at 09:23:36 UTC before inference and scoring. This is a retrospective pilot on **38 forecasts from 36 clusters**, with later dates than the frozen model's training data. **All 38 overlap training geography. Only two forecasts contain new positive satellite cells.** Future observability leaves scorable cells in 24 forecasts (23 clusters) at six hours, and 30 forecasts (29 clusters) at three hours. The other matched forecasts contribute no counts; they are not treated as clear negatives.
 
 ## Decision
 
@@ -10,7 +10,7 @@ This does not establish a statistically reliable winner. There are only two posi
 
 ## Six-hour comparison: new detections only
 
-Common absolute endpoints; actual future observation windows are approximately 5–6 hours because DeepFire starts between our model's whole-hour issue times. Primary radius: 20 km. **7,965 eligible cell/forecast pairs, eight positive pairs**. Negative-only cases stay in the score.
+Common absolute endpoints; actual future observation windows are approximately 5–6 hours because DeepFire starts between our model's whole-hour issue times. Primary radius: 20 km. **7,965 eligible cell/forecast pairs, eight positive pairs**. Negative-only cases stay in the score. Fourteen matched forecasts have no eligible six-hour cells after censoring and contribute zero counts.
 
 | Predictor | Found (TP) | Extra alerts (FP) | Missed (FN) | Precision | Recall | F1 |
 |---|---:|---:|---:|---:|---:|---:|
@@ -63,7 +63,7 @@ For the two clusters with multiple forecasts, each forecast gets weight 1 / numb
 | Fixed 2-pixel dilation | 2 | 4 | 3 | 33.3% | 40.0% | 0.364 |
 | Persistence | 0 | 0 | 5 | — | 0.0% | 0.000 |
 
-These are weighted cell counts, not numbers of independent fires. No cell-level confidence interval is reported: it would overstate the amount of independent evidence.
+These are weighted cell counts, not numbers of independent fires. Clusters with unobservable forecasts have correspondingly incomplete evidence under these fixed weights. No cell-level confidence interval is reported: it would overstate the amount of independent evidence.
 
 ## Input and target audit
 
@@ -74,13 +74,14 @@ These are weighted cell counts, not numbers of independent fires. No cell-level 
 5. Start the shared label window at the first ten-minute scan at/after DeepFire creation. End at our issue +3h or +6h. For new-detection scoring, exclude any cell with a detected fire in the preceding three hours through that start, and any positive frozen input-history bin. Require observable model history and exclude the frozen pre-training persistent-heat prior.
 6. A future cell is positive if any scheduled quality flag is 1 or 2. It is negative only when all scheduled flags are 0. Cloud, missing and otherwise unknown cells are censored rather than labelled negative.
 7. Transform saved DeepFire hourly polygons into the exact MTG native grid. Mark any intersected pixel as a simulated alert. Union polygons through both the floor and ceiling forecast hour around the common absolute endpoint. Report both time brackets.
-8. Score the same eligible cells for every predictor. Fixed dilation expands the model-time persistence state by two native grid pixels. Native pixels have varying ground footprints; these outputs do not resolve individual roads or buildings.
+8. DeepFire documentation defines the result as hourly spread polygons and clusters as candidate fires ([fire-spread API](https://docs.deepfire.co/api/fire-spread), [clusters API](https://docs.deepfire.co/api/clusters)). The archive does not expose all internal simulation inputs; this audit cannot prove the provider’s full input causality.
+9. Score the same eligible cells for every predictor. Fixed dilation expands the model-time persistence state by two native grid pixels. Native pixels have varying ground footprints; these outputs do not resolve individual roads or buildings.
 
 The original model's strongest held-out evaluation and this comparison have different cohorts and targets; their AP values must not be compared to these F1 values. All cases here are later in time, but familiar in geography. Some satellite hotspots may be non-wildfire heat sources. These are additional reasons to avoid claiming proven wildfire or evacuation performance.
 
 ## Reproduction and frozen handoff
 
-Two independent executions produce **exactly equal aggregate scores and all 114 array files** (38 inputs/predictions + 76 horizon labels). Input parity is exact for the original held-out sample. See `verification.json`.
+Two independent executions produce **exactly equal aggregate scores and all 114 array files** (38 inputs/predictions + 76 horizon labels). Input parity is exact for the original held-out sample. A separate scikit-learn confusion-matrix rescore matches all 2,128 predictor/case rows, including the empty masks. See `verification.json`.
 
 `frozen-benchmark.zip` holds fixed inputs, predictions, labels, weather, simulation records, protocol, case selection and source snapshots. `SHA256SUMS.json` records file identities. Raw MTG archives, original training data and original checkpoint are local prerequisites for a full reconstruction; their hashes and locations are recorded in the protocol/manifest. The zip is sufficient to rescore cached predictions and reuse the fixed evaluation target. It contains no API credentials.
 
