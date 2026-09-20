@@ -17,10 +17,11 @@ export interface TimeBand {
    *
    * Nullable for the same reason `CutTime.cutAt` is: "never within the window" and
    * "a very late time" are different statements, and without this the only way to say
-   * the former is to invent a window-end timestamp. The engine's internal value here is
-   * Infinity, and `JSON.stringify(Infinity)` is `null` — which the route contract reads
-   * as "already cut", inverting the safest state into the most alarming one. Making the
-   * type nullable forces every consumer to handle it deliberately.
+   * the former is to invent a window-end timestamp. The sweep's internal maximum is
+   * Infinity, and the engine converts it to null explicitly rather than letting it
+   * serialise — an uncut route must never read as "already cut", which would invert the
+   * safest state into the most alarming one. Making the type nullable forces every
+   * consumer to handle it deliberately.
    */
   latest: string | null;
   /** Human-readable description of what was swept, printed beside the number. */

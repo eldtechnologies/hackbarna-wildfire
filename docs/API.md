@@ -34,9 +34,12 @@ returns Express's default HTML 404, not that shape.
 for any reason the provider falls back to replay and the response says `replay`, so the badge
 never claims live data that did not arrive.
 
-**Time is UTC everywhere**, as ISO 8601 with an explicit zone. A quantity the source did not
-supply is `null`, never a synthesized number — a null fire radiative power means "not measured",
-a zero means "measured zero".
+**Timestamps are ISO 8601 with an explicit zone, and the JSON responses are UTC.** The CAP XML is
+the exception: it carries the local offset CAP 1.2 expects (`+02:00` for this scenario), so parse
+it as an offset timestamp rather than assuming `Z`.
+
+A quantity the source did not supply is `null`, never a synthesized number — a null fire radiative
+power means "not measured", a zero means "measured zero".
 
 ### The `?at=` cursor
 
@@ -50,9 +53,10 @@ timeline scrubber drives, so the globe and the analysis agree on what time it is
   the latest state.
 - `at` above `253402300799` is `400`.
 - A valid `at` past the end of the timeline clamps to the last frame. That is not an error.
-- The ceiling is a guard, not a promise the whole range is usable. It exists so a CAP date stays
-  inside the four-digit years the CAP pattern allows, but the value it accepts resolves to the
-  year 10056 — and `/api/cap` validates the document it emits, so **the largest accepted cursor
+- The ceiling is a guard, not a promise that the whole range is usable. It exists so a date in a
+  CAP document (Common Alerting Protocol, the XML format emergency-management systems exchange)
+  stays inside the four-digit years that format allows. But the value it accepts resolves to the
+  year 10056, and `/api/cap` validates the document it emits, so **the largest accepted cursor
   returns `502`** rather than a package:
 
   ```
@@ -260,24 +264,30 @@ array, not present with a null `cutAt`. That is why `segments` is shorter than `
 (4,225 of 29,834 over the committed capture), and it is why a null check on `cutAt` finds nothing
 to match.
 
-The band is the point. The same road reads 19:38 CEST or 00:03 CEST depending on which sensors
-you trust and how wide you draw their footprints, so the engine sweeps twelve sensor
+Departure and cut times are reported as a range rather than a single time. The same road reads
+19:38 CEST or 00:03 CEST depending on which sensors you trust and how wide you draw their
+footprints, and a point estimate would hide that choice. So the engine sweeps twelve sensor
 configurations (`all-1x`, `all-0.5x`, `all-2x`, `geopolar-1x`, …) against two assumption profiles
-(`cautious`, `optimistic`) — twenty-four solves — and ships the envelope, naming the configuration
-behind each end rather than reporting a point estimate.
+(`cautious`, `optimistic`) — twenty-four solves — and reports the envelope, naming the
+configuration behind each end.
 
 `sensorFamilies` reports what each family contributed, including the families that contributed
 nothing, so a missing instrument is visible in the answer rather than only in the source. Over the
 committed July capture: 2,660 detections, 4,225 cut segments of 29,834.
 
-**Read `latest: null` as "never closes", not "unknown" and not "already cut".** In a
-last-safe-departure band, `latest` is null when at least one configuration in the sweep never
-closes that route within the modelled window. Every Bédar route reads that way over the committed
-capture. That is the *safest* state, and the type is nullable to force you to
-handle it: the engine's internal value is `Infinity`, `JSON.stringify(Infinity)` is `null`, and a
-consumer that reads null as "already cut" would invert the safest result into the most alarming
-one. `basis` on every band names what was swept, so the number never travels without its
-assumptions.
+**Two different nulls live in this response, and they mean opposite things.**
+
+- A `lastSafeDeparture` that is itself `null` means the route **is already cut** at this cursor —
+  the worst case. `server/engine/egress.ts` sets it when the band's earliest departure has already
+  passed.
+- A `latest` that is `null` *inside* a band means the opposite: no combination of configuration
+  and assumption profile closes that route inside the modelled window, so there is no upper bound.
+  That is the **safest** state.
+
+Every Bédar route reads the second way over the committed capture. The inner field is nullable
+precisely because a consumer that read it as "already cut" would invert the safest result into the
+most alarming one. `basis` on every band names what was swept, so the number never travels without
+its assumptions.
 
 `400` malformed cursor · `502` egress solve unavailable. Engine faults are deliberately `502`, not
 `400`: a failure here is the engine's, not the caller's.
@@ -403,11 +413,12 @@ Returns `store` (the file's basename, never its path), `total`, `limit`, `unread
 
 Each entry carries `id`, `at` (the cursor the recommendation was made for), `recordedAt` (when it
 was written), `pocketId`, `recommendation`, `evidence`, `inputs`, `inputFingerprint`,
-`cursorSeconds` and `rejected`. Keeping `at` and `recordedAt` separate is the point: the first is
-event time, the second is when an operator would have seen it.
+`cursorSeconds` and `rejected`. The two timestamps answer different questions and are kept apart
+deliberately: `at` is when the event happened, `recordedAt` is when an operator would have seen
+the recommendation.
 
-There is no cursor here — the point of the route is reading the incident without already knowing
-which moments to ask for.
+The route takes no cursor, because reading an incident should not require already knowing which
+moments to ask for.
 
 The store is append-only, capped at 16 MiB, and refuses a symlink or a non-regular file. The
 server refuses to start if the ledger path is unusable rather than serving without a record of

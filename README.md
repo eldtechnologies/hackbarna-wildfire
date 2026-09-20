@@ -10,32 +10,34 @@ Built at [HackBarna 2026](https://hackbarna.com) (Barcelona, 19–20 September 2
 **Monitoring active fires** and **Values at risk**.
 
 > The console renders hotspots, clusters, perimeters, infrastructure and the situation report. It
-> does **not** render cut times, CAP alert packages or the decision ledger — those answer over
+> does **not** render road cut times, alert packages or the decision ledger — those answer over
 > HTTP only. See [The HTTP API](#the-http-api).
 
 ## What it is
 
-**The console** is a CesiumJS globe over Iberia under a dark HUD. It draws eight toggleable
-layers — hotspots, clusters, observed perimeters, infrastructure — and lets you select a fire to
-get a proximity analysis of what is near it and a situation report describing it. It reads four
-endpoints and nothing else.
+**The console** is a 3D globe (CesiumJS) over Iberia under a dark overlay of panels and readouts.
+It draws eight layers you can toggle — hotspots, clusters, observed perimeters, infrastructure —
+and lets you select a fire
+to get an analysis of what is near it and a report describing it. It reads four endpoints and
+nothing else.
 
 **The server** is a thin Express proxy. It keeps the Deepfire API key out of the browser,
-normalises the upstream OGC responses into one flat shape, runs the turf.js geometry, and serves
-the egress engine. It exposes thirteen `GET` routes. Four back the console; nine more — cut
-times, last-safe-departure bands, CAP 1.2 packages, an append-only recommendation ledger, the
-over-alerting figure — are served over HTTP with no console surface yet. They are scoped in
-issues [#35](https://github.com/eldtechnologies/hackbarna-wildfire/issues/35) to
-[#38](https://github.com/eldtechnologies/hackbarna-wildfire/issues/38).
+normalises the upstream responses into one flat shape, does the geometry with turf.js, and serves
+the road-egress engine. It exposes thirteen `GET` routes. Four back the console; nine more answer
+over HTTP with no console surface yet — road cut times, last-safe-departure bands, CAP packages and
+the recommendation ledger, whose panels are scoped in issues
+[#35](https://github.com/eldtechnologies/hackbarna-wildfire/issues/35) to
+[#38](https://github.com/eldtechnologies/hackbarna-wildfire/issues/38), plus the over-alerting
+figure, which has no console surface planned.
 
-**The honesty line.** Replay is the default and the spine: the demo runs a real capture of the
-July 2026 Los Gallardos fire with no fire-data API called and no key needed. Every response says
-whether it came from `live` or `replay`. A quantity the source did not supply is `null`, never a
-plausible number. The thermal model is a research target and its endpoint says so in the response
-body.
+**How it handles what it does not know.** Replay is the default and the demo path: a real capture
+of the July 2026 Los Gallardos fire, with no fire-data API called and no key needed. Every
+response says whether it came from `live` or `replay`. A value the source did not supply is
+`null`, never a plausible number. The thermal model is a research experiment, and its endpoint
+says so in the response body rather than in a footnote.
 
-What is in the box: 2,743 hotspots and 12 observed perimeters in the demo capture, 8,079
-infrastructure assets, a 13,069-node road graph, 13 API routes and 31 test files.
+The demo capture holds 2,743 hotspots and 12 observed perimeters. The repository also carries
+8,079 infrastructure assets, a 13,069-node road graph, 13 API routes and 31 test files.
 
 ## Quick start
 
@@ -131,7 +133,8 @@ loading fails, playback stops and offers Retry rather than labelling the old fra
 time. Layer visibility and camera position survive scrubbing.
 
 Stepping the cursor through the July capture is where you watch the fire itself grow: the observed
-perimeter runs from 40.5 km² to 68.1 km² across the capture. That is observation, not prediction.
+perimeter runs from about 33 km² to about 92 km² across the capture. That is observation, not
+prediction.
 
 ### The spread simulation
 
@@ -247,6 +250,7 @@ Every one is optional except `DEEPFIRE_API_KEY` for live mode. See
 | `LEDGER_PATH` | `data/ledger/recommendations.jsonl` | Where recommendations are appended. The server refuses to start if it is unusable. |
 | `FORECAST_DIR` | *(unset)* | Directory of prepared thermal forecasts. Unset serves an empty list. |
 | `OPENCELLID_TOKEN` | *(empty)* | Read **only** by `scripts/fetch-reach.mjs`. The running server never reads it. |
+| `OPENCELLID_BASE_URL` | `https://opencellid.org` | Base URL for `scripts/fetch-reach.mjs`; override only for a mirror. |
 
 ## Deepfire credentials
 
@@ -287,7 +291,7 @@ follows, so a misconfigured live mode shows as REPLAY rather than as a failure.
 
 `DATA_MODE` selects the source:
 
-- **`replay`** (default) serves a snapshot from `data/snapshots/`. Keyless, no Deepfire quota.
+- **`replay`** (default) serves a snapshot from `data/snapshots/`. No key, no Deepfire quota.
 - **`live`** calls the Deepfire OGC API Features collections and normalises the response. On any
   failure it falls back to replay transparently, so a dead API or venue wifi never blanks the demo.
 
@@ -361,26 +365,30 @@ road out closes and whether a village can still leave. It reads the committed ro
 building footprints, INE population, the July capture and the static-heat fixture once per process,
 and offers no network calls at request time.
 
-**The band is the point.** The same road reads 19:38 CEST or 00:03 CEST depending on which sensors
-you trust and how wide you draw their footprints, so the engine sweeps twelve sensor
-configurations against two assumption profiles — twenty-four solves — and ships the envelope,
-naming the configuration behind each end rather than reporting a point estimate. Over the
-committed capture: 2,660 detections produce 4,225 cut segments out of 29,834.
+**Departure times are reported as a range, not a single time.** The same road reads 19:38 CEST or
+00:03 CEST depending on which sensors you trust and how wide you draw their footprints, and a
+point estimate would hide that choice. The engine sweeps 24 combinations of sensor configuration
+and assumption profile and reports the envelope, naming the configuration behind each end; the
+`GET /api/egress` section of [`docs/API.md`](docs/API.md) lists the configurations and the band's
+field semantics. Over the committed capture: 2,660 detections produce 4,225 cut segments out of
+29,834.
 
-`GET /api/egress` returns the pockets and the routes out of each, with a last-safe-departure band
+`GET /api/egress` returns the pockets and the routes out of each, with a last-safe-departure range
 per route, the assumption set printed beside every number, and a per-sensor-family breakdown that
 includes the families which contributed nothing. A pocket whose routes all fail the action gate
 reports `no_verified_action` — an outcome, not an error.
 
-**The package.** `GET /api/cap/:pocketId` emits CAP 1.2 XML, one `<alert>` per pocket with one
-`<info>` per language. Instruction text comes from a closed set of pre-approved phrasings — the
-engine selects and fills one, it never composes a sentence — and each pocket's document is checked
-against the OASIS CAP 1.2 schema before it is served. The tests validate the emitted XML with
-`xmllint`, and skip cleanly when that binary is not installed.
+**The alert package.** `GET /api/cap/:pocketId` emits one CAP 1.2 document per pocket. CAP is the
+Common Alerting Protocol, the XML format emergency-management systems exchange; the document is
+one `<alert>` with one `<info>` per language. Instruction text comes from a closed set of
+pre-approved phrasings — the engine selects one and fills in names, it never composes a sentence —
+and each pocket's document is validated against the official OASIS CAP 1.2 schema before it is
+served. The tests do the same validation with `xmllint`, and skip cleanly when that binary is not
+installed.
 
 **The ledger.** Every recommendation is appended to an append-only store with its evidence, its
-input fingerprint and both the event time and the time it was recorded. Reading `/api/alerts`
-records one if the same inputs have not been seen.
+input fingerprint, and two timestamps: when the event happened and when the recommendation was
+recorded. Reading `/api/alerts` records one if the same inputs have not been seen.
 
 **Reach.** `GET /api/reach` reports the over-alerting figure: population inside a mobile cell's
 served footprint for a fire that does not reach it, published with the fraction of cells carrying
