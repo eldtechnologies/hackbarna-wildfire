@@ -28,8 +28,9 @@ It renders a cinematic 3D globe focused on the Iberian Peninsula with live wildf
 - Threat ring analysis: for any selected fire, compute assets within buffer zones (5/10/20 km) of current perimeter and projected spread corridor.
 
 ### F4. Situation Agent
-- LLM-powered agent panel: given a selected fire, summarizes the situation in plain language — perimeter size, spread direction, wind conditions, threatened assets ordered by severity, and evacuation recommendations ("Hospital de X lies 6 km downwind — prioritize").
+- LLM-powered agent panel: given a selected fire, summarizes the situation in plain language (perimeter size, derived spread heading, threatened assets ordered by severity, and evacuation recommendations ordered by priority).
 - Grounded strictly in the computed threat data, not freeform hallucination: the agent receives a structured JSON situation packet.
+- Spread direction note: the fire schema has no measured wind field, so the packet's spread direction is the drift heading computed from the perimeter centroid toward the furthest spread projection, not a measured wind. A live wind feed (WeatherNext is the planned source) is a follow-up.
 
 ### F5. Live-First with Cached Fallback
 - Data provider abstraction with two sources: `live` (Deepfire API via server proxy) and `replay` (cached snapshots of a real recorded fire event).

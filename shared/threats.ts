@@ -11,7 +11,6 @@ export interface InfrastructureAsset {
   position: LatLon;
   municipality: string | null;
   county: string | null;
-  population: number | null; // towns only, display only (not simulated)
   voltageKv: number | null; // power lines only
   operator: string | null; // power lines only
 }
@@ -42,4 +41,28 @@ export interface ThreatsResponse {
   threatened: ThreatenedAsset[]; // sorted: innermost ring first, then distance
   corridorCount: number; // assets flagged inSpreadCorridor
   computedAt: string;
+}
+
+// Shared vocabulary so ring severity and category labels live in one place.
+
+export const RING_SEVERITY: Record<ThreatRing, number> = {
+  inside: 0,
+  'ring-5km': 1,
+  'ring-10km': 2,
+  'ring-20km': 3,
+};
+
+export const CATEGORY_LABEL: Record<InfrastructureCategory, string> = {
+  hospital: 'hospital',
+  town: 'town',
+  school: 'school',
+  'power-line': 'power line',
+};
+
+// Where the bundled infrastructure data exists. Fires outside this area get
+// no threat hits because there is no data there, not because the area is
+// safe; the situation agent uses this to qualify an empty threat list.
+export interface InfrastructureCoverage {
+  label: string;
+  bbox: [number, number, number, number]; // [west, south, east, north] degrees
 }

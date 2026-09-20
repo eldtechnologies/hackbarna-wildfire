@@ -13,8 +13,9 @@ import union from '@turf/union';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { getFires } from './providers';
 import { getInfrastructure } from './infrastructure';
-import type { LatLon } from '../shared/fires';
+import type { FirePerimeter, FiresResponse, LatLon } from '../shared/fires';
 import type { ThreatRing, ThreatsResponse } from '../shared/threats';
+import { RING_SEVERITY } from '../shared/threats';
 
 const RING_RADII_KM: { ring: ThreatRing; radiusKm: number }[] = [
   { ring: 'ring-5km', radiusKm: 5 },
@@ -22,12 +23,17 @@ const RING_RADII_KM: { ring: ThreatRing; radiusKm: number }[] = [
   { ring: 'ring-20km', radiusKm: 20 },
 ];
 
-const RING_SEVERITY: Record<ThreatRing, number> = {
-  inside: 0,
-  'ring-5km': 1,
-  'ring-10km': 2,
-  'ring-20km': 3,
-};
+// The one perimeter pick used everywhere a fire's current polygon matters
+// (threat rings, situation packet): the most recently observed one.
+export function latestPerimeter(fires: FiresResponse, fireId: string): FirePerimeter | null {
+  let latest: FirePerimeter | null = null;
+  for (const p of fires.perimeters) {
+    if (p.clusterId === fireId && (!latest || p.observedAt > latest.observedAt)) {
+      latest = p;
+    }
+  }
+  return latest;
+}
 
 function turfPoint(p: LatLon) {
   return point([p.lon, p.lat]);
@@ -108,12 +114,35 @@ function powerLineThreat(
   return best;
 }
 
-export async function getThreats(fireId: string): Promise<ThreatsResponse | null> {
-  const fires = await getFires();
+// Per-fire TTL cache: /api/threats and /api/situation both run the same turf
+// analysis over the same infrastructure data, so a selection pays for it once
+// per window instead of twice per click.
+const THREATS_CACHE_TTL_MS = 60000;
+const threatsCache = new Map<string, { value: ThreatsResponse; expiresAt: number }>();
+
+export async function getThreats(
+  fireId: string,
+  fires?: FiresResponse,
+): Promise<ThreatsResponse | null> {
+  const cached = threatsCache.get(fireId);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+  const value = await computeThreats(fireId, fires);
+  if (value) {
+    threatsCache.set(fireId, { value, expiresAt: Date.now() + THREATS_CACHE_TTL_MS });
+  }
+  return value;
+}
+
+async function computeThreats(
+  fireId: string,
+  fires?: FiresResponse,
+): Promise<ThreatsResponse | null> {
+  fires = fires ?? (await getFires());
   const cluster = fires.clusters.find((c) => c.id === fireId);
   if (!cluster) return null;
 
-  const perimeter = fires.perimeters.find((p) => p.clusterId === fireId);
+  const perimeter = latestPerimeter(fires, fireId);
   const hasPerimeter = perimeter != null;
   const center = perimeter ? perimeterPolygon(perimeter.polygon) : pointDisc(cluster.centroid);
   const centerLine = perimeter ? perimeterLine(perimeter.polygon) : null;

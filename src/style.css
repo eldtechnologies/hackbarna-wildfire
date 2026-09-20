@@ -341,3 +341,24 @@ body,
   font-size: 9px;
   letter-spacing: 0.05em;
 }
+
+/* Narrow viewports: the two panels would overlap, so stack the agent panel
+   above the threat panel. */
+@media (max-width: 860px) {
+  .threat-panel,
+  .agent-panel {
+    width: 300px;
+    max-height: 40vh;
+  }
+
+  .agent-panel {
+    bottom: calc(55vh + 30px);
+  }
+}
+
+.agent-caveat {
+  grid-column: 1 / -1;
+  color: #ff6b5e;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}

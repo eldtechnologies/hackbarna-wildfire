@@ -3,7 +3,7 @@
 // the narrator (LLM or template) only phrases it: every number the client
 // renders comes from these fields, never from the model.
 
-import type { InfrastructureCategory, ThreatRing } from './threats';
+import type { InfrastructureCategory, InfrastructureCoverage, ThreatRing } from './threats';
 
 export interface SituationThreat {
   assetId: string;
@@ -12,7 +12,6 @@ export interface SituationThreat {
   ring: ThreatRing;
   distanceKm: number;
   inSpreadCorridor: boolean;
-  population: number | null; // towns only, display only (not simulated)
 }
 
 export interface EvacuationRecommendation {
@@ -22,8 +21,7 @@ export interface EvacuationRecommendation {
   ring: ThreatRing;
   distanceKm: number;
   inSpreadCorridor: boolean;
-  population: number | null;
-  reason: string; // one-line computed justification, phrased by the narrator
+  reason: string; // computed justification, template-phrased (the LLM only writes the summary)
   priority: 1 | 2 | 3; // 1 = act first (inside perimeter / corridor), 3 = monitor
 }
 
@@ -46,6 +44,10 @@ export interface SituationPacket {
   lastDetectedAt: string;
   threats: SituationThreat[];
   corridorCount: number;
+  // Whether the fire sits inside the region the bundled infrastructure data
+  // covers. When false, an empty threat list means no data there, not that
+  // nothing is at risk; both narrators and the panel qualify on this.
+  infrastructureCoverage: InfrastructureCoverage | null;
   computedAt: string;
 }
 

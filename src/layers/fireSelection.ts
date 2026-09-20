@@ -14,7 +14,8 @@ import {
   Viewer,
 } from 'cesium';
 import { fetchFires, fetchThreats } from '../data/api';
-import type { ThreatenedAsset, ThreatsResponse } from '../../shared/threats';
+import { CATEGORY_LABEL } from '../../shared/threats';
+import type { ThreatsResponse } from '../../shared/threats';
 
 const FIRE_PICK_COLOR = Color.fromCssColorString('#ffb454').withAlpha(0.9);
 
@@ -23,13 +24,6 @@ const RING_LABEL: Record<ThreatsResponse['rings'][number]['ring'], string> = {
   'ring-5km': 'WITHIN 5 KM',
   'ring-10km': 'WITHIN 10 KM',
   'ring-20km': 'WITHIN 20 KM',
-};
-
-const CATEGORY_LABEL: Record<ThreatenedAsset['category'], string> = {
-  hospital: 'HOSPITAL',
-  school: 'SCHOOL',
-  town: 'TOWN',
-  'power-line': 'POWER LINE',
 };
 
 export interface FireSelectionChange {
@@ -174,7 +168,7 @@ export class FireSelectionLayer {
           const right = document.createElement('span');
           right.className = 'threat-asset-info';
           const dist = t.ring === 'inside' ? '0 KM' : `${t.distanceKm.toFixed(1)} KM`;
-          right.textContent = `${CATEGORY_LABEL[t.category]} / ${dist}${t.inSpreadCorridor ? ' / CORRIDOR' : ''}`;
+          right.textContent = `${CATEGORY_LABEL[t.category].toUpperCase()} / ${dist}${t.inSpreadCorridor ? ' / CORRIDOR' : ''}`;
           row.append(left, right);
           body.appendChild(row);
         }

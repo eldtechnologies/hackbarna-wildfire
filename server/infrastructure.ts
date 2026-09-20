@@ -7,9 +7,24 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type {
   InfrastructureAsset,
+  InfrastructureCoverage,
   InfrastructureResponse,
 } from '../shared/threats';
 import type { LatLon } from '../shared/fires';
+
+// Where the bundled infrastructure data actually exists (matches the fetch
+// quadrants in scripts/fetch-infrastructure.mjs). Fires outside this region
+// get no threat hits because there is no data there, not because the area is
+// safe, so consumers must qualify an empty threat list with this.
+export const INFRASTRUCTURE_COVERAGE: InfrastructureCoverage = {
+  label: 'Catalonia',
+  bbox: [0.2, 40.5, 3.5, 42.9], // [west, south, east, north] degrees
+};
+
+export function pointInCoverage(p: LatLon): boolean {
+  const [west, south, east, north] = INFRASTRUCTURE_COVERAGE.bbox;
+  return p.lat >= south && p.lat <= north && p.lon >= west && p.lon <= east;
+}
 
 const INFRA_DIR = path.resolve(process.cwd(), 'data/infrastructure');
 
@@ -47,7 +62,6 @@ function toAsset(f: RawPointFeature): InfrastructureAsset | null {
     position: { lat, lon },
     municipality: f.properties.municipality ?? null,
     county: f.properties.county ?? null,
-    population: null,
     voltageKv: null,
     operator: null,
   };
@@ -66,7 +80,6 @@ function lineToAsset(f: RawLineFeature): { asset: InfrastructureAsset; path: Lat
       position: mid,
       municipality: null,
       county: null,
-      population: null,
       voltageKv: f.properties.voltageKv ?? null,
       operator: f.properties.operator ?? null,
     },

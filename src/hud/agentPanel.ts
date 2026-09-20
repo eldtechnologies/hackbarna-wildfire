@@ -3,22 +3,19 @@
 // server computed; the narrator only phrases them.
 
 import { fetchSituation } from '../data/api';
+import { CATEGORY_LABEL } from '../../shared/threats';
 import type { SituationResponse } from '../../shared/situation';
-
-const CATEGORY_LABEL: Record<SituationResponse['recommendations'][number]['category'], string> = {
-  hospital: 'HOSPITAL',
-  town: 'TOWN',
-  school: 'SCHOOL',
-  'power-line': 'POWER LINE',
-};
 
 export class AgentPanel {
   private request = 0;
+  private trackedId: string | null = null;
 
   constructor(private panel: HTMLElement) {}
 
   /** Track a fire and render its situation report. Null clears the panel. */
   track(fireId: string | null): void {
+    if (fireId === this.trackedId) return; // same fire re-selected, no re-fetch
+    this.trackedId = fireId;
     const seq = ++this.request;
     if (!fireId) {
       this.panel.classList.remove('open');
@@ -32,7 +29,11 @@ export class AgentPanel {
       })
       .catch((err) => {
         console.error('[agent-panel] situation fetch failed:', err);
-        if (seq === this.request) this.renderError();
+        // Allow a retry: the next click on the same fire re-fetches.
+        if (seq === this.request) {
+          this.trackedId = null;
+          this.renderError(fireId);
+        }
       });
   }
 
@@ -42,10 +43,10 @@ export class AgentPanel {
     this.panel.append(this.title('SITUATION AGENT'), this.body('ANALYZING...'));
   }
 
-  private renderError(): void {
+  private renderError(fireId: string): void {
     this.panel.classList.add('open');
     this.panel.replaceChildren();
-    this.panel.append(this.title('SITUATION AGENT'), this.body('REPORT UNAVAILABLE'));
+    this.panel.append(this.title(`SITUATION AGENT / ${fireId}`), this.body('REPORT UNAVAILABLE'));
   }
 
   private title(text: string): HTMLElement {
@@ -82,16 +83,18 @@ export class AgentPanel {
     summary.className = 'agent-summary';
     summary.textContent = situation.summary;
 
+    const spreadValue =
+      packet.spreadHorizonHours > 0
+        ? packet.spreadBearingDeg != null && packet.spreadCompass != null
+          ? `${packet.spreadCompass} / ${packet.spreadHorizonHours} H`
+          : `NO HEADING / ${packet.spreadHorizonHours} H`
+        : 'NO PROJECTION';
+
     const figures = document.createElement('div');
     figures.className = 'agent-figures';
     const rows: [string, string][] = [
       ['PERIMETER', packet.perimeterAreaKm2 != null ? `${packet.perimeterAreaKm2.toFixed(0)} KM2` : 'NONE OBSERVED'],
-      [
-        'SPREAD',
-        packet.spreadHorizonHours > 0
-          ? `${packet.spreadCompass ?? '?'} / ${packet.spreadHorizonHours} H`
-          : 'NO PROJECTION',
-      ],
+      ['SPREAD', spreadValue],
       ['HOTSPOTS', String(packet.hotspotCount)],
       ['THREATS <=20 KM', String(packet.threats.length)],
       ['IN CORRIDOR', String(packet.corridorCount)],
@@ -105,6 +108,15 @@ export class AgentPanel {
       right.textContent = value;
       row.append(left, right);
       figures.appendChild(row);
+    }
+
+    // Outside infrastructure coverage, zero threats means no data there, not
+    // a safe area; say so next to the figure.
+    if (packet.threats.length === 0 && packet.infrastructureCoverage == null) {
+      const caveat = document.createElement('div');
+      caveat.className = 'agent-caveat';
+      caveat.textContent = 'NO INFRASTRUCTURE DATA FOR THIS REGION';
+      figures.appendChild(caveat);
     }
 
     this.panel.append(header, summary, figures);
@@ -130,8 +142,7 @@ export class AgentPanel {
         const right = document.createElement('span');
         right.className = 'threat-asset-info';
         const dist = rec.ring === 'inside' ? '0 KM' : `${rec.distanceKm.toFixed(1)} KM`;
-        const pop = rec.population != null ? ` / ${rec.population.toLocaleString('en-US')} PAX` : '';
-        right.textContent = `${CATEGORY_LABEL[rec.category]} / ${dist}${rec.inSpreadCorridor ? ' / CORRIDOR' : ''}${pop}`;
+        right.textContent = `${CATEGORY_LABEL[rec.category].toUpperCase()} / ${dist}${rec.inSpreadCorridor ? ' / CORRIDOR' : ''}`;
         row.append(rank, left, right);
         list.appendChild(row);
       });
