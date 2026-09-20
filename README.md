@@ -13,6 +13,15 @@ Built at [HackBarna 2026](https://hackbarna.com) (Barcelona, 19–20 September 2
 > does **not** render road cut times, alert packages or the decision ledger — those answer over
 > HTTP only. See [The HTTP API](#the-http-api).
 
+## Demo video
+
+[![Ojo de Fuego demo video: the console tracking a fire with threat rings, spread projection and the situation agent](docs/video/ojo-de-fuego-demo-poster.jpg)](docs/video/ojo-de-fuego-demo.mp4)
+
+**[Watch the 2:34 demo](docs/video/ojo-de-fuego-demo.mp4)** (1080p, 26 MB; also a
+[release asset](https://github.com/eldtechnologies/hackbarna-wildfire/releases/tag/demo-video-2026-09-20)).
+The Castelltallat fire in it is a synthetic exercise and the green sensor look is not on `main`;
+[docs/demo-video.md](docs/demo-video.md) says what each beat shows.
+
 ## What it is
 
 **The console** is a 3D globe (CesiumJS) over Iberia under a dark overlay of panels and readouts.

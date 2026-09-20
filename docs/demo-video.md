@@ -1,7 +1,7 @@
 # Demo video: script as recorded, and how it was shot
 
 Team: **Radical AI** · HackBarna 2026 · Final cut: 2:34, 1080p60, AI voiceover.
-The MP4 is a release asset, not in git: [release `demo-video-2026-09-20`](https://github.com/eldtechnologies/hackbarna-wildfire/releases/tag/demo-video-2026-09-20) ·
+The MP4 is in the repo at [`docs/video/ojo-de-fuego-demo.mp4`](video/ojo-de-fuego-demo.mp4) and also a release asset: [release `demo-video-2026-09-20`](https://github.com/eldtechnologies/hackbarna-wildfire/releases/tag/demo-video-2026-09-20) ·
 [direct download](https://github.com/eldtechnologies/hackbarna-wildfire/releases/download/demo-video-2026-09-20/ojo-de-fuego-demo.mp4).
 
 This page records what was actually shot on 2026-09-20, which differs from the original
