@@ -13,8 +13,8 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function fetchFires(): Promise<FiresResponse> {
-  const data = await getJson<Partial<FiresResponse>>('/api/fires');
+export async function fetchFires(atSeconds?: number, signal?: AbortSignal): Promise<FiresResponse> {
+  const data = await getJson<Partial<FiresResponse>>(`/api/fires${atSeconds == null ? '' : `?at=${atSeconds}`}`, signal);
   // Boundary guard: a partial payload defaults to empty lists instead of
   // throwing inside the layer.
   return {

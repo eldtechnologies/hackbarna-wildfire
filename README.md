@@ -60,6 +60,24 @@ The harness writes nothing unless every corpus scored, so a run without the data
 
 ## Data modes
 
+### Observation playback
+
+The **Observation replay** panel plays recorded evidence, including the real Los
+Gallardos capture. Start/End, ±1H and the slider send `?at=<seconds>` to the server.
+The date above the slider always belongs to the snapshot currently on the map.
+Play advances half an event-hour per loaded frame; Pause freezes the current
+snapshot. It stops at the end, where Replay starts again from the beginning.
+
+Hotspots, cluster geometry, observed perimeters and selected-fire threat and situation reports
+use the same cursor. While a new frame loads, the previous frame stays visible.
+If loading fails, playback stops and offers Retry; it never labels the old frame
+with a new time. Layer visibility and camera position survive scrubbing.
+
+**Spread forecast** is separate. Its controls are disabled with an explanation
+when the selected fire has no forecast polygons. A recorded observation is not a
+prediction. Historical availability uses the documented source-delay assumptions;
+cluster association remains retrospective (see `docs/forecast-contract.md`).
+
 The server has two data sources, selected with `DATA_MODE`:
 
 - `replay` (default): serves a cached snapshot from `data/snapshots/`. Works with no keys and no network.

@@ -11,6 +11,7 @@ import { LAYERS, LAYER_COLORS, isLayerVisible, setLayerVisible } from '../layers
 // Pure DOM overlay on top of the Cesium canvas.
 
 export interface HudHandle {
+  sidePanels: HTMLElement;
   /** Update the LIVE/REPLAY badge from the API response provenance. */
   setMode: (mode: 'live' | 'replay') => void;
 }
@@ -76,7 +77,9 @@ export function initHud(viewer: Viewer, root: HTMLElement): HudHandle {
     row.appendChild(el('span', '', layer.label));
     layersPanel.appendChild(row);
   }
-  root.appendChild(layersPanel);
+  const sidePanels = el('div', 'hud-side-panels');
+  sidePanels.appendChild(layersPanel);
+  root.appendChild(sidePanels);
 
   const tick = () => {
     clock.textContent = `${new Date().toISOString().slice(11, 19)} UTC`;
@@ -103,6 +106,7 @@ export function initHud(viewer: Viewer, root: HTMLElement): HudHandle {
   }, ScreenSpaceEventType.MOUSE_MOVE);
 
   return {
+    sidePanels,
     setMode(mode) {
       modeBadge.textContent = mode.toUpperCase();
       // Live gets the cyan accent; replay keeps the default amber.

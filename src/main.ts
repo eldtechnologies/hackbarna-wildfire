@@ -10,6 +10,8 @@ import { InfrastructureLayer } from './layers/infrastructure';
 import { FireSelectionLayer } from './layers/fireSelection';
 import { AgentPanel } from './hud/agentPanel';
 import { fetchFires } from './data/api';
+import { FirePlayback, replayPosition, replayTimeline } from './data/playback';
+import { initReplayPanel } from './hud/replayPanel';
 import type {FiresResponse} from '../shared/fires';
 
 const globeEl = document.getElementById('globe');
@@ -24,9 +26,9 @@ const viewer = createGlobeViewer(container);
 const hud = initHud(viewer, hudRoot);
 const fireLayer = new FireLayer(viewer);
 const firePanels = initFirePanels(fireLayer, hudRoot);
-// Hotspot + cluster controller. Polls /api/fires on its own cadence and
-// drives the provenance badge.
-createFireLayer(viewer, hudRoot, hud.setMode);
+const hotspotLayer = createFireLayer(viewer, firePanels);
+const playback = new FirePlayback(fetchFires);
+initReplayPanel(playback, hudRoot);
 
 const threatPanel = document.createElement('div');
 threatPanel.className = 'threat-panel';
@@ -34,7 +36,7 @@ firePanels.appendChild(threatPanel);
 
 const agentRoot = document.createElement('div');
 agentRoot.className = 'agent-panel';
-hudRoot.appendChild(agentRoot);
+hud.sidePanels.appendChild(agentRoot);
 const agentPanel = new AgentPanel(agentRoot);
 
 new InfrastructureLayer(viewer.scene, (asset) => {
@@ -58,28 +60,26 @@ const fireSelection=new FireSelectionLayer(viewer, threatPanel, (fireId) => {
   }
 });
 
-let evidence: FiresResponse | null=null;
-fireLayer.onStateChange(({selectedId})=>{
-  const at=evidence?.provenance==='replay' && evidence.timeline && evidence.asOf
-    ? Math.ceil((Date.parse(evidence.asOf)-Date.parse(evidence.timeline.start))/1000) : undefined;
-  const key=evidence?.asOf??evidence?.fetchedAt??'latest';
-  fireSelection.track(selectedId,at,key);
-  agentPanel.track(selectedId,at,key);
+let evidence: FiresResponse | null = null;
+fireLayer.onStateChange(({selectedId}) => {
+  const at = replayTimeline(evidence) ? replayPosition(evidence) : undefined;
+  const key = evidence?.asOf ?? evidence?.fetchedAt ?? 'latest';
+  fireSelection.track(selectedId, at, key);
+  agentPanel.track(selectedId, at, key);
 });
 
-async function loadFires(): Promise<void> {
+playback.subscribe(({data}) => {
+  if (!data || data === evidence) return;
+  evidence = data;
+  hud.setMode(data.provenance);
+  viewer.entities.suspendEvents();
   try {
-    const response = await fetchFires();
-    hud.setMode(response.provenance);
-    evidence=response;
-    fireLayer.setData(response);
-  } catch (err) {
-    const banner = document.createElement('div');
-    banner.className = 'hud-error';
-    banner.textContent = 'FIRE DATA UNAVAILABLE';
-    hudRoot.appendChild(banner);
-    throw err;
+    hotspotLayer.setData(data);
+    fireSelection.setData(data);
+    fireLayer.setData(data);
+  } finally {
+    viewer.entities.resumeEvents();
   }
-}
-
-void loadFires();
+});
+void playback.start();
+window.addEventListener('pagehide', () => playback.dispose(), {once: true});

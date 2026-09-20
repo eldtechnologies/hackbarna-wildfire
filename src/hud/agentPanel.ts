@@ -1,3 +1,4 @@
+import { clusterDisplayName } from '../fires/display';
 import { fetchSituation } from '../data/api';
 import { CATEGORY_LABEL } from '../../shared/threats';
 import type { SituationResponse } from '../../shared/situation';
@@ -72,7 +73,7 @@ export class AgentPanel {
     const header = document.createElement('div');
     header.className = 'agent-header';
     const heading = document.createElement('span');
-    heading.textContent = `SITUATION AGENT / ${packet.fireName ?? packet.fireId}`;
+    heading.textContent = `SITUATION AGENT / ${clusterDisplayName({name:packet.fireName,id:packet.fireId})}`;
     const badge = document.createElement('span');
     badge.className =
       'agent-badge ' + (situation.narrator === 'llm' ? 'agent-badge-llm' : 'agent-badge-template');

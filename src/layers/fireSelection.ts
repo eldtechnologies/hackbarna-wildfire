@@ -15,8 +15,9 @@ import {
   ScreenSpaceEventType,
   Viewer,
 } from 'cesium';
-import { fetchFires, fetchThreats } from '../data/api';
+import { fetchThreats } from '../data/api';
 import { CATEGORY_LABEL } from '../../shared/threats';
+import type { FiresResponse } from '../../shared/fires';
 import type { ThreatsResponse } from '../../shared/threats';
 import { isLayerVisible, onVisibilityChanged } from './registry';
 
@@ -71,17 +72,11 @@ export class FireSelectionLayer {
       }
     });
 
-    void this.load();
   }
 
-  private async load(): Promise<void> {
-    let fires;
-    try {
-      fires = await fetchFires();
-    } catch (err) {
-      console.error('[fire-selection] fetch failed:', err);
-      return;
-    }
+  setData(fires: FiresResponse): void {
+    for (const id of this.markerIds) this.viewer.entities.removeById(id);
+    this.markerIds = [];
     const clustersVisible = isLayerVisible('clusters');
     for (const cluster of fires.clusters) {
       const id = `fire:${cluster.id}`;
@@ -155,7 +150,7 @@ export class FireSelectionLayer {
 
     const title = document.createElement('div');
     title.className = 'threat-title';
-    title.textContent = `THREAT ANALYSIS / ${threats.fireId}`;
+    title.textContent = `THREAT ANALYSIS / ${clusterDisplayName({name:null,id:threats.fireId})}`;
 
     const meta = document.createElement('div');
     meta.className = 'threat-meta';
