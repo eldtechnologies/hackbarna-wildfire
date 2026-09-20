@@ -81,4 +81,5 @@ export const CATEGORY_LABEL: Record<InfrastructureCategory, string> = {
 export interface InfrastructureCoverage {
   label: string;
   bbox: [number, number, number, number]; // [west, south, east, north] degrees
+  note?: string; // source/date limitations carried into reports
 }

@@ -128,6 +128,12 @@ export class AgentPanel {
           : 'NO INFRASTRUCTURE DATA FOR THIS REGION';
       figures.appendChild(caveat);
     }
+    if (packet.infrastructureCoverage?.note) {
+      const sourceNote = document.createElement('div');
+      sourceNote.className = 'agent-caveat';
+      sourceNote.textContent = packet.infrastructureCoverage.note;
+      figures.appendChild(sourceNote);
+    }
 
     this.panel.append(header, summary, figures);
 

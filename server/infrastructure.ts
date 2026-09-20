@@ -22,9 +22,17 @@ export const INFRASTRUCTURE_COVERAGE: InfrastructureCoverage = {
   bbox: [0.25, 40.54, 3.28, 42.84], // [west, south, east, north] degrees
 };
 
-export function pointInCoverage(p: LatLon): boolean {
-  const [west, south, east, north] = INFRASTRUCTURE_COVERAGE.bbox;
-  return p.lat >= south && p.lat <= north && p.lon >= west && p.lon <= east;
+const ALMERIA_COVERAGE: InfrastructureCoverage = {
+  label: 'Eastern Almería (OpenStreetMap)',
+  bbox: [-2.45, 36.8, -1.55, 37.65],
+  note: 'OSM snapshot 2026-09-18; not a historical inventory. Mapped assets may be incomplete.',
+};
+
+export function coverageAt(p: LatLon): InfrastructureCoverage | null {
+  return [INFRASTRUCTURE_COVERAGE, ALMERIA_COVERAGE].find(coverage => {
+    const [west, south, east, north] = coverage.bbox;
+    return p.lat >= south && p.lat <= north && p.lon >= west && p.lon <= east;
+  }) ?? null;
 }
 
 const INFRA_DIR = path.resolve(process.cwd(), 'data/infrastructure');

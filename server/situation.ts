@@ -168,6 +168,8 @@ export function situationFacts(packet: SituationPacket): NarrationFact[] {
     threatLine = ` ${bits.join(', ')}.`;
   }
 
+  if (packet.infrastructureCoverage?.note) threatLine += ` ${packet.infrastructureCoverage.note}`;
+
   return [
     {id:'perimeter',text:area.trim()}, {id:'spread',text:spread.trim()},
     {id:'detections',text:detected.trim()}, {id:'threats',text:threatLine.trim()},
