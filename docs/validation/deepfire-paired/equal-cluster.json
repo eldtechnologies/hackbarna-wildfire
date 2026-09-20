@@ -1,0 +1,71 @@
+{
+  "definition": "Each forecast has weight 1 / number of forecasts for its cluster, then pool weighted counts; not mean per-cluster F1.",
+  "horizon": 6,
+  "roi_km": 20,
+  "mask": "novel",
+  "scores": {
+    "model_0.1": {
+      "tp": 1.0,
+      "fp": 1.0,
+      "fn": 4.0,
+      "tn": 6961.5,
+      "precision": 0.5,
+      "recall": 0.2,
+      "f1": 0.2857142857142857
+    },
+    "model_0.25": {
+      "tp": 0.0,
+      "fp": 0.0,
+      "fn": 5.0,
+      "tn": 6962.5,
+      "precision": null,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "model_0.5": {
+      "tp": 0.0,
+      "fp": 0.0,
+      "fn": 5.0,
+      "tn": 6962.5,
+      "precision": null,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "deepfire_earlier": {
+      "tp": 1.5,
+      "fp": 59.5,
+      "fn": 3.5,
+      "tn": 6903.0,
+      "precision": 0.02459016393442623,
+      "recall": 0.3,
+      "f1": 0.045454545454545456
+    },
+    "deepfire_later": {
+      "tp": 1.5,
+      "fp": 75.5,
+      "fn": 3.5,
+      "tn": 6887.0,
+      "precision": 0.01948051948051948,
+      "recall": 0.3,
+      "f1": 0.036585365853658534
+    },
+    "persistence": {
+      "tp": 0.0,
+      "fp": 0.0,
+      "fn": 5.0,
+      "tn": 6962.5,
+      "precision": null,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "dilation_2px": {
+      "tp": 2.0,
+      "fp": 4.0,
+      "fn": 3.0,
+      "tn": 6958.5,
+      "precision": 0.3333333333333333,
+      "recall": 0.4,
+      "f1": 0.36363636363636365
+    }
+  }
+}

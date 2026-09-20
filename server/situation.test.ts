@@ -14,12 +14,13 @@ test('situation uses actual evidence time and always distinguishes missing data 
   assert.match(report.summary,/not evacuation orders or road-access decisions/);
   const packet=structuredClone(report.packet);packet.threats=[];
   packet.infrastructureStatus={state:'unavailable',loadedFiles:[],failedFiles:['towns.geojson'],rejectedFeatures:0};
-  packet.infrastructureCoverage={label:'test coverage',bbox:[0,40,3,43]};
+  packet.infrastructureCoverage={label:'test coverage',bbox:[0,40,3,43],note:'OSM snapshot 2026-09-18; not a historical inventory.'};
   const unavailable=situationFacts(packet).map(f=>f.text).join(' ');
   assert.match(unavailable,/Infrastructure data unavailable/);
   assert.doesNotMatch(unavailable,/No bundled infrastructure/);
   packet.infrastructureStatus.state='available';
   assert.match(situationFacts(packet).find(f=>f.id==='threats')!.text,/No bundled infrastructure/);
+  assert.match(situationFacts(packet).find(f=>f.id==='threats')!.text,/OSM snapshot 2026-09-18; not a historical inventory/);
   packet.infrastructureCoverage=null;
   assert.match(situationFacts(packet).find(f=>f.id==='threats')!.text,/does not mean the area is safe/);
 });

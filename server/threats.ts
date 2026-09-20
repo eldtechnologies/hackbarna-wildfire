@@ -12,7 +12,7 @@ import pointToLineDistance from '@turf/point-to-line-distance';
 import union from '@turf/union';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { getFires } from './providers';
-import { getInfrastructure, pointInCoverage, INFRASTRUCTURE_COVERAGE } from './infrastructure';
+import { getInfrastructure, coverageAt } from './infrastructure';
 import { createHash } from 'node:crypto';
 import { BoundedCache } from './bounded-cache';
 import type { FirePerimeter, FiresResponse, LatLon } from '../shared/fires';
@@ -231,7 +231,7 @@ async function computeThreats(
   return {
     fireId,
     infrastructureStatus:status,
-    infrastructureCoverage:pointInCoverage(cluster.centroid) ? INFRASTRUCTURE_COVERAGE : null,
+    infrastructureCoverage:coverageAt(cluster.centroid),
     hasPerimeter,
     rings: [
       { ring: 'inside' as ThreatRing, radiusKm: null },

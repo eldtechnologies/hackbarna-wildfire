@@ -1,0 +1,20 @@
+{
+  "region": "eastern-almeria",
+  "bbox": [
+    -2.45,
+    36.8,
+    -1.55,
+    37.65
+  ],
+  "snapshot_at": "2026-09-18T20:21:10Z",
+  "source": "https://download.geofabrik.de/europe/spain/andalucia.html",
+  "license": "ODbL 1.0, © OpenStreetMap contributors",
+  "source_sha256": "b13affcc4c24524ae75ce2212592ba156977c7d870c0d3ac19dea99ac1a74ad7",
+  "scope": "OSM mapped assets; completeness not guaranteed. Snapshot postdates the July replay.",
+  "counts": {
+    "hospital": 10,
+    "school": 153,
+    "town": 601,
+    "power-line": 315
+  }
+}

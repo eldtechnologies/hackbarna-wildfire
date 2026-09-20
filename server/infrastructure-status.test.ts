@@ -5,18 +5,28 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {loadInfrastructure} from './infrastructure';
 
-test('infrastructure distinguishes missing, partial and successfully empty datasets',async(t)=>{
+test('infrastructure rejects missing, empty and unusable files and reports partial bundles',async(t)=>{
   const directory=await mkdtemp(join(tmpdir(),'infra-status-'));
   t.after(()=>rm(directory,{recursive:true,force:true}));
+  const files=['hospitals.geojson','schools.geojson','towns.geojson','power-lines.geojson'];
   const missing=await loadInfrastructure(directory);
   assert.equal(missing.status.state,'unavailable');assert.equal(missing.status.failedFiles.length,4);
-  await writeFile(join(directory,'hospitals.geojson'),JSON.stringify({features:[]}));
+  for(const file of files) await writeFile(join(directory,file),JSON.stringify({features:[]}));
+  const empty=await loadInfrastructure(directory);
+  assert.equal(empty.status.state,'unavailable');assert.equal(empty.assets.length,0);
+  assert.deepEqual(empty.status.failedFiles,files);
+  assert.deepEqual(empty.status.loadedFiles,[]);
+  const point={properties:{id:'hospital',name:'Hospital',category:'hospital'},geometry:{type:'Point',coordinates:[2,41]}};
+  await writeFile(join(directory,files[0]),JSON.stringify({features:[point]}));
   const partial=await loadInfrastructure(directory);
   assert.equal(partial.status.state,'partial');assert.equal(partial.status.loadedFiles.length,1);
-  for(const file of ['schools.geojson','towns.geojson','power-lines.geojson'])
-    await writeFile(join(directory,file),JSON.stringify({features:[]}));
-  const complete=await loadInfrastructure(directory);
-  assert.equal(complete.status.state,'available');assert.equal(complete.assets.length,0);
-  await writeFile(join(directory,'towns.geojson'),JSON.stringify({wrong:[]}));
-  assert.equal((await loadInfrastructure(directory)).status.state,'partial');
+  for(const [i,category] of ['school','town'].entries())
+    await writeFile(join(directory,files[i+1]),JSON.stringify({features:[{...point,properties:{id:category,name:category,category}}]}));
+  await writeFile(join(directory,files[3]),JSON.stringify({features:[{properties:{id:'line'},geometry:{type:'LineString',coordinates:[[2,41],[3,42]]}}]}));
+  assert.equal((await loadInfrastructure(directory)).status.state,'available');
+  await writeFile(join(directory,files[2]),JSON.stringify({features:[null]}));
+  const rejected=await loadInfrastructure(directory);
+  assert.equal(rejected.status.state,'partial');
+  assert.deepEqual(rejected.status.failedFiles,['towns.geojson']);
+  assert.equal(rejected.status.rejectedFeatures,1);
 });

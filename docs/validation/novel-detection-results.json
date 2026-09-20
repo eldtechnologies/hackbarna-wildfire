@@ -1,0 +1,1669 @@
+{
+  "protocol": {
+    "created_utc": "2026-09-20T08:13:46.901158+00:00",
+    "kind": "exploratory audit of already-evaluated frozen pilot; not a fresh untouched confirmatory test",
+    "checkpoint_sha256": "69d1a4d3d56f3e7e69baf676476cdb5c8ae7ca221700275e9b7e6d755d10a854",
+    "manifest_sha256": "6a892f380242c2a253393daf59e92c0b84326b7171355db860cae1080e78e31e",
+    "trainer_sha256": "83a42e470850d3c9961805e3603a0b14db8207219e06eccc38503b57a4cfb6f6",
+    "candidate": "run-001 seed 0 epoch 10; no training or selection changes",
+    "population": "all nonempty test episodes in frozen full-v1",
+    "horizons_hours": [
+      1,
+      3,
+      6
+    ],
+    "primary_target": "Observed thermal detections among cells with no detection in any past input bin and at least one observable past scan, restricted to valid future labels. Not independent physical burned-area spread.",
+    "secondary_target": "Existing latest-state novel mask: P==0 and any past observability",
+    "baselines": [
+      "persistence P",
+      "fixed exp(-distance to P / 2) from trainer",
+      "fixed exp(-distance to any past input detection / 2)"
+    ],
+    "metrics": [
+      "pooled AP",
+      "per-event AP",
+      "geographic-block mean paired AP difference and bootstrap 95% CI (2000 draws, RNG 0)",
+      "positive prevalence",
+      "Brier score",
+      "false-positive rate at 0.5"
+    ],
+    "support_rule": "Primary novel-cell event AP improvement over both distance baselines with geographic-block CI lower bound > 0 at all horizons. Otherwise report failure or inconclusive. No threshold/model tuning.",
+    "limits": [
+      "one seed",
+      "holdout already evaluated before this audit",
+      "thermal episodes not independently confirmed fires",
+      "archived publication timing includes stated assumptions",
+      "local PyTorch/device differs from original training runtime"
+    ]
+  },
+  "torch": "2.14.0",
+  "numpy": "2.5.3",
+  "device": "mps",
+  "cpu_device_parity": {
+    "batch_samples": 16,
+    "max_abs_cpu_device_delta": 2.3990869522094727e-06
+  },
+  "events": 252,
+  "samples": 4021,
+  "all_test_artifact_hashes_verified": true,
+  "scores": {
+    "full": {
+      "1": {
+        "cells": 10603409,
+        "positives": 2998,
+        "prevalence": 0.00028273925866671744,
+        "model": {
+          "ap": 0.503682108899295,
+          "brier": 0.00017862724812140685,
+          "negative_fpr_05": 3.3489267538777506e-05,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 1736,
+              "false_positive": 2326,
+              "false_negative": 1262,
+              "precision": 0.4273756770064008,
+              "recall": 0.5790527018012008
+            },
+            "0.25": {
+              "true_positive": 1496,
+              "false_positive": 952,
+              "false_negative": 1502,
+              "precision": 0.6111111111111112,
+              "recall": 0.4989993328885924
+            },
+            "0.5": {
+              "true_positive": 1154,
+              "false_positive": 355,
+              "false_negative": 1844,
+              "precision": 0.7647448641484427,
+              "recall": 0.38492328218812544
+            }
+          }
+        },
+        "persistence": {
+          "ap": 0.27857497647480717,
+          "brier": 0.0002151194960035966,
+          "negative_fpr_05": 4.065880087102283e-05,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 1148,
+              "false_positive": 431,
+              "false_negative": 1850,
+              "precision": 0.727042431918936,
+              "recall": 0.3829219479653102
+            },
+            "0.25": {
+              "true_positive": 1148,
+              "false_positive": 431,
+              "false_negative": 1850,
+              "precision": 0.727042431918936,
+              "recall": 0.3829219479653102
+            },
+            "0.5": {
+              "true_positive": 1148,
+              "false_positive": 431,
+              "false_negative": 1850,
+              "precision": 0.727042431918936,
+              "recall": 0.3829219479653102
+            }
+          }
+        },
+        "dilation": {
+          "ap": 0.34330588502545256,
+          "brier": 0.000602154619606377,
+          "negative_fpr_05": 0.0003317795885461422,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 1867,
+              "false_positive": 61156,
+              "false_negative": 1131,
+              "precision": 0.029624105485299018,
+              "recall": 0.6227484989993329
+            },
+            "0.25": {
+              "true_positive": 1801,
+              "false_positive": 17365,
+              "false_negative": 1197,
+              "precision": 0.09396848586037775,
+              "recall": 0.6007338225483656
+            },
+            "0.5": {
+              "true_positive": 1665,
+              "false_positive": 3517,
+              "false_negative": 1333,
+              "precision": 0.32130451563103046,
+              "recall": 0.5553702468312208
+            }
+          }
+        },
+        "history_dilation": {
+          "ap": 0.19793587879707553,
+          "brier": 0.0014276752618409985,
+          "negative_fpr_05": 0.0011443895901772111,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 2111,
+              "false_positive": 136536,
+              "false_negative": 887,
+              "precision": 0.015225717108916889,
+              "recall": 0.7041360907271514
+            },
+            "0.25": {
+              "true_positive": 2039,
+              "false_positive": 43828,
+              "false_negative": 959,
+              "precision": 0.044454618789107635,
+              "recall": 0.6801200800533689
+            },
+            "0.5": {
+              "true_positive": 1918,
+              "false_positive": 12131,
+              "false_negative": 1080,
+              "precision": 0.13652217239661185,
+              "recall": 0.6397598398932621
+            }
+          }
+        },
+        "paired_event_ap_group_bootstrap": {
+          "persistence": {
+            "groups": 10,
+            "mean": 0.16666692401438593,
+            "ci95": [
+              0.11414028448359233,
+              0.21980200332845748
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.21246604690040083,
+              "native256-4-24": 0.2747956685531105,
+              "native256-8-22": 0.08797558537375413,
+              "native256-9-22": 0.09209188076274354,
+              "native256-5-22": 0.3124767257913624,
+              "native256-8-19": 0.10185732229770592,
+              "native256-5-24": 0.21943738886923908,
+              "native256-4-26": 0.20601992619168835,
+              "native256-4-28": 0.04309807538509928,
+              "native256-8-24": 0.11645062001875538
+            }
+          },
+          "dilation": {
+            "groups": 10,
+            "mean": 0.10289295641293965,
+            "ci95": [
+              0.06678123134026118,
+              0.13849517524954028
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.11938081106400415,
+              "native256-4-24": 0.19613885870804212,
+              "native256-8-22": 0.03767696779819749,
+              "native256-9-22": 0.05920539233147735,
+              "native256-5-22": 0.1500435605780445,
+              "native256-8-19": 0.05697786947186852,
+              "native256-5-24": 0.14582706204411147,
+              "native256-4-26": 0.16532400952253037,
+              "native256-4-28": 0.01329929633450388,
+              "native256-8-24": 0.08505573627661671
+            }
+          },
+          "history_dilation": {
+            "groups": 10,
+            "mean": 0.1852766504694249,
+            "ci95": [
+              0.13797782568927786,
+              0.2395828466632246
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.23717614740241869,
+              "native256-4-24": 0.1287027267616266,
+              "native256-8-22": 0.09246763412356085,
+              "native256-9-22": 0.10940285460594927,
+              "native256-5-22": 0.24492011479252804,
+              "native256-8-19": 0.21513689986333734,
+              "native256-5-24": 0.23267777469991824,
+              "native256-4-26": 0.36634082157920805,
+              "native256-4-28": 0.09464582473102268,
+              "native256-8-24": 0.13129570613467906
+            }
+          }
+        }
+      },
+      "3": {
+        "cells": 8766265,
+        "positives": 5166,
+        "prevalence": 0.0005893045669963206,
+        "model": {
+          "ap": 0.4100555214080042,
+          "brier": 0.000409908873682158,
+          "negative_fpr_05": 4.188972182599466e-05,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 2289,
+              "false_positive": 2532,
+              "false_negative": 2877,
+              "precision": 0.4747977598008712,
+              "recall": 0.44308943089430897
+            },
+            "0.25": {
+              "true_positive": 2018,
+              "false_positive": 977,
+              "false_negative": 3148,
+              "precision": 0.6737896494156929,
+              "recall": 0.3906310491676345
+            },
+            "0.5": {
+              "true_positive": 1605,
+              "false_positive": 367,
+              "false_negative": 3561,
+              "precision": 0.813894523326572,
+              "recall": 0.31068524970963995
+            }
+          }
+        },
+        "persistence": {
+          "ap": 0.20435704940579189,
+          "brier": 0.000476713857041739,
+          "negative_fpr_05": 3.778064829537938e-05,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 1318,
+              "false_positive": 331,
+              "false_negative": 3848,
+              "precision": 0.7992722862340813,
+              "recall": 0.2551296941540844
+            },
+            "0.25": {
+              "true_positive": 1318,
+              "false_positive": 331,
+              "false_negative": 3848,
+              "precision": 0.7992722862340813,
+              "recall": 0.2551296941540844
+            },
+            "0.5": {
+              "true_positive": 1318,
+              "false_positive": 331,
+              "false_negative": 3848,
+              "precision": 0.7992722862340813,
+              "recall": 0.2551296941540844
+            }
+          }
+        },
+        "dilation": {
+          "ap": 0.28226172494990526,
+          "brier": 0.0008004742595987536,
+          "negative_fpr_05": 0.0003007613542547573,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 2422,
+              "false_positive": 49487,
+              "false_negative": 2744,
+              "precision": 0.04665857558419542,
+              "recall": 0.46883468834688347
+            },
+            "0.25": {
+              "true_positive": 2293,
+              "false_positive": 13672,
+              "false_negative": 2873,
+              "precision": 0.14362668336987158,
+              "recall": 0.4438637243515292
+            },
+            "0.5": {
+              "true_positive": 2070,
+              "false_positive": 2635,
+              "false_negative": 3096,
+              "precision": 0.4399574920297556,
+              "recall": 0.40069686411149824
+            }
+          }
+        },
+        "history_dilation": {
+          "ap": 0.18752096030183218,
+          "brier": 0.0016046968254607636,
+          "negative_fpr_05": 0.0011165265910132963,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 2833,
+              "false_positive": 111872,
+              "false_negative": 2333,
+              "precision": 0.024698138703631054,
+              "recall": 0.5483933410762679
+            },
+            "0.25": {
+              "true_positive": 2677,
+              "false_positive": 35647,
+              "false_negative": 2489,
+              "precision": 0.06985179000104373,
+              "recall": 0.5181958962446768
+            },
+            "0.5": {
+              "true_positive": 2471,
+              "false_positive": 9782,
+              "false_negative": 2695,
+              "precision": 0.20166489839223048,
+              "recall": 0.47831978319783197
+            }
+          }
+        },
+        "paired_event_ap_group_bootstrap": {
+          "persistence": {
+            "groups": 10,
+            "mean": 0.16841080429604105,
+            "ci95": [
+              0.11633135112585291,
+              0.22791960086983717
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.22231988367366304,
+              "native256-4-24": 0.31477120311138346,
+              "native256-8-22": 0.07740571193837481,
+              "native256-9-22": 0.06036646656002446,
+              "native256-5-22": 0.31807307781221666,
+              "native256-8-19": 0.10848405299448047,
+              "native256-5-24": 0.21560858189094415,
+              "native256-4-26": 0.14848947240764163,
+              "native256-8-24": 0.1589152169290288,
+              "native256-4-28": 0.059674375642653064
+            }
+          },
+          "dilation": {
+            "groups": 10,
+            "mean": 0.0658141589603726,
+            "ci95": [
+              0.017576192479100555,
+              0.10756649888931392
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.10091064453143216,
+              "native256-4-24": 0.17864639858911444,
+              "native256-8-22": 0.02900170472930111,
+              "native256-9-22": 0.026874079240288243,
+              "native256-5-22": 0.1358973405846433,
+              "native256-8-19": 0.05767229751690329,
+              "native256-5-24": 0.10126655934759832,
+              "native256-4-26": 0.062181429935259505,
+              "native256-8-24": 0.07261695476278936,
+              "native256-4-28": -0.10692581963360366
+            }
+          },
+          "history_dilation": {
+            "groups": 10,
+            "mean": 0.12618299014351964,
+            "ci95": [
+              0.07564904118604952,
+              0.17467401985787065
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.1540199993225017,
+              "native256-4-24": 0.11416294028375434,
+              "native256-8-22": 0.06535642528676353,
+              "native256-9-22": 0.0762405937068116,
+              "native256-5-22": 0.20088806806935275,
+              "native256-8-19": 0.1708651420090193,
+              "native256-5-24": 0.1513895272867771,
+              "native256-4-26": 0.27366883984863105,
+              "native256-8-24": 0.09622742200302822,
+              "native256-4-28": -0.04098905638144295
+            }
+          }
+        }
+      },
+      "6": {
+        "cells": 7069758,
+        "positives": 7783,
+        "prevalence": 0.0011008863386837286,
+        "model": {
+          "ap": 0.3247295280747248,
+          "brier": 0.0008740527244486001,
+          "negative_fpr_05": 6.0889482049993095e-05,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 2982,
+              "false_positive": 10953,
+              "false_negative": 4801,
+              "precision": 0.2139935414424112,
+              "recall": 0.38314274701272005
+            },
+            "0.25": {
+              "true_positive": 2536,
+              "false_positive": 3302,
+              "false_negative": 5247,
+              "precision": 0.434395340870161,
+              "recall": 0.3258383656687653
+            },
+            "0.5": {
+              "true_positive": 2068,
+              "false_positive": 430,
+              "false_negative": 5715,
+              "precision": 0.8278622898318655,
+              "recall": 0.26570731080560195
+            }
+          }
+        },
+        "persistence": {
+          "ap": 0.1565987844902143,
+          "brier": 0.000934685458823343,
+          "negative_fpr_05": 3.511765476371695e-05,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 1423,
+              "false_positive": 248,
+              "false_negative": 6360,
+              "precision": 0.8515858767205267,
+              "recall": 0.18283438262880639
+            },
+            "0.25": {
+              "true_positive": 1423,
+              "false_positive": 248,
+              "false_negative": 6360,
+              "precision": 0.8515858767205267,
+              "recall": 0.18283438262880639
+            },
+            "0.5": {
+              "true_positive": 1423,
+              "false_positive": 248,
+              "false_negative": 6360,
+              "precision": 0.8515858767205267,
+              "recall": 0.18283438262880639
+            }
+          }
+        },
+        "dilation": {
+          "ap": 0.23738179691538192,
+          "brier": 0.0012034900160019654,
+          "negative_fpr_05": 0.0002901454621405485,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 2830,
+              "false_positive": 40462,
+              "false_negative": 4953,
+              "precision": 0.06537004527395361,
+              "recall": 0.36361300269818836
+            },
+            "0.25": {
+              "true_positive": 2661,
+              "false_positive": 10997,
+              "false_negative": 5122,
+              "precision": 0.19483086835554253,
+              "recall": 0.34189901066426825
+            },
+            "0.5": {
+              "true_positive": 2351,
+              "false_positive": 2049,
+              "false_negative": 5432,
+              "precision": 0.5343181818181818,
+              "recall": 0.30206861107542077
+            }
+          }
+        },
+        "history_dilation": {
+          "ap": 0.1786060414397545,
+          "brier": 0.0019394275596652864,
+          "negative_fpr_05": 0.001076327797818599,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 3418,
+              "false_positive": 88108,
+              "false_negative": 4365,
+              "precision": 0.03734457968227607,
+              "recall": 0.43916227675703456
+            },
+            "0.25": {
+              "true_positive": 3197,
+              "false_positive": 27876,
+              "false_negative": 4586,
+              "precision": 0.10288675055514433,
+              "recall": 0.41076705640498523
+            },
+            "0.5": {
+              "true_positive": 2898,
+              "false_positive": 7601,
+              "false_negative": 4885,
+              "precision": 0.2760262882179255,
+              "recall": 0.372349993575742
+            }
+          }
+        },
+        "paired_event_ap_group_bootstrap": {
+          "persistence": {
+            "groups": 10,
+            "mean": 0.1739189677072736,
+            "ci95": [
+              0.12269201645876514,
+              0.23239404083374765
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.2050219664558808,
+              "native256-4-24": 0.3527803552668276,
+              "native256-8-22": 0.08902051912763798,
+              "native256-9-22": 0.05573251219280488,
+              "native256-5-22": 0.24817065682324943,
+              "native256-8-19": 0.08977810306972714,
+              "native256-5-24": 0.27892365674536096,
+              "native256-4-26": 0.18207244724439758,
+              "native256-8-24": 0.11432720108802487,
+              "native256-4-28": 0.1233622590588249
+            }
+          },
+          "dilation": {
+            "groups": 10,
+            "mean": 0.06715092580214341,
+            "ci95": [
+              0.022133300111673675,
+              0.1130759182657573
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.10750746358636061,
+              "native256-4-24": 0.19153285646439813,
+              "native256-8-22": 0.048400739252639026,
+              "native256-9-22": -0.021532879703300978,
+              "native256-5-22": 0.11835055046609293,
+              "native256-8-19": 0.06160731495504055,
+              "native256-5-24": 0.15074478979927736,
+              "native256-4-26": -0.002478414125459827,
+              "native256-8-24": 0.08481249293511994,
+              "native256-4-28": -0.06743565560873373
+            }
+          },
+          "history_dilation": {
+            "groups": 10,
+            "mean": 0.11360024169212704,
+            "ci95": [
+              0.07396657192237567,
+              0.1569264268810811
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.11367530521941438,
+              "native256-4-24": 0.12181276274660807,
+              "native256-8-22": 0.03706026351220567,
+              "native256-9-22": 0.058311980065941536,
+              "native256-5-22": 0.1612172940588895,
+              "native256-8-19": 0.14521231742617904,
+              "native256-5-24": 0.15465823298080755,
+              "native256-4-26": 0.2581998088072734,
+              "native256-8-24": 0.09067405097919658,
+              "native256-4-28": -0.004819598875245412
+            }
+          }
+        }
+      }
+    },
+    "latest_clear": {
+      "1": {
+        "cells": 10539097,
+        "positives": 1706,
+        "prevalence": 0.000161873450827903,
+        "model": {
+          "ap": 0.1808804088291275,
+          "brier": 0.00014346668160116329,
+          "negative_fpr_05": 1.3475821481807024e-05,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 570,
+              "false_positive": 1894,
+              "false_negative": 1136,
+              "precision": 0.23133116883116883,
+              "recall": 0.33411488862837047
+            },
+            "0.25": {
+              "true_positive": 372,
+              "false_positive": 585,
+              "false_negative": 1334,
+              "precision": 0.3887147335423197,
+              "recall": 0.21805392731535755
+            },
+            "0.5": {
+              "true_positive": 175,
+              "false_positive": 142,
+              "false_negative": 1531,
+              "precision": 0.5520504731861199,
+              "recall": 0.1025791324736225
+            }
+          }
+        },
+        "persistence": {
+          "ap": 0.000161873450827903,
+          "brier": 0.000161873450827903,
+          "negative_fpr_05": 0.0,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 1706,
+              "precision": null,
+              "recall": 0.0
+            },
+            "0.25": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 1706,
+              "precision": null,
+              "recall": 0.0
+            },
+            "0.5": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 1706,
+              "precision": null,
+              "recall": 0.0
+            }
+          }
+        },
+        "dilation": {
+          "ap": 0.04516028201019482,
+          "brier": 0.0005526263647766773,
+          "negative_fpr_05": 0.00029124856427933634,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 673,
+              "false_positive": 60498,
+              "false_negative": 1033,
+              "precision": 0.011001945366268329,
+              "recall": 0.39449003516998826
+            },
+            "0.25": {
+              "true_positive": 613,
+              "false_positive": 16861,
+              "false_negative": 1093,
+              "precision": 0.035080691312807596,
+              "recall": 0.3593200468933177
+            },
+            "0.5": {
+              "true_positive": 487,
+              "false_positive": 3069,
+              "false_negative": 1219,
+              "precision": 0.13695163104611924,
+              "recall": 0.2854630715123095
+            }
+          }
+        },
+        "history_dilation": {
+          "ap": 0.04282240132829351,
+          "brier": 0.001383032013072088,
+          "negative_fpr_05": 0.0011083388668029876,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 914,
+              "false_positive": 135842,
+              "false_negative": 792,
+              "precision": 0.00668343619292755,
+              "recall": 0.5357561547479485
+            },
+            "0.25": {
+              "true_positive": 849,
+              "false_positive": 43312,
+              "false_negative": 857,
+              "precision": 0.019225108127080455,
+              "recall": 0.4976553341148886
+            },
+            "0.5": {
+              "true_positive": 738,
+              "false_positive": 11679,
+              "false_negative": 968,
+              "precision": 0.05943464604977047,
+              "recall": 0.43259085580304807
+            }
+          }
+        },
+        "paired_event_ap_group_bootstrap": {
+          "persistence": {
+            "groups": 10,
+            "mean": 0.2683839667416171,
+            "ci95": [
+              0.18671032144697547,
+              0.354405078127678
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.2707693099606913,
+              "native256-4-24": 0.501666385737287,
+              "native256-8-22": 0.10881669340199941,
+              "native256-9-22": 0.149517154503524,
+              "native256-5-22": 0.4528300704592157,
+              "native256-5-24": 0.4131968064642795,
+              "native256-8-19": 0.20883510797856814,
+              "native256-4-26": 0.31082592816135607,
+              "native256-4-28": 0.07876132336324838,
+              "native256-8-24": 0.18862088738600088
+            }
+          },
+          "dilation": {
+            "groups": 10,
+            "mean": 0.16498892227396378,
+            "ci95": [
+              0.10117711314846861,
+              0.23446170866841384
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.13889590399162727,
+              "native256-4-24": 0.40844517005256425,
+              "native256-8-22": 0.033572076538065446,
+              "native256-9-22": 0.11000381736094712,
+              "native256-5-22": 0.15236880473662365,
+              "native256-5-24": 0.2753684390213028,
+              "native256-8-19": 0.08847896778250786,
+              "native256-4-26": 0.2432242865751566,
+              "native256-4-28": 0.04671469133683249,
+              "native256-8-24": 0.1528170653440102
+            }
+          },
+          "history_dilation": {
+            "groups": 10,
+            "mean": 0.13160254716891692,
+            "ci95": [
+              0.09244588135864125,
+              0.16937734780930233
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.12146612191940259,
+              "native256-4-24": 0.19987025416425647,
+              "native256-8-22": 0.07426067550974484,
+              "native256-9-22": 0.11573876358878406,
+              "native256-5-22": 0.13783610518819056,
+              "native256-5-24": 0.2070769220252982,
+              "native256-8-19": 0.09357355993223121,
+              "native256-4-26": 0.2397052298957368,
+              "native256-4-28": 0.03252235574061676,
+              "native256-8-24": 0.09397548372490798
+            }
+          }
+        }
+      },
+      "3": {
+        "cells": 8731641,
+        "positives": 3513,
+        "prevalence": 0.00040232987132659257,
+        "model": {
+          "ap": 0.18387303966224955,
+          "brier": 0.0003543534162687268,
+          "negative_fpr_05": 1.9133541579591867e-05,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 916,
+              "false_positive": 2191,
+              "false_negative": 2597,
+              "precision": 0.29481815255873833,
+              "recall": 0.26074580130942215
+            },
+            "0.25": {
+              "true_positive": 675,
+              "false_positive": 668,
+              "false_negative": 2838,
+              "precision": 0.5026061057334326,
+              "recall": 0.19214346712211786
+            },
+            "0.5": {
+              "true_positive": 382,
+              "false_positive": 167,
+              "false_negative": 3131,
+              "precision": 0.6958105646630237,
+              "recall": 0.10873896954170224
+            }
+          }
+        },
+        "persistence": {
+          "ap": 0.00040232987132659257,
+          "brier": 0.00040232987132659257,
+          "negative_fpr_05": 0.0,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 3513,
+              "precision": null,
+              "recall": 0.0
+            },
+            "0.25": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 3513,
+              "precision": null,
+              "recall": 0.0
+            },
+            "0.5": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 3513,
+              "precision": null,
+              "recall": 0.0
+            }
+          }
+        },
+        "dilation": {
+          "ap": 0.056081278337365856,
+          "brier": 0.0007328291055315326,
+          "negative_fpr_05": 0.0002630575536930714,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 1028,
+              "false_positive": 49048,
+              "false_negative": 2485,
+              "precision": 0.02052879622973081,
+              "recall": 0.2926273840022773
+            },
+            "0.25": {
+              "true_positive": 909,
+              "false_positive": 13306,
+              "false_negative": 2604,
+              "precision": 0.06394653534998242,
+              "recall": 0.2587532023911187
+            },
+            "0.5": {
+              "true_positive": 702,
+              "false_positive": 2296,
+              "false_negative": 2811,
+              "precision": 0.2341561040693796,
+              "recall": 0.19982920580700256
+            }
+          }
+        },
+        "history_dilation": {
+          "ap": 0.050560613354953696,
+          "brier": 0.0015401975778103537,
+          "negative_fpr_05": 0.001081560673720642,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 1436,
+              "false_positive": 111408,
+              "false_negative": 2077,
+              "precision": 0.012725532593669136,
+              "recall": 0.40876743524053516
+            },
+            "0.25": {
+              "true_positive": 1291,
+              "false_positive": 35274,
+              "false_negative": 2222,
+              "precision": 0.0353069875564064,
+              "recall": 0.36749217193282097
+            },
+            "0.5": {
+              "true_positive": 1101,
+              "false_positive": 9440,
+              "false_negative": 2412,
+              "precision": 0.10444929323593587,
+              "recall": 0.3134073441502989
+            }
+          }
+        },
+        "paired_event_ap_group_bootstrap": {
+          "persistence": {
+            "groups": 10,
+            "mean": 0.29054204910338466,
+            "ci95": [
+              0.1970491066294752,
+              0.3859832079996993
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.31418085807546264,
+              "native256-4-24": 0.4649024707908118,
+              "native256-8-22": 0.11001098454393055,
+              "native256-9-22": 0.09167584923321011,
+              "native256-5-22": 0.5385960129948828,
+              "native256-5-24": 0.43727807050974193,
+              "native256-8-19": 0.22233385119163293,
+              "native256-4-26": 0.42912832516525856,
+              "native256-8-24": 0.19756041439725955,
+              "native256-4-28": 0.09975365413165557
+            }
+          },
+          "dilation": {
+            "groups": 10,
+            "mean": 0.10521057260056337,
+            "ci95": [
+              0.05387154955219144,
+              0.1574886151462594
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.1186951343950904,
+              "native256-4-24": 0.2672240662979392,
+              "native256-8-22": 0.046167717095886567,
+              "native256-9-22": 0.05184041659118721,
+              "native256-5-22": 0.11604413245577967,
+              "native256-5-24": 0.120491291697767,
+              "native256-8-19": 0.08973058358623782,
+              "native256-4-26": 0.20721337437729193,
+              "native256-8-24": 0.10253151283376383,
+              "native256-4-28": -0.06783250332531002
+            }
+          },
+          "history_dilation": {
+            "groups": 10,
+            "mean": 0.08463303606011352,
+            "ci95": [
+              0.0358684925765213,
+              0.14325260567876028
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.09093580007300264,
+              "native256-4-24": 0.1380813420853275,
+              "native256-8-22": 0.06997543310912684,
+              "native256-9-22": 0.06576254324013246,
+              "native256-5-22": 0.08976360896641053,
+              "native256-5-24": 0.06509236303180119,
+              "native256-8-19": 0.06880012839717395,
+              "native256-4-26": 0.29471908026524907,
+              "native256-8-24": 0.04796134854641953,
+              "native256-4-28": -0.08476128711350846
+            }
+          }
+        }
+      },
+      "6": {
+        "cells": 7045695,
+        "positives": 5769,
+        "prevalence": 0.0008187978616729791,
+        "model": {
+          "ap": 0.14872659098270813,
+          "brier": 0.0007826658411573655,
+          "negative_fpr_05": 3.536968996549111e-05,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 1400,
+              "false_positive": 10577,
+              "false_negative": 4369,
+              "precision": 0.11689070718877849,
+              "recall": 0.24267637372161552
+            },
+            "0.25": {
+              "true_positive": 1030,
+              "false_positive": 3041,
+              "false_negative": 4739,
+              "precision": 0.25300908867600097,
+              "recall": 0.1785404749523314
+            },
+            "0.5": {
+              "true_positive": 652,
+              "false_positive": 249,
+              "false_negative": 5117,
+              "precision": 0.7236403995560489,
+              "recall": 0.11301785404749523
+            }
+          }
+        },
+        "persistence": {
+          "ap": 0.0008187978616729791,
+          "brier": 0.0008187978616729791,
+          "negative_fpr_05": 0.0,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 5769,
+              "precision": null,
+              "recall": 0.0
+            },
+            "0.25": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 5769,
+              "precision": null,
+              "recall": 0.0
+            },
+            "0.5": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 5769,
+              "precision": null,
+              "recall": 0.0
+            }
+          }
+        },
+        "dilation": {
+          "ap": 0.06027777263893923,
+          "brier": 0.0010989456393393294,
+          "negative_fpr_05": 0.0002548322240887191,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 1297,
+              "false_positive": 40122,
+              "false_negative": 4472,
+              "precision": 0.031314131195828,
+              "recall": 0.2248223262263824
+            },
+            "0.25": {
+              "true_positive": 1146,
+              "false_positive": 10720,
+              "false_negative": 4623,
+              "precision": 0.09657845946401483,
+              "recall": 0.19864794591783672
+            },
+            "0.5": {
+              "true_positive": 860,
+              "false_positive": 1794,
+              "false_negative": 4909,
+              "precision": 0.3240391861341371,
+              "recall": 0.14907262957184955
+            }
+          }
+        },
+        "history_dilation": {
+          "ap": 0.05791906918103243,
+          "brier": 0.0018376782576933664,
+          "negative_fpr_05": 0.001043192783560509,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 1880,
+              "false_positive": 87757,
+              "false_negative": 3889,
+              "precision": 0.020973481932684047,
+              "recall": 0.32587970185474086
+            },
+            "0.25": {
+              "true_positive": 1678,
+              "false_positive": 27594,
+              "false_negative": 4091,
+              "precision": 0.057324405575293794,
+              "recall": 0.29086496793205063
+            },
+            "0.5": {
+              "true_positive": 1405,
+              "false_positive": 7344,
+              "false_negative": 4364,
+              "precision": 0.16058978168933594,
+              "recall": 0.2435430750563356
+            }
+          }
+        },
+        "paired_event_ap_group_bootstrap": {
+          "persistence": {
+            "groups": 10,
+            "mean": 0.3055947766962258,
+            "ci95": [
+              0.1979762225541947,
+              0.4160214857942645
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.27351741825105275,
+              "native256-4-24": 0.5067319758892337,
+              "native256-8-22": 0.12010906134604828,
+              "native256-9-22": 0.08145446607980235,
+              "native256-5-22": 0.426371637920196,
+              "native256-5-24": 0.5751315549943765,
+              "native256-8-19": 0.17094772053430066,
+              "native256-4-26": 0.5712497322716891,
+              "native256-8-24": 0.14380153480511176,
+              "native256-4-28": 0.186632664870447
+            }
+          },
+          "dilation": {
+            "groups": 10,
+            "mean": 0.11126028964559953,
+            "ci95": [
+              0.06845917459565946,
+              0.153466196844336
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.13496481794027448,
+              "native256-4-24": 0.24013741982500453,
+              "native256-8-22": 0.07043984678063536,
+              "native256-9-22": -0.0015914821879702643,
+              "native256-5-22": 0.14635103319949855,
+              "native256-5-24": 0.15097907987266246,
+              "native256-8-19": 0.09497564676966588,
+              "native256-4-26": 0.16820179782215716,
+              "native256-8-24": 0.11428796504808415,
+              "native256-4-28": -0.006143228614016798
+            }
+          },
+          "history_dilation": {
+            "groups": 10,
+            "mean": 0.07979104494330089,
+            "ci95": [
+              0.04107977058196578,
+              0.1334108471997787
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.07609449113330248,
+              "native256-4-24": 0.13331762302791636,
+              "native256-8-22": 0.051331573341110145,
+              "native256-9-22": 0.046765195908418475,
+              "native256-5-22": 0.08364838416960732,
+              "native256-5-24": 0.05095474839788537,
+              "native256-8-19": 0.04981074142988772,
+              "native256-4-26": 0.28228046642787286,
+              "native256-8-24": 0.04995310493719534,
+              "native256-4-28": -0.02624587934018709
+            }
+          }
+        }
+      }
+    },
+    "no_past_detection": {
+      "1": {
+        "cells": 10536400,
+        "positives": 1357,
+        "prevalence": 0.00012879161763031016,
+        "model": {
+          "ap": 0.08633977576415834,
+          "brier": 0.00012206817457110827,
+          "negative_fpr_05": 3.2273242738544113e-06,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 264,
+              "false_positive": 1095,
+              "false_negative": 1093,
+              "precision": 0.19426048565121412,
+              "recall": 0.19454679439941047
+            },
+            "0.25": {
+              "true_positive": 140,
+              "false_positive": 261,
+              "false_negative": 1217,
+              "precision": 0.3491271820448878,
+              "recall": 0.10316875460574797
+            },
+            "0.5": {
+              "true_positive": 29,
+              "false_positive": 34,
+              "false_negative": 1328,
+              "precision": 0.4603174603174603,
+              "recall": 0.021370670596904937
+            }
+          }
+        },
+        "persistence": {
+          "ap": 0.00012879161763031016,
+          "brier": 0.00012879161763031016,
+          "negative_fpr_05": 0.0,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 1357,
+              "precision": null,
+              "recall": 0.0
+            },
+            "0.25": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 1357,
+              "precision": null,
+              "recall": 0.0
+            },
+            "0.5": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 1357,
+              "precision": null,
+              "recall": 0.0
+            }
+          }
+        },
+        "dilation": {
+          "ap": 0.028064635951967218,
+          "brier": 0.0005182228116038363,
+          "negative_fpr_05": 0.00024945318210851155,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 463,
+              "false_positive": 59923,
+              "false_negative": 894,
+              "precision": 0.007667340111946478,
+              "recall": 0.34119380987472364
+            },
+            "0.25": {
+              "true_positive": 416,
+              "false_positive": 16324,
+              "false_negative": 941,
+              "precision": 0.024850657108721624,
+              "recall": 0.30655858511422257
+            },
+            "0.5": {
+              "true_positive": 305,
+              "false_positive": 2628,
+              "false_negative": 1052,
+              "precision": 0.1039890896692806,
+              "recall": 0.2247605011053795
+            }
+          }
+        },
+        "history_dilation": {
+          "ap": 0.013727664947219201,
+          "brier": 0.0011605395144330137,
+          "negative_fpr_05": 0.0008857106705686916,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 565,
+              "false_positive": 133494,
+              "false_negative": 792,
+              "precision": 0.0042145622449816875,
+              "recall": 0.4163596168017686
+            },
+            "0.25": {
+              "true_positive": 500,
+              "false_positive": 40964,
+              "false_negative": 857,
+              "precision": 0.012058653289600617,
+              "recall": 0.36845983787767134
+            },
+            "0.5": {
+              "true_positive": 389,
+              "false_positive": 9331,
+              "false_negative": 968,
+              "precision": 0.04002057613168724,
+              "recall": 0.2866617538688283
+            }
+          }
+        },
+        "paired_event_ap_group_bootstrap": {
+          "persistence": {
+            "groups": 10,
+            "mean": 0.20868538825270405,
+            "ci95": [
+              0.11941327626687712,
+              0.2957638372786109
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.24113512424438308,
+              "native256-4-24": 0.308233989563459,
+              "native256-8-22": 0.07035582991051707,
+              "native256-9-22": 0.03760181494690335,
+              "native256-5-22": 0.4028255821799808,
+              "native256-5-24": 0.380452820931073,
+              "native256-8-19": 0.16012433855886646,
+              "native256-4-26": 0.3887968491712015,
+              "native256-4-28": 0.03341097908110967,
+              "native256-8-24": 0.0639165539395464
+            }
+          },
+          "dilation": {
+            "groups": 10,
+            "mean": 0.11892206860338128,
+            "ci95": [
+              0.05006065319396702,
+              0.19018234740696915
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.11298419028855217,
+              "native256-4-24": 0.26439008426071026,
+              "native256-8-22": -0.002021589454955441,
+              "native256-9-22": -0.008211132555311286,
+              "native256-5-22": 0.12124159208288363,
+              "native256-5-24": 0.2558576247359439,
+              "native256-8-19": 0.09615974543979122,
+              "native256-4-26": 0.31586660705551983,
+              "native256-4-28": -0.0009298695447880742,
+              "native256-8-24": 0.033883433725466615
+            }
+          },
+          "history_dilation": {
+            "groups": 10,
+            "mean": 0.1482158910968642,
+            "ci95": [
+              0.08038305379579405,
+              0.21891808607507746
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.1496269139038493,
+              "native256-4-24": 0.2750905946349355,
+              "native256-8-22": 0.0553626045178092,
+              "native256-9-22": 0.024807290636238977,
+              "native256-5-22": 0.1840265680827047,
+              "native256-5-24": 0.2728901070015698,
+              "native256-8-19": 0.11378837302507991,
+              "native256-4-26": 0.348655848348471,
+              "native256-4-28": 0.020587156475025997,
+              "native256-8-24": 0.03732345434295748
+            }
+          }
+        }
+      },
+      "3": {
+        "cells": 8729237,
+        "positives": 3032,
+        "prevalence": 0.00034733849017961135,
+        "model": {
+          "ap": 0.1023269934899629,
+          "brier": 0.00032649106450432125,
+          "negative_fpr_05": 8.365606813041867e-06,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 478,
+              "false_positive": 1404,
+              "false_negative": 2554,
+              "precision": 0.25398512221041447,
+              "recall": 0.15765171503957784
+            },
+            "0.25": {
+              "true_positive": 311,
+              "false_positive": 330,
+              "false_negative": 2721,
+              "precision": 0.48517940717628705,
+              "recall": 0.10257255936675462
+            },
+            "0.5": {
+              "true_positive": 130,
+              "false_positive": 73,
+              "false_negative": 2902,
+              "precision": 0.6403940886699507,
+              "recall": 0.04287598944591029
+            }
+          }
+        },
+        "persistence": {
+          "ap": 0.00034733849017961135,
+          "brier": 0.00034733849017961135,
+          "negative_fpr_05": 0.0,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 3032,
+              "precision": null,
+              "recall": 0.0
+            },
+            "0.25": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 3032,
+              "precision": null,
+              "recall": 0.0
+            },
+            "0.5": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 3032,
+              "precision": null,
+              "recall": 0.0
+            }
+          }
+        },
+        "dilation": {
+          "ap": 0.035798320838164734,
+          "brier": 0.0006880654556637233,
+          "negative_fpr_05": 0.0002250692024769072,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 747,
+              "false_positive": 48608,
+              "false_negative": 2285,
+              "precision": 0.015135244656063215,
+              "recall": 0.24637203166226912
+            },
+            "0.25": {
+              "true_positive": 643,
+              "false_positive": 12902,
+              "false_negative": 2389,
+              "precision": 0.04747139165743817,
+              "recall": 0.2120712401055409
+            },
+            "0.5": {
+              "true_positive": 458,
+              "false_positive": 1964,
+              "false_negative": 2574,
+              "precision": 0.18909991742361684,
+              "recall": 0.15105540897097625
+            }
+          }
+        },
+        "history_dilation": {
+          "ap": 0.019382695265219706,
+          "brier": 0.0013203275748509948,
+          "negative_fpr_05": 0.0008614283070361057,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 955,
+              "false_positive": 109485,
+              "false_negative": 2077,
+              "precision": 0.008647229264759144,
+              "recall": 0.3149736147757256
+            },
+            "0.25": {
+              "true_positive": 810,
+              "false_positive": 33351,
+              "false_negative": 2222,
+              "precision": 0.023711249670677087,
+              "recall": 0.26715039577836414
+            },
+            "0.5": {
+              "true_positive": 620,
+              "false_positive": 7517,
+              "false_negative": 2412,
+              "precision": 0.07619515792060956,
+              "recall": 0.20448548812664907
+            }
+          }
+        },
+        "paired_event_ap_group_bootstrap": {
+          "persistence": {
+            "groups": 10,
+            "mean": 0.24444155421738892,
+            "ci95": [
+              0.14912140601563548,
+              0.3447958721186288
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.27718591095703143,
+              "native256-4-24": 0.32313190476677345,
+              "native256-8-22": 0.08590997113944862,
+              "native256-9-22": 0.02565645447915183,
+              "native256-5-22": 0.5088790905873969,
+              "native256-5-24": 0.3943106136790933,
+              "native256-8-19": 0.14961696566843385,
+              "native256-4-26": 0.47950925212508466,
+              "native256-8-24": 0.12691621500202113,
+              "native256-4-28": 0.07329916376945335
+            }
+          },
+          "dilation": {
+            "groups": 10,
+            "mean": 0.06844854127133322,
+            "ci95": [
+              0.01276511881095696,
+              0.12831923902266812
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.09051703603670874,
+              "native256-4-24": 0.20882985713103502,
+              "native256-8-22": 0.024868327796337582,
+              "native256-9-22": -0.019288698011506306,
+              "native256-5-22": 0.08118156254727224,
+              "native256-5-24": 0.08880606309492307,
+              "native256-8-19": 0.0685150831044907,
+              "native256-4-26": 0.2271634065783811,
+              "native256-8-24": 0.03271383340113798,
+              "native256-4-28": -0.11882105896544799
+            }
+          },
+          "history_dilation": {
+            "groups": 10,
+            "mean": 0.1044380554647902,
+            "ci95": [
+              0.03815164432156747,
+              0.1834245928760969
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.11369097926940414,
+              "native256-4-24": 0.22796884888674238,
+              "native256-8-22": 0.06853806337702437,
+              "native256-9-22": 0.012223866494573144,
+              "native256-5-22": 0.14089950425896042,
+              "native256-5-24": 0.10843274881763212,
+              "native256-8-19": 0.06798341457877172,
+              "native256-4-26": 0.36687454817246395,
+              "native256-8-24": 0.04434006842325755,
+              "native256-4-28": -0.10657148763092787
+            }
+          }
+        }
+      },
+      "6": {
+        "cells": 7043596,
+        "positives": 5186,
+        "prevalence": 0.0007362716430641394,
+        "model": {
+          "ap": 0.07950870097298998,
+          "brier": 0.0007471070455414563,
+          "negative_fpr_05": 1.889631322983458e-05,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 848,
+              "false_positive": 9826,
+              "false_negative": 4338,
+              "precision": 0.079445381300356,
+              "recall": 0.16351716158889318
+            },
+            "0.25": {
+              "true_positive": 551,
+              "false_positive": 2687,
+              "false_negative": 4635,
+              "precision": 0.1701667696108709,
+              "recall": 0.10624758966448129
+            },
+            "0.5": {
+              "true_positive": 293,
+              "false_positive": 133,
+              "false_negative": 4893,
+              "precision": 0.687793427230047,
+              "recall": 0.056498264558426534
+            }
+          }
+        },
+        "persistence": {
+          "ap": 0.0007362716430641394,
+          "brier": 0.0007362716430641394,
+          "negative_fpr_05": 0.0,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 5186,
+              "precision": null,
+              "recall": 0.0
+            },
+            "0.25": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 5186,
+              "precision": null,
+              "recall": 0.0
+            },
+            "0.5": {
+              "true_positive": 0,
+              "false_positive": 0,
+              "false_negative": 5186,
+              "precision": null,
+              "recall": 0.0
+            }
+          }
+        },
+        "dilation": {
+          "ap": 0.03817389204821333,
+          "brier": 0.001040658680727048,
+          "negative_fpr_05": 0.0002158157879407423,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 948,
+              "false_positive": 39764,
+              "false_negative": 4238,
+              "precision": 0.023285517783454508,
+              "recall": 0.1827998457385268
+            },
+            "0.25": {
+              "true_positive": 812,
+              "false_positive": 10393,
+              "false_negative": 4374,
+              "precision": 0.07246764837126284,
+              "recall": 0.15657539529502507
+            },
+            "0.5": {
+              "true_positive": 560,
+              "false_positive": 1519,
+              "false_negative": 4626,
+              "precision": 0.26936026936026936,
+              "recall": 0.10798303123794832
+            }
+          }
+        },
+        "history_dilation": {
+          "ap": 0.025263850817964666,
+          "brier": 0.0016229949179139267,
+          "negative_fpr_05": 0.0008280279210787664,
+          "operating_points": {
+            "0.1": {
+              "true_positive": 1297,
+              "false_positive": 86241,
+              "false_negative": 3889,
+              "precision": 0.014816422582192876,
+              "recall": 0.2500964134207482
+            },
+            "0.25": {
+              "true_positive": 1095,
+              "false_positive": 26078,
+              "false_negative": 4091,
+              "precision": 0.040297353991094104,
+              "recall": 0.21114539143848823
+            },
+            "0.5": {
+              "true_positive": 822,
+              "false_positive": 5828,
+              "false_negative": 4364,
+              "precision": 0.12360902255639097,
+              "recall": 0.15850366370998842
+            }
+          }
+        },
+        "paired_event_ap_group_bootstrap": {
+          "persistence": {
+            "groups": 10,
+            "mean": 0.2595439784240617,
+            "ci95": [
+              0.15673365945358683,
+              0.3625392861801246
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.24005043709628038,
+              "native256-4-24": 0.389403487793607,
+              "native256-8-22": 0.09685859313326979,
+              "native256-9-22": 0.034095238344931084,
+              "native256-5-22": 0.3864079960180654,
+              "native256-5-24": 0.507424072543252,
+              "native256-8-19": 0.10522642788910498,
+              "native256-4-26": 0.5155484386609539,
+              "native256-8-24": 0.07490081990438731,
+              "native256-4-28": 0.2455242728567647
+            }
+          },
+          "dilation": {
+            "groups": 10,
+            "mean": 0.07073268761459031,
+            "ci95": [
+              0.03404902139132567,
+              0.10869376080358924
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.11572818338215587,
+              "native256-4-24": 0.1900639944339918,
+              "native256-8-22": 0.0499768283526848,
+              "native256-9-22": -0.05554949775902653,
+              "native256-5-22": 0.10312515704888203,
+              "native256-5-24": 0.08618633682695113,
+              "native256-8-19": 0.0852306466963194,
+              "native256-4-26": 0.05619278150785018,
+              "native256-8-24": 0.05232350848883765,
+              "native256-4-28": 0.024048937167256767
+            }
+          },
+          "history_dilation": {
+            "groups": 10,
+            "mean": 0.10467507539862526,
+            "ci95": [
+              0.05929951050956643,
+              0.16575553614500535
+            ],
+            "group_deltas": {
+              "native256-7-23": 0.10668938356608791,
+              "native256-4-24": 0.19580374542596077,
+              "native256-8-22": 0.05576972328821929,
+              "native256-9-22": 0.00905169400067308,
+              "native256-5-22": 0.1227937092059431,
+              "native256-5-24": 0.08702422360197774,
+              "native256-8-19": 0.05643631747849216,
+              "native256-4-26": 0.32149518560969076,
+              "native256-8-24": 0.05889506762752931,
+              "native256-4-28": 0.03279170418167848
+            }
+          }
+        }
+      }
+    }
+  },
+  "seconds": 36.0
+}

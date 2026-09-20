@@ -104,7 +104,7 @@ export class FireLayer {
   private perimeterEntries: PerimeterEntry[] = [];
   private selectedId: string | null = null;
   private scrubHours = 0;
-  private playing = true;
+  private playing = false;
   private lastFrameTime = 0;
   /** Seconds already lingered at the far horizon, drives the loop hold. */
   private holdSeconds = 0;
@@ -135,6 +135,7 @@ export class FireLayer {
 
   setData(response: FiresResponse): void {
     if (this.disposed) return;
+    const selectedId = this.selectedId;
     this.clearSelection();
     for (const entry of this.perimeterEntries) {
       this.viewer.scene.primitives.remove(entry.primitive);
@@ -181,7 +182,11 @@ export class FireLayer {
     }
 
     this.applyVisibility();
-    this.notify();
+    if (selectedId && this.clusters.some(c => c.id === selectedId)) {
+      this.select(selectedId);
+    } else {
+      this.notify();
+    }
   }
 
   select(clusterId: string, options: { flyTo?: boolean } = {}): void {
@@ -191,7 +196,7 @@ export class FireLayer {
     this.clearSelection();
     this.selectedId = clusterId;
     this.scrubHours = 0;
-    this.playing = true;
+    this.playing = false;
     this.lastFrameTime = 0;
     this.holdSeconds = 0;
     for (const entry of this.perimeterEntries) {
@@ -233,6 +238,7 @@ export class FireLayer {
   }
 
   setPlaying(playing: boolean): void {
+    if (playing && !(this.getSelectedCase()?.maxHorizonHours)) return;
     if (this.playing === playing) return;
     this.playing = playing;
     this.lastFrameTime = 0;
@@ -368,7 +374,7 @@ export class FireLayer {
     this.dataSource.entities.removeAll();
     this.selectedId = null;
     this.scrubHours = 0;
-    this.playing = true;
+    this.playing = false;
     this.lastFrameTime = 0;
     this.holdSeconds = 0;
   }
