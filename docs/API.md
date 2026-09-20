@@ -50,6 +50,18 @@ timeline scrubber drives, so the globe and the analysis agree on what time it is
   the latest state.
 - `at` above `253402300799` is `400`.
 - A valid `at` past the end of the timeline clamps to the last frame. That is not an error.
+- The ceiling is a guard, not a promise the whole range is usable. It exists so a CAP date stays
+  inside the four-digit years the CAP pattern allows, but the value it accepts resolves to the
+  year 10056 — and `/api/cap` validates the document it emits, so **the largest accepted cursor
+  returns `502`** rather than a package:
+
+  ```
+  $ curl -s "localhost:3001/api/cap/bedar?at=253402300799"
+  {"error":"CAP document failed validation","problems":["<sent> \"10056-07-08T01:59:59+02:00\" does not match the CAP date pattern",...]}
+  ```
+
+  `/api/egress` and `/api/alerts` accept the same cursor and answer `200`, but their `at` and
+  `origin` fields carry the same five-digit year. Treat anything near the ceiling as out of range.
 
 The cursor is not a wall clock and not a "give me the data as of this date" filter. Under causal
 replay an observation appears only once its delivery time has passed, so on the default capture
@@ -104,7 +116,13 @@ and `ALMERIA_COVERAGE` in `server/infrastructure.ts`: Catalonia from Generalitat
 eastern Almería from an OpenStreetMap snapshot taken 18 September 2026. Only the Catalonia region
 is an administrative inventory.
 
-`502` infrastructure data unavailable. Read once per process.
+`502` infrastructure data unavailable. Nothing a request can supply reaches that path: the loader
+degrades every malformed or missing file into a `200` with `status.state` of `partial` or
+`unavailable`, which is the behaviour to code against. The `502` covers a fault inside
+`getInfrastructure` itself, and because the loader promise is memoised for the process lifetime,
+such a rejection latches — the route keeps answering `502` until restart.
+
+Read once per process.
 
 ### `GET /api/threats`
 
@@ -237,6 +255,11 @@ Returns `provenance`, `at`, `origin`, `scenario`, `windowEnd`, `assumptions`, `s
 `unattributedCutSegments`, `profiles`, `configurations`, `fireId`, `clusterIds`, `detections`,
 `segments`, `totalSegments`, `pockets`, `fetchedAt`.
 
+`segments` holds **cut segments only** — a segment the fire never reaches is absent from the
+array, not present with a null `cutAt`. That is why `segments` is shorter than `totalSegments`
+(4,225 of 29,834 over the committed capture), and it is why a null check on `cutAt` finds nothing
+to match.
+
 The band is the point. The same road reads 19:38 CEST or 00:03 CEST depending on which sensors
 you trust and how wide you draw their footprints, so the engine sweeps twelve sensor
 configurations (`all-1x`, `all-0.5x`, `all-2x`, `geopolar-1x`, …) against two assumption profiles
@@ -247,9 +270,10 @@ behind each end rather than reporting a point estimate.
 nothing, so a missing instrument is visible in the answer rather than only in the source. Over the
 committed July capture: 2,660 detections, 4,225 cut segments of 29,834.
 
-**Read `latest: null` as "never closes", not "unknown" and not "already cut".** In a departure or
-cut band, `latest` is null when at least one configuration in the sweep never closes that segment
-within the modelled window. That is the *safest* state, and the type is nullable to force you to
+**Read `latest: null` as "never closes", not "unknown" and not "already cut".** In a
+last-safe-departure band, `latest` is null when at least one configuration in the sweep never
+closes that route within the modelled window. Every Bédar route reads that way over the committed
+capture. That is the *safest* state, and the type is nullable to force you to
 handle it: the engine's internal value is `Infinity`, `JSON.stringify(Infinity)` is `null`, and a
 consumer that reads null as "already cut" would invert the safest result into the most alarming
 one. `basis` on every band names what was swept, so the number never travels without its
@@ -311,7 +335,7 @@ Query: `at` (optional).
 Returns `provenance`, `at`, `cap`, `packages`, `rejected`, `ledger`, `diagnostics`.
 
 `cap` reports the configured sender, status and scope — the default is a fictional demo sender
-with `status: "Test"` and `scope: "Private"`. `packages` are the CAP packages that survived
+with `status: "Test"` and `scope: "Public"`. `packages` are the CAP packages that survived
 validation; `rejected` are the candidates that did not, each with its reason, and
 `incomplete_template` is separated from `no_evidence` on purpose: a phrasing that could not be
 completed is a different failure from a pocket with nothing to say.

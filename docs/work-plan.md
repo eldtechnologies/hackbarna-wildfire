@@ -59,7 +59,7 @@ the fact.
 | 7 | **The road graph comes from the OSM `/map` API, bbox only** — one tiled, rate-limited fetch, committed to JSON so the demo never depends on the network or the container. Amended 2026-09-20: the local Overpass it named is gone — nothing listens on `127.0.0.1:12345`, no `opdb` volume exists, and `/tmp/df/osm/andalucia.osm.pbf` is absent — and the committed graph records `api.openstreetmap.org` as its source. Geofabrik's andalucia PBF stays the fallback if the bbox ever widens |
 | 8 | **The unification refactor lands on `main` first**, then each open branch rebases onto it — one conflict resolution per branch, done once |
 | 9 | **The falsification test is re-run with the calibrated mask**, and whatever it shows goes on the slide |
-| 10 | **CAP is one `<alert>` per pocket, one `<info>` per language.** Sender, status and scope are configurable, defaulting to a fictional demo sender with `status=Test`, `scope=Private` |
+| 10 | **CAP is one `<alert>` per pocket, one `<info>` per language.** Sender, status and scope are configurable, defaulting to a fictional demo sender with `status=Test`, `scope=Public` (`server/engine/alerts.ts`) |
 | 11 | **The harness tests both targets** — bearing/rate and burned area — so we can say which quantity a model helps with |
 | 12 | **The July replay snapshot is recorded with the replay tooling** once item 0 lands, so the two validate each other |
 | 13 | **Jev is out of scope.** The verification gate is deterministic OSM checks with a visible rejection log |
