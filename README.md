@@ -2,7 +2,7 @@
 
 Real-time wildfire intelligence console for Spain, built at HackBarna 2026 (Barcelona).
 
-Live satellite hotspots, active fire perimeters, and spread simulation on a 3D globe, plus an AI agent that identifies infrastructure and people at risk and recommends evacuation priorities.
+Live satellite hotspots, active fire perimeters, and spread simulation on a 3D globe, plus a situation report that screens bundled infrastructure by proximity. Road-access and departure decisions come from the separate engine contracts in `docs/work-plan.md`.
 
 Tracks: **Monitoring active fires** + **Values at risk**.
 
@@ -28,6 +28,21 @@ API endpoints:
 
 - `GET /api/infrastructure`: all bundled infrastructure assets (point assets + power line paths).
 - `GET /api/threats?fireId=<clusterId>`: server-side turf.js analysis. For the fire's perimeter, lists every asset inside the perimeter, inside the 5/10/20 km buffer rings, or inside the projected spread corridor, with per-asset distance and category.
+- `GET /api/situation?fireId=<clusterId>&at=<seconds>`: server-rendered evidence facts and deterministic proximity priorities. Uses the same replay cursor as fires, growth and threats, rejects malformed cursors, and carries evidence time, availability policy and infrastructure load status. `narrator: 'llm'` means the model ordered supplied facts; it never wrote factual prose or evacuation instructions.
+
+## Situation agent
+
+The server writes each fact from computed evidence. An optional chat-completions model can only return an ordering of all supplied fact IDs. Invalid, missing, duplicate or invented IDs fall back to the deterministic order. Coverage limits and the distinction between proximity screening and evacuation orders always remain visible. Without `LLM_API_KEY`, the report works without a model call.
+
+Each caller waits at most four seconds for ordering; the shared provider job has a 15-second abort. Identical facts share work even across fetch timestamps and cursor spellings. There are at most two provider jobs and 64 cached results. Prompts contain at most eight facts / 8 KB and use a 128-token completion bound. A compatible provider must support `max_completion_tokens`; unsupported provider responses use the template. The key lives only in the server environment, never in the browser.
+
+Spread direction note: the fire schema has no measured wind field, so the packet's spread direction is the drift heading computed from the perimeter centroid toward the furthest spread projection, not a measured wind. A live wind feed (WeatherNext is the planned source in DESIGN.md) is a follow-up.
+
+```bash
+LLM_BASE_URL=https://api.openai.com/v1   # /chat/completions endpoint supporting max_completion_tokens
+LLM_API_KEY=...
+LLM_MODEL=gpt-4o-mini
+```
 
 ## Growth model
 

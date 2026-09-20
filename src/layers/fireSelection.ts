@@ -16,7 +16,8 @@ import {
   Viewer,
 } from 'cesium';
 import { fetchFires, fetchThreats } from '../data/api';
-import type { ThreatenedAsset, ThreatsResponse } from '../../shared/threats';
+import { CATEGORY_LABEL } from '../../shared/threats';
+import type { ThreatsResponse } from '../../shared/threats';
 import { isLayerVisible, onVisibilityChanged } from './registry';
 
 const FIRE_PICK_COLOR = Color.fromCssColorString('#ffb454').withAlpha(0.9);
@@ -28,20 +29,14 @@ const RING_LABEL: Record<ThreatsResponse['rings'][number]['ring'], string> = {
   'ring-20km': 'WITHIN 20 KM',
 };
 
-const CATEGORY_LABEL: Record<ThreatenedAsset['category'], string> = {
-  hospital: 'HOSPITAL',
-  school: 'SCHOOL',
-  town: 'TOWN',
-  'power-line': 'POWER LINE',
-};
-
 export interface FireSelectionChange {
   (fireId: string | null): void;
 }
 
 export class FireSelectionLayer {
   private handler: ScreenSpaceEventHandler;
-  private selectedId: string | null = null;
+  private request:AbortController | null=null;
+  private trackedKey:string | null=null;
   private markerIds: string[] = [];
   private removeVisibilityListener: () => void;
 
@@ -60,9 +55,9 @@ export class FireSelectionLayer {
         // Entities created here carry fire:<clusterId>; infra points carry
         // plain asset ids and are handled by their own layer.
         if (typeof id === 'string' && id.startsWith('fire:')) {
-          this.select(id.slice('fire:'.length));
-        } else {
-          this.clear();
+          this.onSelectionChange(id.slice('fire:'.length));
+        } else if (!picked) {
+          this.onSelectionChange(null);
         }
       },
       ScreenSpaceEventType.LEFT_CLICK,
@@ -115,25 +110,23 @@ export class FireSelectionLayer {
     }
   }
 
-  select(fireId: string): void {
-    this.selectedId = fireId;
+  track(fireId:string | null, atSeconds?:number, evidenceKey='latest'):void {
+    const key=fireId===null?null:JSON.stringify([fireId,atSeconds,evidenceKey]);
+    if(key===this.trackedKey) return;
+    this.trackedKey=key;
+    this.request?.abort();
+    if(!fireId) {
+      this.panel.classList.remove('open');this.panel.replaceChildren();return;
+    }
+    const request=this.request=new AbortController();
     this.renderLoading(fireId);
-    fetchThreats(fireId)
-      .then((threats) => {
-        if (this.selectedId === fireId) this.render(threats);
-      })
-      .catch((err) => {
-        console.error('[fire-selection] threats fetch failed:', err);
-        if (this.selectedId === fireId) this.renderError(fireId);
-      });
-  }
-
-  private clear(): void {
-    if (!this.selectedId) return;
-    this.selectedId = null;
-    this.panel.classList.remove('open');
-    this.panel.replaceChildren();
-    this.onSelectionChange(null);
+    fetchThreats(fireId,atSeconds,request.signal).then(threats=>{
+      if(!request.signal.aborted)this.render(threats);
+    }).catch(err=>{
+      if(request.signal.aborted)return;
+      console.error('[fire-selection] threats fetch failed:',err);
+      this.renderError(fireId,atSeconds,evidenceKey);
+    });
   }
 
   private renderLoading(fireId: string): void {
@@ -146,12 +139,14 @@ export class FireSelectionLayer {
     body.className = 'threat-body';
     body.textContent = 'ANALYZING...';
     this.panel.append(title, body);
-    this.onSelectionChange(fireId);
   }
 
-  private renderError(_fireId: string): void {
-    const body = this.panel.querySelector('.threat-body');
-    if (body) body.textContent = 'ANALYSIS UNAVAILABLE';
+  private renderError(fireId:string,atSeconds?:number,evidenceKey?:string):void {
+    const body=this.panel.querySelector('.threat-body');
+    if(body) body.textContent='ANALYSIS UNAVAILABLE';
+    const retry=document.createElement('button');retry.className='hud-btn';retry.textContent='RETRY ANALYSIS';
+    retry.addEventListener('click',()=>{this.trackedKey=null;this.track(fireId,atSeconds,evidenceKey);});
+    this.panel.appendChild(retry);
   }
 
   private render(threats: ThreatsResponse): void {
@@ -166,7 +161,8 @@ export class FireSelectionLayer {
     meta.className = 'threat-meta';
     const corridorNote =
       threats.corridorCount > 0 ? `${threats.corridorCount} IN SPREAD CORRIDOR` : '';
-    meta.textContent = `${threats.threatened.length} ASSETS ${corridorNote}`.trim();
+    meta.textContent = `${threats.threatened.length} ASSETS ${corridorNote}`.trim()
+      + (threats.hasPerimeter ? '' : ' / CENTROID PROXIMITY, NO OBSERVED PERIMETER');
 
     const body = document.createElement('div');
     body.className = 'threat-body';
@@ -174,7 +170,9 @@ export class FireSelectionLayer {
     if (threats.threatened.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'threat-empty';
-      empty.textContent = 'NO ASSETS WITHIN 20 KM';
+      empty.textContent = threats.infrastructureStatus.state !== 'available'
+        ? 'INFRASTRUCTURE DATA INCOMPLETE'
+        : threats.infrastructureCoverage ? 'NO BUNDLED ASSETS WITHIN 20 KM' : 'NO INFRASTRUCTURE DATA FOR THIS REGION';
       body.appendChild(empty);
     } else {
       for (const ring of threats.rings) {
@@ -182,7 +180,9 @@ export class FireSelectionLayer {
         if (group.length === 0) continue;
         const heading = document.createElement('div');
         heading.className = 'threat-ring-heading';
-        heading.textContent = `${RING_LABEL[ring.ring]} (${group.length})`;
+        const label = ring.ring === 'inside' && !threats.hasPerimeter
+          ? 'WITHIN 50 M OF DETECTION CENTROID' : RING_LABEL[ring.ring];
+        heading.textContent = `${label} (${group.length})`;
         body.appendChild(heading);
         for (const t of group) {
           const row = document.createElement('div');
@@ -193,7 +193,7 @@ export class FireSelectionLayer {
           const right = document.createElement('span');
           right.className = 'threat-asset-info';
           const dist = t.ring === 'inside' ? '0 KM' : `${t.distanceKm.toFixed(1)} KM`;
-          right.textContent = `${CATEGORY_LABEL[t.category]} / ${dist}${t.inSpreadCorridor ? ' / CORRIDOR' : ''}`;
+          right.textContent = `${CATEGORY_LABEL[t.category].toUpperCase()} / ${dist}${t.inSpreadCorridor ? ' / CORRIDOR' : ''}`;
           row.append(left, right);
           body.appendChild(row);
         }
@@ -201,10 +201,10 @@ export class FireSelectionLayer {
     }
 
     this.panel.append(title, meta, body);
-    this.onSelectionChange(threats.fireId);
   }
 
   destroy(): void {
+    this.request?.abort();
     this.handler.destroy();
     this.removeVisibilityListener();
     // Only this layer's own markers; viewer.entities is shared with the

@@ -6,6 +6,7 @@ import { openLedger } from './engine/ledger';
 import { getFires } from './providers';
 import { getInfrastructure } from './infrastructure';
 import { getThreats } from './threats';
+import { getSituation } from './situation';
 import { growthFor } from './model';
 import { loadMetrics, type Metrics } from './model/metrics';
 import { engineRouter } from './engine/routes';
@@ -60,15 +61,30 @@ export function createApp(metrics: () => Metrics = loadMetrics, forecasts = new 
       return;
     }
     try {
-      const threats = await getThreats(fireId);
+      const threats = await getThreats(fireId,await getFires(parseCursor(req.query.at)));
       if (!threats) {
         res.status(404).json({ error: `unknown fireId ${fireId}` });
         return;
       }
       res.json(threats);
     } catch (err) {
+      if (err instanceof CursorError) { res.status(400).json({error:err.message}); return; }
       console.error('[api] /api/threats failed:', err);
       res.status(502).json({ error: 'threat analysis unavailable' });
+    }
+  });
+
+  app.get('/api/situation', async (req,res)=>{
+    const fireId=typeof req.query.fireId==='string' ? req.query.fireId : '';
+    if (!fireId) {res.status(400).json({error:'fireId query parameter required'});return;}
+    try {
+      const situation=await getSituation(fireId,parseCursor(req.query.at));
+      if (!situation) {res.status(404).json({error:'unknown fireId'});return;}
+      res.json(situation);
+    } catch(err) {
+      if(err instanceof CursorError) {res.status(400).json({error:err.message});return;}
+      console.error('[api] /api/situation failed:',err);
+      res.status(502).json({error:'situation analysis unavailable'});
     }
   });
 

@@ -7,9 +7,25 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type {
   InfrastructureAsset,
+  InfrastructureCoverage,
   InfrastructureResponse,
 } from '../shared/threats';
 import type { LatLon } from '../shared/fires';
+
+// Where the bundled infrastructure data actually exists. The extent is the
+// observed bbox of the committed point assets (Catalonia administrative
+// datasets, per scripts/fetch-infrastructure.mjs); it is not a guarantee of
+// complete coverage inside the rectangle. Consumers qualify an empty threat
+// list with this so "no assets" is not read as "safe".
+export const INFRASTRUCTURE_COVERAGE: InfrastructureCoverage = {
+  label: 'Catalonia (bundled data extent)',
+  bbox: [0.25, 40.54, 3.28, 42.84], // [west, south, east, north] degrees
+};
+
+export function pointInCoverage(p: LatLon): boolean {
+  const [west, south, east, north] = INFRASTRUCTURE_COVERAGE.bbox;
+  return p.lat >= south && p.lat <= north && p.lon >= west && p.lon <= east;
+}
 
 const INFRA_DIR = path.resolve(process.cwd(), 'data/infrastructure');
 
@@ -77,11 +93,13 @@ export function lineToAsset(f: RawLineFeature): { asset: InfrastructureAsset; pa
   };
 }
 
-let cache: InfrastructureResponse | null = null;
+let cache: Promise<InfrastructureResponse> | null = null;
 
 export async function getInfrastructure(): Promise<InfrastructureResponse> {
-  if (cache) return cache;
+  return cache ??= loadInfrastructure(INFRA_DIR);
+}
 
+export async function loadInfrastructure(directory: string): Promise<InfrastructureResponse> {
   const files: Record<string, 'point' | 'line'> = {
     'hospitals.geojson': 'point',
     'schools.geojson': 'point',
@@ -89,6 +107,8 @@ export async function getInfrastructure(): Promise<InfrastructureResponse> {
     'power-lines.geojson': 'line',
   };
 
+  const loadedFiles: string[] = [], failedFiles: string[] = [];
+  let rejectedFeatures=0;
   const assets: InfrastructureAsset[] = [];
   // A null-prototype object, because the key is an asset id from the fixture: assigning through
   // `__proto__` on a plain literal invokes the inherited accessor, so the entry is never stored as
@@ -98,25 +118,31 @@ export async function getInfrastructure(): Promise<InfrastructureResponse> {
   for (const [file, kind] of Object.entries(files)) {
     let parsed: { features?: unknown[] };
     try {
-      parsed = JSON.parse(await readFile(path.join(INFRA_DIR, file), 'utf8'));
+      parsed = JSON.parse(await readFile(path.join(directory, file), 'utf8'));
+      if (!parsed || !Array.isArray(parsed.features)) throw new Error('missing features array');
+      loadedFiles.push(file);
     } catch (err) {
       console.warn(`[infrastructure] ${file} missing or unreadable, skipping:`, err instanceof Error ? err.message : err);
+      failedFiles.push(file);
       continue;
     }
     for (const f of parsed.features ?? []) {
       if (kind === 'point') {
         const asset = toAsset(f as RawPointFeature);
         if (asset) assets.push(asset);
+        else rejectedFeatures++;
       } else {
         const res = lineToAsset(f as RawLineFeature);
         if (res) {
           assets.push(res.asset);
           powerLinePaths[res.asset.id] = res.path;
-        }
+        } else rejectedFeatures++;
       }
     }
   }
 
-  cache = { assets, powerLinePaths };
-  return cache;
+  return { assets, powerLinePaths, status: {
+    state: loadedFiles.length===0 ? 'unavailable' : failedFiles.length || rejectedFeatures ? 'partial' : 'available',
+    loadedFiles, failedFiles, rejectedFeatures,
+  }};
 }

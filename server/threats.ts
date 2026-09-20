@@ -12,22 +12,32 @@ import pointToLineDistance from '@turf/point-to-line-distance';
 import union from '@turf/union';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { getFires } from './providers';
-import { getInfrastructure } from './infrastructure';
-import type { LatLon } from '../shared/fires';
+import { getInfrastructure, pointInCoverage, INFRASTRUCTURE_COVERAGE } from './infrastructure';
+import { createHash } from 'node:crypto';
+import { BoundedCache } from './bounded-cache';
+import type { FirePerimeter, FiresResponse, LatLon } from '../shared/fires';
 import type { ThreatRing, ThreatsResponse } from '../shared/threats';
+import { RING_RADII_KM, RING_SEVERITY } from '../shared/threats';
 
-const RING_RADII_KM: { ring: ThreatRing; radiusKm: number }[] = [
-  { ring: 'ring-5km', radiusKm: 5 },
-  { ring: 'ring-10km', radiusKm: 10 },
-  { ring: 'ring-20km', radiusKm: 20 },
-];
+// The one perimeter pick used everywhere a fire's current polygon matters
+// (threat rings, situation packet): the most recently observed one.
+export function latestPerimeter(fires: FiresResponse, fireId: string): FirePerimeter | null {
+  let latest: FirePerimeter | null = null;
+  for (const p of fires.perimeters) {
+    if (p.clusterId !== fireId) continue;
+    if (!latest || (p.observedAt ?? '') > (latest.observedAt ?? '')) {
+      latest = p;
+    }
+  }
+  return latest;
+}
 
-const RING_SEVERITY: Record<ThreatRing, number> = {
-  inside: 0,
-  'ring-5km': 1,
-  'ring-10km': 2,
-  'ring-20km': 3,
-};
+/** Only projections valid after the evidence clock contribute to future exposure. */
+export function futureSpreadSteps(fires: FiresResponse, fireId: string) {
+  const evidenceMs = Date.parse(fires.asOf ?? fires.fetchedAt);
+  return fires.spread.filter(s => s.clusterId === fireId && s.horizonHours > 0
+    && s.polygon.length >= 4 && Date.parse(s.at) > evidenceMs);
+}
 
 function turfPoint(p: LatLon) {
   return point([p.lon, p.lat]);
@@ -108,17 +118,46 @@ function powerLineThreat(
   return best;
 }
 
-export async function getThreats(fireId: string): Promise<ThreatsResponse | null> {
-  const fires = await getFires();
+// Geometry identity excludes transport timestamps and raw cursor spellings.
+const threatsCache=new BoundedCache<ThreatsResponse>(64,60_000);
+const threatJobs=new Map<string,Promise<ThreatsResponse | null>>();
+
+export function threatsCacheKey(fireId:string,fires:FiresResponse):string {
+  return createHash('sha256').update(JSON.stringify({
+    provenance:fires.provenance,scenario:fires.scenario,
+    cluster:fires.clusters.find(c=>c.id===fireId),
+    perimeters:fires.perimeters.filter(p=>p.clusterId===fireId),
+    spread:futureSpreadSteps(fires,fireId),
+  })).digest('hex');
+}
+
+export async function getThreats(
+  fireId: string,
+  fires?: FiresResponse,
+): Promise<ThreatsResponse | null> {
+  const firesSnapshot = fires ?? (await getFires());
+  const key = threatsCacheKey(fireId, firesSnapshot);
+  const cached = threatsCache.get(key);
+  if (cached) return cached;
+
+  const pending = threatJobs.get(key);
+  if (pending) return pending;
+  const job = computeThreats(fireId, firesSnapshot).then(value => {
+    if (value) threatsCache.set(key,value);
+    return value;
+  }).finally(() => threatJobs.delete(key));
+  threatJobs.set(key,job);
+  return job;
+}
+
+async function computeThreats(
+  fireId: string,
+  fires: FiresResponse,
+): Promise<ThreatsResponse | null> {
   const cluster = fires.clusters.find((c) => c.id === fireId);
   if (!cluster) return null;
 
-  // Latest observed perimeter, matching what the map renders. The replay
-  // snapshot carries several per cluster, so a bare find() would anchor the
-  // rings to a stale outline.
-  const perimeter = fires.perimeters
-    .filter((p) => p.clusterId === fireId)
-    .sort((a, b) => (b.observedAt ?? '').localeCompare(a.observedAt ?? ''))[0];
+  const perimeter = latestPerimeter(fires, fireId);
   const hasPerimeter = perimeter != null;
   const center = perimeter ? perimeterPolygon(perimeter.polygon) : pointDisc(cluster.centroid);
   const centerLine = perimeter ? perimeterLine(perimeter.polygon) : null;
@@ -129,14 +168,14 @@ export async function getThreats(fireId: string): Promise<ThreatsResponse | null
 
   const corridor = spreadCorridor(
     fireId,
-    fires.spread.map((s) => ({
+    futureSpreadSteps(fires, fireId).map((s) => ({
       clusterId: s.clusterId,
       horizonHours: s.horizonHours,
       polygon: s.polygon,
     })),
   );
 
-  const { assets, powerLinePaths } = await getInfrastructure();
+  const { assets, powerLinePaths, status } = await getInfrastructure();
   const threatened: ThreatsResponse['threatened'] = [];
 
   for (const asset of assets) {
@@ -191,6 +230,8 @@ export async function getThreats(fireId: string): Promise<ThreatsResponse | null
 
   return {
     fireId,
+    infrastructureStatus:status,
+    infrastructureCoverage:pointInCoverage(cluster.centroid) ? INFRASTRUCTURE_COVERAGE : null,
     hasPerimeter,
     rings: [
       { ring: 'inside' as ThreatRing, radiusKm: null },

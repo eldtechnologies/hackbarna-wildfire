@@ -19,9 +19,11 @@ function formatClock(iso: string): string {
   return iso.slice(11, 16) + 'Z';
 }
 
-export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): void {
+export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElement {
+  const panels = el('div', 'hud-fire-panels');
+  hudRoot.appendChild(panels);
   const listPanel = el('div', 'hud-panel hud-fires');
-  hudRoot.appendChild(listPanel);
+  panels.appendChild(listPanel);
 
   const scrubPanel = el('div', 'hud-panel hud-scrubber');
   scrubPanel.hidden = true;
@@ -66,12 +68,13 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): void {
   statsRow.appendChild(driftStat);
 
   scrubPanel.append(titleRow, timeRow, controlsRow, sliderRow, tickRow, statsRow);
-  hudRoot.appendChild(scrubPanel);
+  panels.appendChild(scrubPanel);
 
   // Latest state, read by the step buttons. Kept current by render().
   const stateRef: FireLayerState = {
     cases: [],
     selectedCase: null,
+    selectedId: null,
     scrubHours: 0,
     playing: false,
     projection: null,
@@ -162,4 +165,5 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): void {
     renderList(state);
     renderScrubber(state);
   });
+  return panels;
 }

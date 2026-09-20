@@ -138,13 +138,23 @@ body,
   margin-bottom: 6px;
 }
 
-/* FIRES list, left side under the telemetry block */
-.hud-fires {
+/* One scrollable inspector owns the fire list, forecast controls and threats. */
+.hud-fire-panels {
   position: absolute;
-  bottom: 90px;
+  top: 72px;
   left: 52px;
-  min-width: 220px;
+  width: min(340px, calc(50vw - 68px));
+  max-height: calc(100vh - 180px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  pointer-events: auto;
 }
+
+.hud-fire-panels > * { flex-shrink: 0; }
+.hud-fires, .hud-scrubber { width: 100%; }
+
 
 .hud-fires-empty {
   color: var(--dim);
@@ -175,6 +185,8 @@ body,
 
 .hud-fire-name {
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hud-fire-meta {
@@ -182,14 +194,6 @@ body,
   font-variant-numeric: tabular-nums;
 }
 
-/* Spread scrubber, bottom center */
-.hud-scrubber {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 340px;
-}
 
 .hud-scrubber-head {
   display: flex;
@@ -199,6 +203,10 @@ body,
 }
 
 .hud-scrubber-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--amber);
   font-size: 11px;
 }
@@ -395,11 +403,8 @@ body,
 
 /* Threat analysis panel (selected fire) */
 .threat-panel {
-  position: absolute;
-  bottom: 20px;
-  left: 52px;
-  width: 340px;
-  max-height: 55vh;
+  width: 100%;
+  max-height: 40vh;
   display: none;
   flex-direction: column;
   border: 1px solid var(--line);
@@ -470,4 +475,136 @@ body,
 
 .threat-asset.corridor .threat-asset-info {
   color: var(--amber);
+}
+
+/* Agent panel (situation report) */
+.agent-panel {
+  position: absolute;
+  bottom: 20px;
+  right: 52px;
+  width: 380px;
+  max-height: calc(100vh - 324px);
+  display: none;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  background: rgba(10, 14, 18, 0.85);
+  pointer-events: auto;
+  overflow-y: auto;
+}
+
+.agent-panel.open {
+  display: flex;
+}
+
+.agent-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--amber);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+.agent-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+}
+
+.agent-badge-llm {
+  color: var(--amber);
+  border-color: var(--amber);
+}
+
+.agent-badge-template {
+  color: var(--dim);
+}
+
+.agent-summary {
+  padding: 10px 14px;
+  color: var(--cyan);
+  font-size: 11px;
+  line-height: 1.7;
+  border-bottom: 1px solid var(--line);
+}
+
+.agent-figures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.agent-figure {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--dim);
+}
+
+.agent-figure-wide { grid-column: 1 / -1; flex-wrap: wrap; }
+
+.agent-figure span:last-child {
+  color: var(--cyan);
+}
+
+.agent-list {
+  padding: 6px 0;
+}
+
+.agent-rec {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 14px;
+  line-height: 1.7;
+  font-size: 11px;
+  color: var(--cyan);
+}
+
+.agent-rec.urgent {
+  color: #ff6b5e;
+}
+
+.agent-rec.elevated {
+  color: var(--amber);
+}
+
+.agent-rec-rank {
+  color: var(--dim);
+  font-size: 10px;
+}
+
+.agent-rec.urgent .agent-rec-rank,
+.agent-rec.elevated .agent-rec-rank {
+  color: inherit;
+  opacity: 0.7;
+}
+
+.agent-footer {
+  padding: 8px 14px;
+  border-top: 1px solid var(--line);
+  color: var(--dim);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+}
+
+/* Keep reports clear of the fire controls and layer list on narrow screens. */
+@media (max-width: 860px) {
+  .hud-fire-panels, .agent-panel { width:calc(50vw - 24px); }
+  .hud-fire-panels { left:16px; }
+  .agent-panel { right:16px; }
+}
+
+[hidden] { display:none !important; }
+
+.agent-caveat {
+  grid-column: 1 / -1;
+  color: #ff6b5e;
+  font-size: 10px;
+  letter-spacing: 0.05em;
 }
