@@ -9,13 +9,21 @@ from scipy.ndimage import distance_transform_edt
 from rasterio.features import rasterize
 from affine import Affine
 from shapely.geometry import shape, mapping
-from shapely.ops import transform, unary_union
+from shapely.ops import transform
 
 if __package__:
     from .frozen_inputs import frozen_trainer, paired_inputs, checked_bytes, EVIDENCE, load_checkpoint
 else:
     from frozen_inputs import frozen_trainer, paired_inputs, checked_bytes, EVIDENCE, load_checkpoint
 
+
+def metrics_from_counts(tp, fp, fn):
+    return {
+        "precision": tp / (tp + fp) if tp + fp else None,
+        "recall": tp / (tp + fn) if tp + fn else None,
+        "f1": 2 * tp / (2 * tp + fp + fn) if 2 * tp + fp + fn else None,
+        "csi": tp / (tp + fp + fn) if tp + fp + fn else None,
+    }
 
 def counts(y, alert):
     y = np.asarray(y, bool)
@@ -29,10 +37,7 @@ def counts(y, alert):
         "fp": fp,
         "fn": fn,
         "tn": tn,
-        "precision": tp / (tp + fp) if tp + fp else None,
-        "recall": tp / (tp + fn) if tp + fn else None,
-        "f1": 2 * tp / (2 * tp + fp + fn) if 2 * tp + fp + fn else None,
-        "csi": tp / (tp + fp + fn) if tp + fp + fn else None,
+        **metrics_from_counts(tp, fp, fn),
         "predicted_cells": tp + fp,
     }
 
@@ -76,12 +81,12 @@ def main():
                   json.loads((EVIDENCE / 'paired-input-source-lock.json').read_text())['inputs.py'])
     with frozen_trainer(TRAINER) as namespace:
         quality = importlib.import_module(namespace + '.quality')
-        GEOS, Quality, labels, lonlat = quality.GEOS, quality.Quality, quality.labels, quality.lonlat
+        GEOS, Quality, labels = quality.GEOS, quality.Quality, quality.labels
         Weather = importlib.import_module(namespace + '.weather').Weather
         terrain_module = importlib.import_module(namespace + '.terrain')
         Terrain, tile_name = terrain_module.Terrain, terrain_module.tile_name
         common = importlib.import_module(namespace + '.common')
-        CHANNELS, HORIZONS, SIZE, file_hash = common.CHANNELS, common.HORIZONS, common.SIZE, common.file_hash
+        CHANNELS, SIZE, file_hash, write_json = common.CHANNELS, common.SIZE, common.file_hash, common.write_json
         trainer = importlib.import_module(namespace + '.train')
         UNet, calibrate = trainer.UNet, trainer.calibrate
 
@@ -100,9 +105,6 @@ def main():
                     with np.load(p) as d:
                         return d["data"], d["meta"]
                 return super().tile(kind, lat, lon)
-
-        def save(path, value):
-            path.write_text(json.dumps(value, indent=2) + "\n")
 
         DATA = BASE / "next-run-data/full-v1"
         MANIFEST = json.loads((DATA / "manifest.json").read_text())
@@ -169,7 +171,7 @@ def main():
         }
         if not parity["x_equal"] or not parity["p_equal"]:
             raise ValueError("Original input reconstruction failed")
-        save(OUT / "input-parity.json", parity)
+        write_json(OUT / "input-parity.json", parity)
         print(json.dumps({"input_parity": parity}), flush=True)
         for i, row in enumerate(rows):
             sid = row["id"]
@@ -178,61 +180,56 @@ def main():
             r0 = row["row"] - 32
             c0 = row["col"] - 32
             try:
-                if not path.exists():
-                    anchors = [
-                        t
-                        for t in pd.date_range(
-                            issue - pd.Timedelta(hours=3),
-                            issue,
-                            freq="10min",
-                            inclusive="left",
-                        )
-                        if (a := q.availability(str(t))) is not None and a <= issue
-                    ]
-                    if not anchors:
-                        raise ValueError("No available quality product in input history")
-                    # This is an on-demand prediction at a saved ignition location, not a newly detected native episode.
-                    # seed_scan_time is an availability anchor only; it does not claim a fire was detected there.
-                    event = {
-                        "event_id": "deepfire-" + sid,
-                        "seed_row": row["row"],
-                        "seed_col": row["col"],
-                        "seed_scan_time": str(anchors[0]),
-                        "lon": row["lon"],
-                        "lat": row["lat"],
-                    }
-                    obs = pd.read_parquet(
-                        Path(CFG["extract"]) / "observations.parquet",
-                        columns=["ABS_LINE", "ABS_SAMP", "observed_at", "scan_time", "FRP"],
-                        filters=[
-                            ("ABS_LINE", ">=", r0),
-                            ("ABS_LINE", "<", r0 + 64),
-                            ("ABS_SAMP", ">=", c0),
-                            ("ABS_SAMP", "<", c0 + 64),
-                            ("observed_at", ">=", issue - pd.Timedelta(hours=3)),
-                            ("observed_at", "<", issue),
-                        ],
+                anchors = [
+                    t
+                    for t in pd.date_range(
+                        issue - pd.Timedelta(hours=3),
+                        issue,
+                        freq="10min",
+                        inclusive="left",
                     )
-                    frame = InputFrame(event, q, w, terrain, obs)
-                    x, p = frame.at(issue)
-                    if not x[
-                        [
-                            i
-                            for i, n in enumerate(CHANNELS)
-                            if n.endswith("observable_fraction")
-                        ]
-                    ].any():
-                        raise ValueError("No observable model history")
-                    with torch.inference_mode():
-                        pred = calibrate(
-                            model(torch.from_numpy(x.astype(np.float32))[None])[0].numpy(),
-                            saved["calibration"],
-                        )
-                    if not np.isfinite(pred).all():
-                        raise ValueError("Non-finite prediction")
-                    np.savez_compressed(
-                        path, x=x, p=p, pred=pred, lon=frame.longitude, lat=frame.latitude
+                    if (a := q.availability(str(t))) is not None and a <= issue
+                ]
+                if not anchors:
+                    raise ValueError("No available quality product in input history")
+                # This is an on-demand prediction at a saved ignition location, not a newly detected native episode.
+                # seed_scan_time is an availability anchor only; it does not claim a fire was detected there.
+                event = {
+                    "event_id": "deepfire-" + sid,
+                    "seed_row": row["row"],
+                    "seed_col": row["col"],
+                    "seed_scan_time": str(anchors[0]),
+                    "lon": row["lon"],
+                    "lat": row["lat"],
+                }
+                obs = pd.read_parquet(
+                    Path(CFG["extract"]) / "observations.parquet",
+                    columns=["ABS_LINE", "ABS_SAMP", "observed_at", "scan_time", "FRP"],
+                    filters=[
+                        ("ABS_LINE", ">=", r0),
+                        ("ABS_LINE", "<", r0 + 64),
+                        ("ABS_SAMP", ">=", c0),
+                        ("ABS_SAMP", "<", c0 + 64),
+                        ("observed_at", ">=", issue - pd.Timedelta(hours=3)),
+                        ("observed_at", "<", issue),
+                    ],
+                )
+                frame = InputFrame(event, q, w, terrain, obs)
+                x, p = frame.at(issue)
+                if not x[
+                    [i for i, n in enumerate(CHANNELS) if n.endswith("observable_fraction")]
+                ].any():
+                    raise ValueError("No observable model history")
+                with torch.inference_mode():
+                    pred = calibrate(
+                        model(torch.from_numpy(x.astype(np.float32))[None])[0].numpy(),
+                        saved["calibration"],
                     )
+                if not np.isfinite(pred).all():
+                    raise ValueError("Non-finite prediction")
+                np.savez_compressed(
+                    path, x=x, p=p, pred=pred, lon=frame.longitude, lat=frame.latitude
+                )
                 prepared.append(row)
                 print(
                     json.dumps(
@@ -250,7 +247,7 @@ def main():
                     {"id": sid, "reason": str(exc), "error_type": type(exc).__name__}
                 )
                 print(json.dumps({"excluded": excluded[-1]}), flush=True)
-        save(
+        write_json(
             OUT / "preparation.json",
             {
                 "prepared": prepared,
@@ -364,7 +361,7 @@ def main():
                     deepfire_earlier=dlow,
                     deepfire_later=dhigh,
                 )
-        save(
+        write_json(
             OUT / "results.json",
             {
                 "protocol": PROTOCOL,
@@ -398,13 +395,7 @@ def main():
                             k: sum(r["scores"][name][k] for r in rr)
                             for k in ["tp", "fp", "fn", "tn"]
                         }
-                        tp, fp, fn, tn = [c[k] for k in ["tp", "fp", "fn", "tn"]]
-                        c.update(
-                            precision=tp / (tp + fp) if tp + fp else None,
-                            recall=tp / (tp + fn) if tp + fn else None,
-                            f1=2 * tp / (2 * tp + fp + fn) if 2 * tp + fp + fn else None,
-                            csi=tp / (tp + fp + fn) if tp + fp + fn else None,
-                        )
+                        c.update(metrics_from_counts(c["tp"], c["fp"], c["fn"]))
                         totals[name] = c
                     summary.append(
                         {
@@ -419,7 +410,7 @@ def main():
                             "scores": totals,
                         }
                     )
-        save(OUT / "summary.json", summary)
+        write_json(OUT / "summary.json", summary)
         print(
             json.dumps(
                 {
