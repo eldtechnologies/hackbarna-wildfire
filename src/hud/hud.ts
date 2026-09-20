@@ -6,6 +6,7 @@ import {
   Viewer,
 } from 'cesium';
 import { LAYERS, LAYER_COLORS, isLayerVisible, setLayerVisible } from '../layers/registry';
+import type { FireDataKind } from '../../shared/fires';
 
 // HUD shell: corner brackets, title, UTC clock, telemetry, layer toggles.
 // Pure DOM overlay on top of the Cesium canvas.
@@ -13,7 +14,7 @@ import { LAYERS, LAYER_COLORS, isLayerVisible, setLayerVisible } from '../layers
 export interface HudHandle {
   sidePanels: HTMLElement;
   /** Update the LIVE/REPLAY badge from the API response provenance. */
-  setMode: (mode: 'live' | 'replay', kind?: 'observations' | 'exercise') => void;
+  setMode: (mode: 'live' | 'replay', kind?: FireDataKind) => void;
 }
 
 function el(tag: string, className = '', text = ''): HTMLElement {

@@ -13,6 +13,7 @@ import path from 'node:path';
 import type { RawFiresPayload } from './normalize';
 import { captureTimeline, causalResponse, type HistoricalCapture } from './causal';
 import type {
+  FireDataKind,
   FireDataProvider,
   FiresResponse,
   ReplayTimeline,
@@ -34,7 +35,7 @@ interface FrameFile extends RawFiresPayload {
 interface RecordingFile {
   scenario?: string;
   recordedAt?: string;
-  dataKind?: 'observations' | 'exercise';
+  dataKind?: FireDataKind;
   frames?: FrameFile[];
 }
 

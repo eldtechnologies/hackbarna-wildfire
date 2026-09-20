@@ -51,7 +51,9 @@ export function fetchSituation(fireId: string, atSeconds?: number, signal?: Abor
 }
 
 function query(values: Record<string, string | number | undefined>): string {
-  const params = Object.entries(values).filter(([, value]) => value !== undefined)
-    .map(([key, value]) => `${key}=${encodeURIComponent(value!)}`);
-  return params.length ? `?${params.join('&')}` : '';
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined) params.set(key, String(value));
+  }
+  return params.size ? `?${params}` : '';
 }

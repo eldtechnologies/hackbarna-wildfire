@@ -3,6 +3,7 @@
 // the model only orders server-rendered facts: every number the client
 // renders comes from these fields, never from the model.
 
+import type { FireDataKind } from './fires';
 import type { InfrastructureCoverage, InfrastructureStatus, ThreatenedAsset } from './threats';
 
 export type SituationThreat = ThreatenedAsset;
@@ -20,7 +21,7 @@ export interface SituationPacket {
   fireName: string | null;
   // Data source that fed the packet, so the demo is honest about replay.
   dataProvenance: 'live' | 'replay';
-  dataKind?: 'observations' | 'exercise';
+  dataKind?: FireDataKind;
   hasPerimeter: boolean; // false means screening uses a 50 m detection-centroid disc
   perimeterAreaKm2: number | null; // null when the fire has no observed perimeter
   perimeterObservedAt: string | null;
