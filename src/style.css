@@ -657,3 +657,5 @@ body,
 
 .inspectors-hidden .hud-fire-panels, .inspectors-hidden .hud-side-panels,
 .inspectors-hidden .hud-replay { display:none; }
+
+.hud-fires { max-height:200px; overflow-y:auto; }

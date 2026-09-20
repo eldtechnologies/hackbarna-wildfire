@@ -109,7 +109,10 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
       return;
     }
     const cases = new Map(state.cases.map(c => [c.cluster.id, c]));
-    for (const cluster of clusters) {
+    // Fires with measured perimeters lead the list; sparse detections remain selectable.
+    const ordered = [...clusters].sort((a,b) => Number(cases.has(b.id)) - Number(cases.has(a.id))
+      || (cases.get(b.id)?.areaKm2 ?? 0) - (cases.get(a.id)?.areaKm2 ?? 0));
+    for (const cluster of ordered) {
       const caseData = cases.get(cluster.id);
       const row = el('button', 'hud-fire-row');
       row.classList.toggle(
