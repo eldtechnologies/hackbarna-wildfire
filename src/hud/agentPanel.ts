@@ -34,9 +34,7 @@ export class AgentPanel {
       .catch((err) => {
         if (seq!==this.request) return;
         console.error('[agent-panel] situation fetch failed:', err);
-        // Allow a retry: the next click on the same fire re-fetches.
         if (seq === this.request) {
-          this.trackedKey = null;
           this.renderError(fireId,atSeconds,evidenceKey);
         }
       });
@@ -54,7 +52,7 @@ export class AgentPanel {
     this.panel.append(this.title(`SITUATION AGENT / ${fireId}`), this.body('REPORT UNAVAILABLE'));
     const retry=document.createElement('button');
     retry.className='hud-btn';retry.textContent='RETRY REPORT';
-    retry.addEventListener('click',()=>this.track(fireId,atSeconds,evidenceKey));
+    retry.addEventListener('click',()=>{this.trackedKey=null;this.track(fireId,atSeconds,evidenceKey);});
     this.panel.appendChild(retry);
   }
 

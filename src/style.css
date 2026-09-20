@@ -384,10 +384,10 @@ body,
 /* Threat analysis panel (selected fire) */
 .threat-panel {
   position: absolute;
-  bottom: 20px;
+  top: 72px;
   left: 52px;
   width: 340px;
-  max-height: 55vh;
+  max-height: min(55vh, calc(100vh - 250px));
   display: none;
   flex-direction: column;
   border: 1px solid var(--line);
@@ -466,7 +466,7 @@ body,
   bottom: 20px;
   right: 52px;
   width: 380px;
-  max-height: 60vh;
+  max-height: calc(100vh - 324px);
   display: none;
   flex-direction: column;
   border: 1px solid var(--line);
@@ -574,19 +574,14 @@ body,
   letter-spacing: 0.05em;
 }
 
-/* Narrow viewports: the two panels would overlap, so stack the agent panel
-   above the threat panel. */
+/* Keep reports clear of the fire controls and layer list on narrow screens. */
 @media (max-width: 860px) {
-  .threat-panel,
-  .agent-panel {
-    width: 300px;
-    max-height: 40vh;
-  }
-
-  .agent-panel {
-    bottom: calc(55vh + 30px);
-  }
+  .threat-panel, .agent-panel { width:calc(50vw - 24px); }
+  .threat-panel { left:16px; }
+  .agent-panel { right:16px; }
 }
+
+[hidden] { display:none !important; }
 
 .agent-caveat {
   grid-column: 1 / -1;

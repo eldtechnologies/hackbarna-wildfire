@@ -34,7 +34,6 @@ export interface FireSelectionChange {
 
 export class FireSelectionLayer {
   private handler: ScreenSpaceEventHandler;
-  private selectedId: string | null = null;
   private request:AbortController | null=null;
   private trackedKey:string | null=null;
   private markerIds: string[] = [];
@@ -114,7 +113,6 @@ export class FireSelectionLayer {
     const key=fireId===null?null:JSON.stringify([fireId,atSeconds,evidenceKey]);
     if(key===this.trackedKey) return;
     this.trackedKey=key;
-    this.selectedId=fireId;
     this.request?.abort();
     if(!fireId) {
       this.panel.classList.remove('open');this.panel.replaceChildren();return;
@@ -126,8 +124,7 @@ export class FireSelectionLayer {
     }).catch(err=>{
       if(request.signal.aborted)return;
       console.error('[fire-selection] threats fetch failed:',err);
-      this.trackedKey=null;
-      this.renderError(fireId);
+      this.renderError(fireId,atSeconds,evidenceKey);
     });
   }
 
@@ -143,9 +140,12 @@ export class FireSelectionLayer {
     this.panel.append(title, body);
   }
 
-  private renderError(_fireId: string): void {
-    const body = this.panel.querySelector('.threat-body');
-    if (body) body.textContent = 'ANALYSIS UNAVAILABLE';
+  private renderError(fireId:string,atSeconds?:number,evidenceKey?:string):void {
+    const body=this.panel.querySelector('.threat-body');
+    if(body) body.textContent='ANALYSIS UNAVAILABLE';
+    const retry=document.createElement('button');retry.className='hud-btn';retry.textContent='RETRY ANALYSIS';
+    retry.addEventListener('click',()=>{this.trackedKey=null;this.track(fireId,atSeconds,evidenceKey);});
+    this.panel.appendChild(retry);
   }
 
   private render(threats: ThreatsResponse): void {

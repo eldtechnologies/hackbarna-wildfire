@@ -71,6 +71,7 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): void {
   const stateRef: FireLayerState = {
     cases: [],
     selectedCase: null,
+    selectedId: null,
     scrubHours: 0,
     playing: false,
     projection: null,

@@ -101,3 +101,20 @@ test('a corrupt harness artifact is a 502, not an empty score list', async () =>
     await new Promise<void>((resolve) => s.close(() => resolve()));
   }
 });
+
+test('situation and threats use the shared evidence cursor and reject malformed cursors',async()=>{
+  const id=await firstClusterId();
+  for(const route of ['situation','threats']) {
+    assert.equal((await get(`/api/${route}?fireId=${id}&at=0`)).status,404);
+    assert.equal((await get(`/api/${route}?fireId=${id}&at=invalid`)).status,400);
+    const response=await get(`/api/${route}?fireId=${id}`);
+    assert.equal(response.status,200,response.body);
+    const data=JSON.parse(response.body);
+    const packet=data.packet??data;
+    assert.equal(packet.infrastructureStatus.state,'available');
+    if(route==='situation') {
+      assert.equal(packet.evidenceAsOf,JSON.parse((await get('/api/fires')).body).asOf);
+      assert.equal(data.narrator,'template');
+    }
+  }
+});
