@@ -1,0 +1,18 @@
+{
+  "observed_at_utc": "2026-09-20T03:16:51Z",
+  "gpu": "NVIDIA H100 80GB HBM3",
+  "gpu_utilization_percent": 4,
+  "gpu_memory_used_mib": 1019,
+  "container_visible_cpu_affinity": 208,
+  "container_default_torch_intra_threads": 104,
+  "container_default_torch_interop_threads": 104,
+  "cpu_quota_us": 2210000,
+  "cpu_period_us": 100000,
+  "process_threads": 234,
+  "process_cpu_percent": 2206,
+  "limitations": [
+    "Point-in-time runtime observations, not a controlled H100 throughput benchmark.",
+    "Thread defaults read in a separate process in the same container; active trainer source does not override them.",
+    "No process was stopped, reconfigured or profiled invasively."
+  ]
+}

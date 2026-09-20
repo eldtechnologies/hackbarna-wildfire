@@ -10,7 +10,8 @@
 
 import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { normalize, type RawFiresPayload } from './normalize';
+import type { RawFiresPayload } from './normalize';
+import { captureTimeline, causalResponse, type HistoricalCapture } from './causal';
 import type {
   FireDataProvider,
   FiresResponse,
@@ -23,9 +24,7 @@ const SNAPSHOTS_DIR = path.resolve(process.cwd(), 'data/snapshots');
 // nondeterministic on a fresh checkout, where all mtimes are equal.
 const SNAPSHOT_FILE = process.env.REPLAY_SNAPSHOT ?? 'los-gallardos-2026-07-09.json';
 
-interface SnapshotFile extends RawFiresPayload {
-  scenario?: string;
-}
+type SnapshotFile = HistoricalCapture;
 
 // Recording frame as written by the record script: raw payload + t.
 interface FrameFile extends RawFiresPayload {
@@ -132,23 +131,25 @@ export class ReplayProvider implements FireDataProvider {
       await readFile(path.join(SNAPSHOTS_DIR, file), 'utf8'),
     ) as SnapshotFile | RecordingFile;
 
+    const scenario = parsed.scenario ?? path.basename(file, '.json');
+    let payload:RawFiresPayload;
+    let timeline:ReplayTimeline;
     if (isRecording(parsed)) {
       const frames = (parsed.frames ?? []) as FrameFile[];
       if (frames.length === 0) {
         throw new Error(`recording ${file} has no frames`);
       }
-      const scenario = parsed.scenario ?? path.basename(file, '.json');
-      const frame =
+      payload =
         atSeconds === undefined
           ? sortedFrames(frames)[frames.length - 1]
           : frameAt(frames, atSeconds);
-      const response = normalize(frame, 'replay', scenario);
-      if (atSeconds !== undefined) response.atSeconds = Math.max(0, atSeconds);
-      response.timeline = buildTimeline(scenario, frames);
-      return response;
+      timeline = buildTimeline(scenario, frames);
+    } else {
+      payload = parsed as SnapshotFile;
+      timeline = captureTimeline(parsed as SnapshotFile, scenario);
     }
-
-    const flat = parsed as SnapshotFile;
-    return normalize(flat, 'replay', flat.scenario ?? path.basename(file, '.json'));
+    const offset = atSeconds === undefined ? timeline.durationSeconds : Math.min(timeline.durationSeconds, Math.max(0, atSeconds));
+    const issue = Math.min(Date.parse(timeline.end), Date.parse(timeline.start) + offset * 1000);
+    return {...causalResponse(payload, scenario, issue), timeline};
   }
 }

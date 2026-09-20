@@ -1,0 +1,107 @@
+{
+  "arguments": {
+    "base": 32,
+    "batch_size": 16,
+    "cache_events": 16,
+    "cpu_threads": 2,
+    "data": "full-v1",
+    "device": "cpu",
+    "events": 128,
+    "legacy_source": "08c7bbe:tools/next_run/train.py",
+    "out": "throughput-local.json",
+    "phase": "loader",
+    "seed": 0,
+    "selection_events": 0,
+    "steps": 64,
+    "warmup": 8,
+    "workers": [
+      0,
+      2
+    ]
+  },
+  "common_verification_seconds": 0.734708292002324,
+  "cpu_threads": 2,
+  "device": "cpu",
+  "events": 128,
+  "legacy_source_sha256": "83a42e470850d3c9961805e3603a0b14db8207219e06eccc38503b57a4cfb6f6",
+  "limitations": [
+    "Bounded sampled train events, not a full-epoch speed guarantee.",
+    "No predictive-accuracy conclusions; no production checkpoint produced.",
+    "Warm-cache and startup effects are reported separately; configuration order is not randomized."
+  ],
+  "machine": "arm64",
+  "manifest_sha256": "6a892f380242c2a253393daf59e92c0b84326b7171355db860cae1080e78e31e",
+  "platform": "Darwin",
+  "results": [
+    {
+      "empty_batches": 0,
+      "implementation": "legacy",
+      "initialization_seconds": 0.0005440839740913361,
+      "loader_wait_p50_seconds": 0.011399896495277062,
+      "loader_wait_p95_seconds": 0.01940528495906619,
+      "phase": "loader",
+      "sampled_indices_sha256": "e4b0727c2c703475e8716ebd17fcc8d767d4df8aa689105630182407042f2d2a",
+      "samples_per_second": 1317.5060338947449,
+      "startup_and_first_batch_seconds": 0.021354958997108042,
+      "steady_seconds": 0.7772260419733357,
+      "steps": 64,
+      "workers": 0
+    },
+    {
+      "empty_batches": 0,
+      "implementation": "optimized",
+      "initialization_seconds": 0.6900813749816734,
+      "loader_wait_p50_seconds": 0.007227833499200642,
+      "loader_wait_p95_seconds": 0.008792132962844333,
+      "phase": "loader",
+      "sampled_indices_sha256": "e4b0727c2c703475e8716ebd17fcc8d767d4df8aa689105630182407042f2d2a",
+      "samples_per_second": 2184.01052662475,
+      "startup_and_first_batch_seconds": 0.7089183749922086,
+      "steady_seconds": 0.4688622090034187,
+      "steps": 64,
+      "workers": 0
+    },
+    {
+      "empty_batches": 0,
+      "implementation": "optimized",
+      "initialization_seconds": 0.7046627500094473,
+      "loader_wait_p50_seconds": 0.007922770484583452,
+      "loader_wait_p95_seconds": 0.022646045539295282,
+      "phase": "loader",
+      "sampled_indices_sha256": "e4b0727c2c703475e8716ebd17fcc8d767d4df8aa689105630182407042f2d2a",
+      "samples_per_second": 2379.047881328937,
+      "startup_and_first_batch_seconds": 6.0146840829984285,
+      "steady_seconds": 0.4304242920188699,
+      "steps": 64,
+      "workers": 2
+    },
+    {
+      "empty_batches": 0,
+      "implementation": "legacy",
+      "initialization_seconds": 0.004517875000601634,
+      "loader_wait_p50_seconds": 0.011960145988268778,
+      "loader_wait_p95_seconds": 0.01984367939730873,
+      "phase": "loader",
+      "repeat": "after_optimized",
+      "sampled_indices_sha256": "e4b0727c2c703475e8716ebd17fcc8d767d4df8aa689105630182407042f2d2a",
+      "samples_per_second": 1206.6324129928723,
+      "startup_and_first_batch_seconds": 0.0632417919987347,
+      "steady_seconds": 0.8486428749747574,
+      "steps": 64,
+      "workers": 0
+    }
+  ],
+  "runtime_sources": {
+    "build": "21c8b4f4a4625cb9ce0e859b858920b271fdd9478011df5604f3e163846af948",
+    "common": "6096340b0c020cd8b2a00e8fa871cf6dc6e7baaad607632f935b0d951d2613f1",
+    "inputs": "3f52b74f1b3935010b2a5f983c1fdfd5d2386c3f4322bb64823954ae45be367e",
+    "loading": "202343e8a952bf4a6b34513f7e56abe4405ce42fcf4d73f84a3a0d6c77b2c1ae",
+    "quality": "d54f7592b56d39c5c3c3b076929add2d06b3a912a0bd98d223381d422665041f",
+    "terrain": "56483f308da1cf3f5f472c3e639147e80e6024338d0f71982b3828c5e4943eb2",
+    "train": "162bf595a71925b4c23052da6e2e6b2210fe291309e1767ad4fafdb1ee524e68",
+    "weather": "31c3bee4d9372b672329469e6913313204ea8d595d14d29d5d12d1f5adb5733a"
+  },
+  "schema": "thermal-throughput-benchmark-v1",
+  "test_partition_accessed": false,
+  "torch_version": "2.14.0"
+}

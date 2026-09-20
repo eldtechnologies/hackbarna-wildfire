@@ -1,0 +1,132 @@
+{
+  "arguments": {
+    "base": 8,
+    "batch_size": 2,
+    "cache_events": 16,
+    "cpu_threads": 2,
+    "data": "full-v1",
+    "device": "cpu",
+    "events": 16,
+    "legacy_source": "08c7bbe:tools/next_run/train.py",
+    "out": "throughput-update-parity.json",
+    "phase": "train",
+    "seed": 0,
+    "selection_events": 2,
+    "steps": 3,
+    "warmup": 1,
+    "workers": [
+      0,
+      2
+    ]
+  },
+  "common_verification_seconds": 0.25188337499275804,
+  "cpu_threads": 2,
+  "device": "cpu",
+  "events": 16,
+  "legacy_source_sha256": "83a42e470850d3c9961805e3603a0b14db8207219e06eccc38503b57a4cfb6f6",
+  "limitations": [
+    "Bounded sampled train events, not a full-epoch speed guarantee.",
+    "No predictive-accuracy conclusions; no production checkpoint produced.",
+    "Warm-cache and startup effects are reported separately; configuration order is not randomized."
+  ],
+  "machine": "arm64",
+  "manifest_sha256": "6a892f380242c2a253393daf59e92c0b84326b7171355db860cae1080e78e31e",
+  "platform": "Darwin",
+  "results": [
+    {
+      "empty_batches": 0,
+      "implementation": "legacy",
+      "initialization_seconds": 0.00012754197814501822,
+      "loader_wait_p50_seconds": 0.0027182909834664315,
+      "loader_wait_p95_seconds": 0.0029344790993491186,
+      "parameter_sha256": "c0e7861e6fa023465c8b5aec344f114b0d4a12035eaef34a7accf3e0b0d74761",
+      "phase": "train",
+      "sampled_indices_sha256": "eab7655d38c00e0b49e363e1f17bba54a766354c5de4845dd5c2f80bf0ce7bfb",
+      "samples_per_second": 194.042619760443,
+      "selection_ap": 0.0027831749303133054,
+      "selection_first_pass_seconds": 0.029389958013780415,
+      "selection_timing": {},
+      "startup_and_first_batch_seconds": 2.2698712089913897,
+      "steady_seconds": 0.03092104202369228,
+      "steps": 3,
+      "workers": 0
+    },
+    {
+      "empty_batches": 0,
+      "implementation": "optimized",
+      "initialization_seconds": 0.11531183400074951,
+      "loader_wait_p50_seconds": 0.0012289589794818312,
+      "loader_wait_p95_seconds": 0.001260570593876764,
+      "parameter_sha256": "c0e7861e6fa023465c8b5aec344f114b0d4a12035eaef34a7accf3e0b0d74761",
+      "phase": "train",
+      "sampled_indices_sha256": "eab7655d38c00e0b49e363e1f17bba54a766354c5de4845dd5c2f80bf0ce7bfb",
+      "samples_per_second": 229.29351534960827,
+      "selection_ap": 0.0027831749303133054,
+      "selection_first_pass_seconds": 0.023385667009279132,
+      "selection_timing": {
+        "ap_seconds": 0.0020522499980870634,
+        "inference_seconds": 0.01732408200041391,
+        "loader_wait_seconds": 0.0036992909736
+      },
+      "startup_and_first_batch_seconds": 0.14895829200395383,
+      "steady_seconds": 0.02616733399918303,
+      "steps": 3,
+      "workers": 0
+    },
+    {
+      "empty_batches": 0,
+      "implementation": "optimized",
+      "initialization_seconds": 0.10595929197734222,
+      "loader_wait_p50_seconds": 9.858398698270321e-05,
+      "loader_wait_p95_seconds": 0.0004063830827362835,
+      "parameter_sha256": "c0e7861e6fa023465c8b5aec344f114b0d4a12035eaef34a7accf3e0b0d74761",
+      "phase": "train",
+      "sampled_indices_sha256": "eab7655d38c00e0b49e363e1f17bba54a766354c5de4845dd5c2f80bf0ce7bfb",
+      "samples_per_second": 257.58258731249714,
+      "selection_ap": 0.0027831749303133054,
+      "selection_first_pass_seconds": 1.9370601669943426,
+      "selection_timing": {
+        "ap_seconds": 0.0029357080056797713,
+        "inference_seconds": 0.021370292000938207,
+        "loader_wait_seconds": 1.9120497090334538
+      },
+      "startup_and_first_batch_seconds": 2.063064707996091,
+      "steady_seconds": 0.023293500009458512,
+      "steps": 3,
+      "workers": 2
+    },
+    {
+      "empty_batches": 0,
+      "implementation": "legacy",
+      "initialization_seconds": 0.0004262910224497318,
+      "loader_wait_p50_seconds": 0.0032822499924805015,
+      "loader_wait_p95_seconds": 0.003435999687644653,
+      "parameter_sha256": "c0e7861e6fa023465c8b5aec344f114b0d4a12035eaef34a7accf3e0b0d74761",
+      "phase": "train",
+      "repeat": "after_optimized",
+      "sampled_indices_sha256": "eab7655d38c00e0b49e363e1f17bba54a766354c5de4845dd5c2f80bf0ce7bfb",
+      "samples_per_second": 187.63828356256406,
+      "selection_ap": 0.0027831749303133054,
+      "selection_first_pass_seconds": 0.024319832999026403,
+      "selection_timing": {},
+      "startup_and_first_batch_seconds": 0.010032082995167002,
+      "steady_seconds": 0.031976416998077184,
+      "steps": 3,
+      "workers": 0
+    }
+  ],
+  "runtime_sources": {
+    "build": "21c8b4f4a4625cb9ce0e859b858920b271fdd9478011df5604f3e163846af948",
+    "common": "6096340b0c020cd8b2a00e8fa871cf6dc6e7baaad607632f935b0d951d2613f1",
+    "inputs": "3f52b74f1b3935010b2a5f983c1fdfd5d2386c3f4322bb64823954ae45be367e",
+    "loading": "202343e8a952bf4a6b34513f7e56abe4405ce42fcf4d73f84a3a0d6c77b2c1ae",
+    "quality": "d54f7592b56d39c5c3c3b076929add2d06b3a912a0bd98d223381d422665041f",
+    "terrain": "56483f308da1cf3f5f472c3e639147e80e6024338d0f71982b3828c5e4943eb2",
+    "train": "162bf595a71925b4c23052da6e2e6b2210fe291309e1767ad4fafdb1ee524e68",
+    "weather": "31c3bee4d9372b672329469e6913313204ea8d595d14d29d5d12d1f5adb5733a"
+  },
+  "schema": "thermal-throughput-benchmark-v1",
+  "test_partition_accessed": false,
+  "torch_version": "2.14.0",
+  "parameter_and_selection_parity": true
+}

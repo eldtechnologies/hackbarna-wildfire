@@ -20,8 +20,8 @@ It renders a cinematic 3D globe focused on the Iberian Peninsula with live wildf
 ### F2. Live Wildfire Layers
 - **Hotspots:** satellite fire detections (Deepfire API / MTG data, refreshed ~every 10 min), rendered as pulsing markers sized/colored by fire radiative power.
 - **Clusters:** Deepfire cluster groupings shown as bounding regions, so judges see signal processing, not raw dots.
-- **Perimeters:** active fire polygons from Deepfire fire-spread endpoints, filled with animated heat gradient.
-- **Spread simulation:** projected perimeter progression driven by Deepfire spread data (and/or simplified ELMFIRE-style propagation using wind direction), rendered as time-stepped ghost polygons.
+- **Perimeters:** observed fire polygons from the Deepfire `satellite-perimeters` collection, filled with animated heat gradient.
+- **Spread simulation:** projected perimeter progression **computed in-app**, not from Deepfire. The OGC API exposes observed perimeters only - there is no spread or forecast collection - so `src/fires/spreadModel.ts` interpolates the observed perimeter forward from its own centroid drift. Calling this "Deepfire spread data" would claim a source that does not exist.
 
 ### F3. Values at Risk Overlay
 - Infrastructure layers from Generalitat de Catalunya / open data: hospitals, schools, towns, power infrastructure, roads.
@@ -72,7 +72,7 @@ It renders a cinematic 3D globe focused on the Iberian Peninsula with live wildf
 
 | Source | Use | Access |
 |---|---|---|
-| Deepfire API | Hotspots, clusters, fire spread | API key (hackathon) |
+| Deepfire API | Hotspots, clusters, observed (`satellite`) perimeters | API key (hackathon) |
 | MTG satellite | Fire imagery refresher, every 10 min | Via Deepfire |
 | Generalitat de Catalunya | Infrastructure GeoJSON (hospitals, schools, power) | Public download, bundled locally |
 | ELMFIRE model | Spread model reference | Simplified propagation in-app |

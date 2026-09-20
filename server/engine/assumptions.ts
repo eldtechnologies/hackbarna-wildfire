@@ -22,6 +22,7 @@
 
 import type { AssumptionProfile } from '../../shared/egress';
 import type { RoadGraph } from './solve';
+import { ownLookup } from './tables';
 
 // The profile shape lives in the frozen contract rather than here, because it is what the
 // response publishes; this module owns the values and the arithmetic, not the vocabulary.
@@ -167,8 +168,11 @@ export function withAssumedSpeeds(
   swept: Record<string, number>,
 ): RoadGraph {
   const edges = graph.edges.map((edge) => {
-    const from = nominal[edge.highway];
-    const to = swept[edge.highway];
+    // `ownLookup`, because the highway comes from the road graph. A bare lookup for a class named
+    // `'constructor'` returns a function, which is neither undefined nor finite, so the guard below
+    // fires and throws — failing every engine route closed rather than scaling a time.
+    const from = ownLookup(nominal, edge.highway);
+    const to = ownLookup(swept, edge.highway);
     if (from === undefined || to === undefined) return edge;
     if (!Number.isFinite(from) || from <= 0 || !Number.isFinite(to) || to <= 0) {
       throw new RangeError(

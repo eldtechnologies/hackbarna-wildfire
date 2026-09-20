@@ -40,6 +40,46 @@ export interface RoadSegment {
 }
 
 /**
+ * What one sensor family contributed to the cut field.
+ *
+ * Published because the omission of a family is otherwise discoverable only by reading the code
+ * that builds the mask: the field carries per-cut evidence ids, but nothing that says which
+ * instruments those ids came from or which instruments were absent. Decision 5 named three
+ * families for two months while the capture carried four and the table knew seven sources, and
+ * neither document nor response showed it.
+ *
+ * Counted per FAMILY, not per source. The three VIIRS feeds are one instrument on three
+ * satellites, and a table headed "family" listing VIIRS three times would read as three sensors —
+ * `sources` names the feeds so the grouping is legible rather than taken on trust.
+ */
+export interface SensorFamilyRow {
+  family: string;
+  /** The source keys this family comprises, as they appear in the capture. */
+  sources: string[];
+  /**
+   * Detections of the grouped FIRE EVENT this response is about — not of the capture.
+   *
+   * The distinction is 83 detections on the committed data: the capture holds 2,743 across five
+   * clusters and the fire is two of them, so the mask sees 2,660. Decision 5 quotes the capture's
+   * totals, so a reader reconciling the amendment against these rows finds a gap; the response's own
+   * `detections` diagnostic has the same gap. Named here rather than left as the smaller version of
+   * the plan-versus-response divergence this issue was filed about.
+   */
+  detections: number;
+  /**
+   * How many of those had a disc reach a road — whether or not they set a cut time.
+   *
+   * Not "attained a cut": most do not. Measured on the committed capture, 2,451 detections reach a
+   * road and only 130 are cited as the detection that set one, so the two readings differ by 95%
+   * and the wrong one would report every family as a far larger contributor than it is. The cut
+   * count is `cutSegments`, below.
+   */
+  usedDetections: number;
+  /** Distinct cut segments this family attained at least one of. */
+  cutSegments: number;
+}
+
+/**
  * When the fire reaches a segment — the first timestep whose accumulated,
  * sensor-calibrated mask intersects it. `cutAt: null` means never, within the
  * modelled window, which is a different statement from "not yet".
@@ -218,6 +258,22 @@ export interface EgressResponse {
    * number without its assumptions is the point estimate the spike showed is indefensible.
    */
   assumptions: EgressAssumptions;
+  /**
+   * What each sensor family contributed to the cut field, including the ones that contributed
+   * nothing. Published beside the assumptions for the same reason: a number without the inputs
+   * behind it is the point estimate the spike showed is indefensible, and this is the input that
+   * was silently missing a family. See `SensorFamilyRow`.
+   */
+  sensorFamilies: SensorFamilyRow[];
+  /**
+   * Cut segments whose cited detections are not in the capture, so no family could claim them.
+   *
+   * Published so that zero is a statement rather than a silence: without it a reader cannot tell
+   * "every cut was attributed" from "the response does not say". Expected to be 0 — a non-zero
+   * value means the evidence ids and the detections have stopped corresponding, which would
+   * otherwise show up only as families reading quietly low.
+   */
+  unattributedCutSegments: number;
   /**
    * The assumption sets this response was actually solved under, in the order the band's
    * basis names them. Every band and clearance range in the response is the envelope of

@@ -53,8 +53,8 @@ export interface SpreadStep {
   polygon: LatLon[];
 }
 
-// Timeline metadata for a multi-frame recording. Frames are ISO timestamps
-// (the recording's t field) in ascending order. The spread scrubber plays
+// Timeline metadata for recordings or historical captures. Frames are ISO
+// timestamps of captured frames or evidence availability. The scrubber plays
 // back the event as an accelerated timeline: event seconds 0..duration map
 // onto frames via /api/fires?at=<seconds>.
 export interface ReplayTimeline {
@@ -69,11 +69,15 @@ export interface FiresResponse {
   provenance: 'live' | 'replay';
   fetchedAt: string;
   scenario: string | null; // snapshot id when replaying, null when live
-  // The requested timeline position, echoed by the provider (undefined for
-  // the live edge, live mode, or flat snapshots). Lets cache keys and the
-  // client distinguish snapshots of the same scenario at different times.
-  atSeconds?: number;
-  timeline?: ReplayTimeline; // only set when replaying a multi-frame recording
+  /** Evidence issue time; fetchedAt remains the HTTP fetch time. */
+  asOf?: string;
+  availability?: {
+    policy: string;
+    deliveryTimes: 'assumed_unless_recorded';
+    clusterAssociation: 'retrospective';
+    perimeterAvailability: 'computed_at_lower_bound';
+  };
+  timeline?: ReplayTimeline;
   hotspots: Hotspot[];
   clusters: FireCluster[];
   perimeters: FirePerimeter[];

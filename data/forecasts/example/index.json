@@ -1,0 +1,11 @@
+{
+  "entries": [
+    {
+      "eventId": "f2236085fb7b93e9ff94261e",
+      "file": "a137b06fa59eb6bdff4b6117b5b49e2fd56b144d1bb2f418561e2188b562069b.json",
+      "issuedAt": "2026-07-01T11:00:00+00:00",
+      "sha256": "ce7dc795c29f2744e7248564b673927e23ce5cfba02c5d574c0f9c57daf11e1b"
+    }
+  ],
+  "schema": "thermal-forecast-index-v1"
+}

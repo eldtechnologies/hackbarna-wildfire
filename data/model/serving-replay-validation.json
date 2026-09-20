@@ -1,0 +1,411 @@
+{
+  "schema": "served-motion-diagnostic-v1",
+  "scenario": "los-gallardos-2026-07-09",
+  "independentIncidents": 1,
+  "status": "diagnostic_only",
+  "target": "future_one_hour_detection_centroid_motion",
+  "futureWindowHours": 1,
+  "unavailableComparisons": 901,
+  "limitations": [
+    "Same event examined during development; no independent held-out performance claim.",
+    "Future detections are a sensor-dependent motion proxy, not independently measured fire-front direction.",
+    "Insufficient future observations are unscored, never treated as no fire."
+  ],
+  "horizons": [
+    {
+      "hours": 1,
+      "comparisons": 14,
+      "medianBearingErrorDeg": 94.88875774034653,
+      "rateMaeKmh": 2.0691493280807687,
+      "constantRateMaeKmh": 1.9206843557699085,
+      "zeroMotionRateMaeKmh": 2.641860395536785
+    },
+    {
+      "hours": 3,
+      "comparisons": 13,
+      "medianBearingErrorDeg": 108.3360707422396,
+      "rateMaeKmh": 2.026458142760127,
+      "constantRateMaeKmh": 1.8717655309797503,
+      "zeroMotionRateMaeKmh": 2.5748089584210017
+    },
+    {
+      "hours": 6,
+      "comparisons": 14,
+      "medianBearingErrorDeg": 100.86548092826649,
+      "rateMaeKmh": 1.8573066593200969,
+      "constantRateMaeKmh": 1.7564775040330478,
+      "zeroMotionRateMaeKmh": 2.477653543799924
+    }
+  ],
+  "rows": [
+    {
+      "hours": 1,
+      "issue": "2026-07-09T17:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 12.797913227106164,
+      "rateError": 2.906440170771743,
+      "constantRateError": 2.556629078041966,
+      "zeroRateError": 3.513529078041966
+    },
+    {
+      "hours": 3,
+      "issue": "2026-07-09T17:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 173.72362350493358,
+      "rateError": 1.1066410106786195,
+      "constantRateError": 0.7568299179488428,
+      "zeroRateError": 1.7137299179488428
+    },
+    {
+      "hours": 1,
+      "issue": "2026-07-09T19:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 172.72332299660195,
+      "rateError": 0.10327691904376057,
+      "constantRateError": 0.7568299179488428,
+      "zeroRateError": 1.7137299179488428
+    },
+    {
+      "hours": 6,
+      "issue": "2026-07-09T19:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 145.17239930800372,
+      "rateError": 0.24196051138790065,
+      "constantRateError": 0.8955135102929829,
+      "zeroRateError": 1.8524135102929828
+    },
+    {
+      "hours": 3,
+      "issue": "2026-07-09T22:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 108.3360707422396,
+      "rateError": 0.8160314496690302,
+      "constantRateError": 0.8955135102929829,
+      "zeroRateError": 1.8524135102929828
+    },
+    {
+      "hours": 1,
+      "issue": "2026-07-10T00:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 81.72242495424462,
+      "rateError": 1.2119651188815295,
+      "constantRateError": 0.8955135102929829,
+      "zeroRateError": 1.8524135102929828
+    },
+    {
+      "hours": 6,
+      "issue": "2026-07-10T00:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 113.8652707007763,
+      "rateError": 4.647988915637426,
+      "constantRateError": 4.33153730704888,
+      "zeroRateError": 5.28843730704888
+    },
+    {
+      "hours": 6,
+      "issue": "2026-07-10T01:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 102.81108187042264,
+      "rateError": 0.41111475350783444,
+      "constantRateError": 0.4205580302217401,
+      "zeroRateError": 1.37745803022174
+    },
+    {
+      "hours": 3,
+      "issue": "2026-07-10T03:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 13.832677163525489,
+      "rateError": 5.116971878539934,
+      "constantRateError": 4.33153730704888,
+      "zeroRateError": 5.28843730704888
+    },
+    {
+      "hours": 6,
+      "issue": "2026-07-10T03:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 163.57616377460272,
+      "rateError": 1.7421677463151406,
+      "constantRateError": 0.9567331748240867,
+      "zeroRateError": 1.9136331748240867
+    },
+    {
+      "hours": 3,
+      "issue": "2026-07-10T04:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 17.38083702686447,
+      "rateError": 0.3201050727179924,
+      "constantRateError": 0.4205580302217401,
+      "zeroRateError": 1.37745803022174
+    },
+    {
+      "hours": 1,
+      "issue": "2026-07-10T05:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 94.34709148348435,
+      "rateError": 4.8035401367465,
+      "constantRateError": 4.33153730704888,
+      "zeroRateError": 5.28843730704888
+    },
+    {
+      "hours": 1,
+      "issue": "2026-07-10T06:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 95.43042399720872,
+      "rateError": 0.8783336906770023,
+      "constantRateError": 0.4205580302217401,
+      "zeroRateError": 1.37745803022174
+    },
+    {
+      "hours": 3,
+      "issue": "2026-07-10T06:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 52.736875073331476,
+      "rateError": 1.414508835279349,
+      "constantRateError": 0.9567331748240867,
+      "zeroRateError": 1.9136331748240867
+    },
+    {
+      "hours": 6,
+      "issue": "2026-07-10T06:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 135.74770341749013,
+      "rateError": 0.0007546349416766573,
+      "constantRateError": 0.45853029539693885,
+      "zeroRateError": 0.4983697046030611
+    },
+    {
+      "hours": 6,
+      "issue": "2026-07-10T07:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 97.30446353877528,
+      "rateError": 1.1280999570683514,
+      "constantRateError": 0.3548372944610251,
+      "zeroRateError": 1.311737294461025
+    },
+    {
+      "hours": 6,
+      "issue": "2026-07-10T07:00:00.000Z",
+      "clusterId": "4e41fc85-3084-4220-9dfb-36bab806a6f9",
+      "bearingError": 147.35214615564826,
+      "rateError": 0.9993489150375078,
+      "constantRateError": 0.6839482993170852,
+      "zeroRateError": 1.6408482993170852
+    },
+    {
+      "hours": 1,
+      "issue": "2026-07-10T08:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 135.98514517985961,
+      "rateError": 1.7456647694027712,
+      "constantRateError": 0.9567331748240867,
+      "zeroRateError": 1.9136331748240867
+    },
+    {
+      "hours": 6,
+      "issue": "2026-07-10T08:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 50.68676319717247,
+      "rateError": 1.0014330735228425,
+      "constantRateError": 0.21250147894415805,
+      "zeroRateError": 1.169401478944158
+    },
+    {
+      "hours": 6,
+      "issue": "2026-07-10T08:00:00.000Z",
+      "clusterId": "4e41fc85-3084-4220-9dfb-36bab806a6f9",
+      "bearingError": 108.1737685460576,
+      "rateError": 0.10573049717396521,
+      "constantRateError": 0.330614772357675,
+      "zeroRateError": 1.287514772357675
+    },
+    {
+      "hours": 3,
+      "issue": "2026-07-10T09:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 97.11528725855032,
+      "rateError": 0.1445693739375285,
+      "constantRateError": 0.45853029539693885,
+      "zeroRateError": 0.4983697046030611
+    },
+    {
+      "hours": 3,
+      "issue": "2026-07-10T10:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 135.96693533269354,
+      "rateError": 0.6415768718218872,
+      "constantRateError": 0.3548372944610251,
+      "zeroRateError": 1.311737294461025
+    },
+    {
+      "hours": 6,
+      "issue": "2026-07-10T10:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 67.44065384198507,
+      "rateError": 0.1837297319813641,
+      "constantRateError": 0.4704693093422262,
+      "zeroRateError": 0.4864306906577738
+    },
+    {
+      "hours": 1,
+      "issue": "2026-07-10T11:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 133.0415911223106,
+      "rateError": 0.13834579972024114,
+      "constantRateError": 0.45853029539693885,
+      "zeroRateError": 0.4983697046030611
+    },
+    {
+      "hours": 3,
+      "issue": "2026-07-10T11:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 148.19807799016417,
+      "rateError": 0.5326859746208558,
+      "constantRateError": 0.21250147894415805,
+      "zeroRateError": 1.169401478944158
+    },
+    {
+      "hours": 1,
+      "issue": "2026-07-10T12:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 90.64391441454586,
+      "rateError": 0.8761482228445425,
+      "constantRateError": 0.3548372944610251,
+      "zeroRateError": 1.311737294461025
+    },
+    {
+      "hours": 1,
+      "issue": "2026-07-10T13:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 53.26519246863927,
+      "rateError": 0.7047329246516639,
+      "constantRateError": 0.21250147894415805,
+      "zeroRateError": 1.169401478944158
+    },
+    {
+      "hours": 3,
+      "issue": "2026-07-10T13:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 19.863249897256082,
+      "rateError": 0.021762136365279683,
+      "constantRateError": 0.4704693093422262,
+      "zeroRateError": 0.4864306906577738
+    },
+    {
+      "hours": 1,
+      "issue": "2026-07-10T15:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 52.89082756472635,
+      "rateError": 0.0876700930581365,
+      "constantRateError": 0.4704693093422262,
+      "zeroRateError": 0.4864306906577738
+    },
+    {
+      "hours": 6,
+      "issue": "2026-07-10T15:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 4.56112533979001,
+      "rateError": 0.1482604140323252,
+      "constantRateError": 0.4098789883680375,
+      "zeroRateError": 0.5470210116319625
+    },
+    {
+      "hours": 3,
+      "issue": "2026-07-10T18:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 7.745796271211248,
+      "rateError": 0.08006833134169938,
+      "constantRateError": 0.4098789883680375,
+      "zeroRateError": 0.5470210116319625
+    },
+    {
+      "hours": 1,
+      "issue": "2026-07-10T20:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 17.60362413011171,
+      "rateError": 0.10067423484644944,
+      "constantRateError": 0.4098789883680375,
+      "zeroRateError": 0.5470210116319625
+    },
+    {
+      "hours": 6,
+      "issue": "2026-07-10T20:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 62.52400578190992,
+      "rateError": 10.77509807473717,
+      "constantRateError": 10.465893321215582,
+      "zeroRateError": 11.42279332121558
+    },
+    {
+      "hours": 3,
+      "issue": "2026-07-10T23:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 134.29093842597717,
+      "rateError": 11.01138274958121,
+      "constantRateError": 10.465893321215582,
+      "zeroRateError": 11.42279332121558
+    },
+    {
+      "hours": 6,
+      "issue": "2026-07-11T00:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 88.13628728504426,
+      "rateError": 0.07373874511656975,
+      "constantRateError": 0.3111891285246624,
+      "zeroRateError": 0.6457108714753376
+    },
+    {
+      "hours": 1,
+      "issue": "2026-07-11T01:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 122.34766844766955,
+      "rateError": 10.72028043508928,
+      "constantRateError": 10.465893321215582,
+      "zeroRateError": 11.42279332121558
+    },
+    {
+      "hours": 6,
+      "issue": "2026-07-11T01:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 98.91987998611035,
+      "rateError": 4.542867260021286,
+      "constantRateError": 4.288480146147586,
+      "zeroRateError": 5.245380146147586
+    },
+    {
+      "hours": 3,
+      "issue": "2026-07-11T03:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 149.94739880798272,
+      "rateError": 0.42325652158607385,
+      "constantRateError": 0.3111891285246624,
+      "zeroRateError": 0.6457108714753376
+    },
+    {
+      "hours": 3,
+      "issue": "2026-07-11T04:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 161.67974240063705,
+      "rateError": 4.714395649742196,
+      "constantRateError": 4.288480146147586,
+      "zeroRateError": 5.245380146147586
+    },
+    {
+      "hours": 1,
+      "issue": "2026-07-11T05:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 148.361469151628,
+      "rateError": 0.27421760863641553,
+      "constantRateError": 0.3111891285246624,
+      "zeroRateError": 0.6457108714753376
+    },
+    {
+      "hours": 1,
+      "issue": "2026-07-11T06:00:00.000Z",
+      "clusterId": "6d401fa8-2469-4355-81d3-3114060c5471",
+      "bearingError": 163.9802172914085,
+      "rateError": 4.416800468760721,
+      "constantRateError": 4.288480146147586,
+      "zeroRateError": 5.245380146147586
+    }
+  ]
+}

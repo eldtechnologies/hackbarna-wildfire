@@ -317,3 +317,102 @@ test('the history carries no cursor parameter, and a bad one does not matter', a
   assert.equal(withJunk.status, 200);
   assert.deepEqual(JSON.parse(withJunk.body), JSON.parse(plain.body));
 });
+
+test('GET /api/reach serves the over-alerting figure with what it rests on', async () => {
+  const res = await get('/api/reach');
+  assert.equal(res.status, 200, res.body.slice(0, 200));
+  const body = JSON.parse(res.body) as {
+    cells: number;
+    tilesRequested: number;
+    tilesFailed: number;
+    measuredFraction: number | null;
+    threatenedSettlementIds: string[];
+    totalOverAlerted: number;
+    rows: Array<{ settlementId: string; population: number | null; coveringCells: number; threatened: boolean; overAlerted: number | null }>;
+    fetchedAt: string;
+    surveyScope: string;
+    unknownPopulation: string[];
+    unusableSettlements: Array<{ id: string; reason: string }>;
+  };
+
+  // The committed fetch: 625 cells over 88 tiles, none failed. Asserted as a floor rather than
+  // an equality so a re-fetch with a margin does not fail the suite — but the failure count is
+  // exact, because zero is the claim the figure's coverage readings depend on.
+  assert.ok(body.cells > 0, 'the committed fixture has cells');
+  assert.ok(body.tilesRequested > 1, 'a region this size takes more than one request');
+  assert.equal(body.tilesFailed, 0, 'and the committed fetch completed every tile');
+  assert.ok(body.fetchedAt.length > 0, 'the fetch vintage travels with the figure');
+
+  // All five settlements appear, which is the criterion a missing settlement would fail: the
+  // answer must not silently omit the villages nobody can broadcast to.
+  assert.equal(body.rows.length, 5, 'every settlement in the fixture has a row');
+  for (const row of body.rows) {
+    // Every committed population is known, so a null here is itself a failure — and saying so keeps
+    // the formula below the plain one rather than one that would also pass for two nulls.
+    assert.equal(typeof row.population, 'number', `${row.settlementId}: the committed population is known`);
+    assert.equal(
+      row.overAlerted,
+      row.threatened || row.coveringCells === 0 ? 0 : row.population,
+      `${row.settlementId}: over-alerting is the population, or zero when threatened or uncovered`,
+    );
+  }
+
+  // The fraction is published and is neither absent nor a clean 1. A version that counted the
+  // fallback as measured would report exactly 1 here; one that reported nothing would be null.
+  assert.ok(body.measuredFraction !== null && body.measuredFraction > 0 && body.measuredFraction < 1,
+    `expected a fraction strictly inside (0, 1), got ${String(body.measuredFraction)}`);
+
+  // Named EXACTLY, not by size. A handler publishing the complement of the engine's set — Turre
+  // and Mojácar threatened, 5,497 over-alerted — satisfied every assertion above: the per-row
+  // formula, the sum, the fraction, and both length bounds. Nothing here pinned WHICH settlements
+  // were threatened, which is the thing the route could get wrong.
+  assert.deepEqual(
+    [...body.threatenedSettlementIds].sort(),
+    ['bedar', 'los-gallardos', 'lubrin'],
+    'the three settlements the fire reaches, named rather than counted',
+  );
+  // The figure against the two INE populations directly — Turre 4,361 + Mojácar 7,680 — rather
+  // than against a re-derivation of the same formula the response uses, which would restate the
+  // implementation instead of checking it.
+  assert.equal(body.totalOverAlerted, 4361 + 7680, 'the over-alerted population is the two villages the fire misses');
+
+  // And what the figure rests on travels with it. The survey scope is not decoration: the box
+  // bounds the cells' own positions, so a coverage column read without it can be read as a fact
+  // about towers rather than about towers that were asked about.
+  assert.ok(body.surveyScope.includes('own coordinates'), 'the survey scope says what the box bounds');
+  assert.deepEqual(body.unknownPopulation, [], 'the committed settlements all have a known population');
+  assert.deepEqual(body.unusableSettlements, [], 'and all of them have a usable position');
+});
+
+test('the cut-field payload carries what each sensor family contributed', async () => {
+  // `/api/egress/field` names its fields one by one rather than spreading the response, so it is
+  // the endpoint that can silently drop a new one — and it is the payload a client fetches once,
+  // where a cursor-independent breakdown belongs. `/api/egress` spreads, so it carries it either
+  // way; this asserts the one that has to be told.
+  const res = await get('/api/egress/field');
+  assert.equal(res.status, 200);
+  const body = JSON.parse(res.body) as {
+    sensorFamilies: Array<{ family: string; sources: string[]; detections: number; usedDetections: number; cutSegments: number }>;
+  };
+  assert.ok(Array.isArray(body.sensorFamilies), 'the field carries the breakdown');
+  assert.deepEqual(body.sensorFamilies.map((r) => r.family), ['MODIS', 'MTG-I1', 'Sentinel-3', 'VIIRS']);
+
+  // And the moving endpoint carries the same rows, so a client reading either sees one answer.
+  const moving = JSON.parse((await get(`/api/egress?at=${AT}`)).body) as { sensorFamilies: unknown };
+  assert.deepEqual(moving.sensorFamilies, body.sensorFamilies, 'both endpoints report the same families');
+});
+
+test('the cut-field payload carries the unattributed residual with the family rows', async () => {
+  // The residual is what makes zero a statement rather than a silence. It shipped on the moving
+  // endpoint and not on the fetch-once one, so a reader of the field payload saw per-family cut
+  // counts with nothing saying whether every cut had been attributed.
+  const res = await get('/api/egress/field');
+  assert.equal(res.status, 200);
+  const body = JSON.parse(res.body) as { sensorFamilies: unknown[]; unattributedCutSegments: number };
+  assert.ok(Array.isArray(body.sensorFamilies), 'the field carries the rows');
+  assert.equal(typeof body.unattributedCutSegments, 'number', 'and the residual beside them');
+  assert.equal(body.unattributedCutSegments, 0, 'which is zero on the committed capture');
+
+  const moving = JSON.parse((await get(`/api/egress?at=${AT}`)).body) as { unattributedCutSegments: number };
+  assert.equal(moving.unattributedCutSegments, body.unattributedCutSegments, 'both endpoints agree');
+});

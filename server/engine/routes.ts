@@ -13,6 +13,7 @@
 // `/api/egress/field` once and calls `/api/egress?at=` for the moving parts.
 
 import { Router, type Request, type Response } from 'express';
+import { assembleReach, loadFixture } from '../reach';
 import { buildEgress, loadContext } from './egress';
 import { buildAlerts } from './alerts';
 import { SWEEP_CONFIGS } from './sweep';
@@ -222,12 +223,45 @@ export function engineRouter(options: EngineRouterOptions = {}): Router {
         // way to resolve is a dead reference — the reader cannot see the values behind the
         // label without asking a second endpoint for them.
         profiles: built.response.profiles,
-        // Cursor-independent: the same field answers every `at`.
+        // Cursor-independent like `segments`, and here for the same reason they are: this is the
+        // payload a client fetches once, and a family breakdown that appears only on the moving
+        // endpoint is one a reader has to scrub to find. Which instruments contributed to the cut
+        // field does not change with the moment being asked about.
+        sensorFamilies: built.response.sensorFamilies,
+        // With the rows, not only on the moving endpoint. The residual is what makes zero a
+        // statement rather than a silence, and a reader of the fetch-once payload who sees per-family
+        // cut counts without it cannot tell "every cut was attributed" from "the response does not
+        // say" — which is the whole reason the field exists.
+        unattributedCutSegments: built.response.unattributedCutSegments,
         segments: built.response.segments.filter((s) => s.cutAt !== null),
         totalSegments: built.response.segments.length,
       });
     } catch (err) {
       fail(res, err, 'cut field unavailable');
+    }
+  });
+
+  /**
+   * The over-alerting figure: population inside a served footprint for a fire that does not
+   * reach it.
+   *
+   * No `?at=`: both inputs are whole-window properties. The served footprints are a static
+   * cell survey, and which settlements the fire reaches is a fact about the fire's full
+   * extent rather than about how much of it has happened yet. A cursor here would imply the
+   * number moves as the fire spreads, and it does not — a village the fire reaches on the
+   * 10th is one an alert today would still be over-alerting.
+   *
+   * Reuses the memoised egress build rather than solving again: the threat set is read from
+   * the same context the egress routes already pay to construct.
+   */
+  router.get('/api/reach', (_req: Request, res: Response) => {
+    try {
+      const built = memoise(egressCache, undefined, () => buildEgress({}));
+      const settlements = loadContext().settlements;
+      const threatened = new Set(built.diagnostics.threatenedSettlementIds);
+      res.json(assembleReach(loadFixture(), settlements, threatened));
+    } catch (err) {
+      fail(res, err, 'reach unavailable');
     }
   });
 
