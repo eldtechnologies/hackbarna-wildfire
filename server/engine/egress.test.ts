@@ -611,3 +611,34 @@ test('the frozen field is still serialisable and still identical between respons
   assert.equal(a, b, 'the same frozen array is reused rather than rebuilt');
   assert.equal(JSON.parse(JSON.stringify(a)).length, a.length, 'it survives serialisation');
 });
+
+test('the engine names exactly the settlements the fire reaches', () => {
+  // This is the threat set the reach figure complements: every settlement NOT in this list is
+  // counted as receiving an alert for a fire that does not threaten it.
+  //
+  // The version this is written against returned an EMPTY list. It indexed the node cut field
+  // at `segments.length + node` when `sweepField` had already sliced the segment prefix off,
+  // so the read went past the end, `Number.isFinite(undefined)` is false, and every settlement
+  // filtered out. Nothing threw and nothing else in the suite noticed — because an empty
+  // result is a well-formed array. It is also the most misleading possible answer: "this fire
+  // threatens nobody" makes the over-alerting figure the whole population of every covered
+  // village, the largest number the model can produce, arrived at by a bug rather than by the
+  // fire. Only asserting the RESULT catches this; the array's length is right either way.
+  //
+  // The expected names are the engine's own claim, stated independently at the settlement
+  // pre-filter in egress.ts: this fire spreads over 10 July, so Los Gallardos and Lubrín are
+  // both reached and neither may be dropped from the threat set.
+  const { threatenedSettlementIds } = buildEgress({}).diagnostics;
+  assert.deepEqual(
+    [...threatenedSettlementIds].sort(),
+    ['bedar', 'los-gallardos', 'lubrin'],
+    'the fire reaches the three western settlements, and not Turre or Mojácar',
+  );
+
+  // And it does not move with the cursor, which is why `/api/reach` takes no `?at=`. The
+  // threat is a property of the fire's whole extent, not of how much of it has happened yet.
+  const early = buildEgress({ atSeconds: 0 }).diagnostics.threatenedSettlementIds;
+  const late = buildEgress({ atSeconds: 17 * 3600 }).diagnostics.threatenedSettlementIds;
+  assert.deepEqual([...early].sort(), [...threatenedSettlementIds].sort(), 'at the window start');
+  assert.deepEqual([...late].sort(), [...threatenedSettlementIds].sort(), 'and at 17:00');
+});

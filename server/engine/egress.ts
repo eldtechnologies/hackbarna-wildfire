@@ -48,7 +48,7 @@ import {
   type RoadGraph,
   type Route,
 } from './solve';
-import { SWEEP_CONFIGS, basisFor, configLabel, sweepField } from './sweep';
+import { NOMINAL_ID, SWEEP_CONFIGS, basisFor, configLabel, sweepField } from './sweep';
 
 import { DEFAULT_LATENCY_SECONDS, LATENCY_SECONDS, fromEpochMs, resolveTimelineOrigin } from './time';
 
@@ -408,6 +408,21 @@ export interface BuiltEgress {
       detectionsUsed: number;
       departureSeconds: number | null;
     }>;
+    /**
+     * Settlements the fire reaches within the modelled window, by id.
+     *
+     * Cursor-independent, because it is a property of the fire rather than of now: a
+     * settlement is threatened if the fire arrives at any point in the window, and asking
+     * again a minute later does not change that. Under the nominal configuration, for the
+     * same reason the published band takes its centre from it.
+     *
+     * Exists for reach, which needs the complement — the people inside a served footprint
+     * for a fire that does NOT threaten them. The distinction is the whole point of that
+     * figure and it cannot be derived from `segments`, which carries per-EDGE cuts and not
+     * which settlement each edge is next to. Deriving it here, where the settlement-to-node
+     * snapping already happened, keeps that snapping in one place.
+     */
+    threatenedSettlementIds: string[];
   };
 }
 
@@ -903,6 +918,49 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
     pocketResults.push({ pocketId: pocket.id, routes, verdict });
   }
 
+  // Which settlements the fire reaches, from the same node snapping the routes already use,
+  // so the settlement-to-node mapping lives in one place. Read off the nominal configuration,
+  // for the same reason the published band takes its centre from it.
+  //
+  // A settlement that snaps to no node is treated as NOT threatened. That is a choice, and it
+  // is the direction that RAISES the reach figure: the alternative reads "we could not place
+  // this village on the road graph" as "the fire is coming", which lowers a number about
+  // over-alerting. Neither reading is evidence, so the choice is stated rather than buried —
+  // and a null node is already reported by the pocket's own `no_verified_action` verdict.
+  //
+  // `nodeCutByConfig` is indexed by GRAPH NODE directly, not by position in the combined
+  // segments-then-nodes array: `sweepField` already sliced the segment prefix off when it
+  // built this map. Indexing it `segments.length + node` applies that offset a second time
+  // and reads past the end — where `arr[i]` is `undefined`, `Number.isFinite(undefined)` is
+  // false, and every settlement silently filters out into an empty list that looks like a
+  // finding. Nothing throws, and the length check below does NOT catch it: the array is the
+  // right length under either index expression. What catches it is asserting the RESULT,
+  // which `egress.test.ts` does by naming the settlements the fire reaches.
+  //
+  // The check below asserts a different invariant — that the field is aligned to the graph at
+  // all — so a future change in how `sweepField` slices is refused here rather than misread as
+  // cuts at the wrong nodes.
+  const nominalNodeCut = ctx.sweep.nodeCutByConfig.get(NOMINAL_ID);
+  // A missing field is thrown rather than read as "no settlement is threatened". That reading
+  // is the dangerous default the indexing bug above arrived at by accident, and it needs no
+  // help: an absent nominal cut means the sweep did not run a configuration the response is
+  // supposed to be centred on, which is a fault in the engine and not a fact about the fire.
+  if (nominalNodeCut === undefined) {
+    throw new RangeError(
+      `the sweep produced no cut field for the nominal configuration "${NOMINAL_ID}"; ` +
+        'refusing to report that this fire threatens nowhere',
+    );
+  }
+  if (nominalNodeCut.length !== graph.nodes.length) {
+    throw new RangeError(
+      `node cut field has ${nominalNodeCut.length} entries against ${graph.nodes.length} graph nodes; ` +
+        'refusing to read settlement cuts from a field that is not aligned to the graph',
+    );
+  }
+  const threatenedSettlementIds = settlementNodes
+    .filter(({ node }) => node !== null && Number.isFinite(nominalNodeCut[node]))
+    .map(({ settlement }) => settlement.id);
+
   return {
     response: {
       provenance: 'replay',
@@ -943,6 +1001,7 @@ export function buildEgress(options: EgressOptions = {}): BuiltEgress {
       windowEnd: fromEpochMs(origin + windowEndSeconds * 1000),
       staticHeat: { polygons: ctx.staticHeatPolygons, removed: ctx.staticHeatRemoved, fixtureLoaded: ctx.heatFixtureLoaded },
       sweep: sweepDiagnostics,
+      threatenedSettlementIds,
     },
   };
 }

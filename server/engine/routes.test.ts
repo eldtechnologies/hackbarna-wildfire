@@ -317,3 +317,50 @@ test('the history carries no cursor parameter, and a bad one does not matter', a
   assert.equal(withJunk.status, 200);
   assert.deepEqual(JSON.parse(withJunk.body), JSON.parse(plain.body));
 });
+
+test('GET /api/reach serves the over-alerting figure with what it rests on', async () => {
+  const res = await get('/api/reach');
+  assert.equal(res.status, 200, res.body.slice(0, 200));
+  const body = JSON.parse(res.body) as {
+    cells: number;
+    tilesRequested: number;
+    tilesFailed: number;
+    measuredFraction: number | null;
+    threatenedSettlementIds: string[];
+    totalOverAlerted: number;
+    rows: Array<{ settlementId: string; population: number; coveringCells: number; threatened: boolean; overAlerted: number }>;
+    fetchedAt: string;
+  };
+
+  // The committed fetch: 625 cells over 88 tiles, none failed. Asserted as a floor rather than
+  // an equality so a re-fetch with a margin does not fail the suite — but the failure count is
+  // exact, because zero is the claim the figure's coverage readings depend on.
+  assert.ok(body.cells > 0, 'the committed fixture has cells');
+  assert.ok(body.tilesRequested > 1, 'a region this size takes more than one request');
+  assert.equal(body.tilesFailed, 0, 'and the committed fetch completed every tile');
+  assert.ok(body.fetchedAt.length > 0, 'the fetch vintage travels with the figure');
+
+  // All five settlements appear, which is the criterion a missing settlement would fail: the
+  // answer must not silently omit the villages nobody can broadcast to.
+  assert.equal(body.rows.length, 5, 'every settlement in the fixture has a row');
+  for (const row of body.rows) {
+    assert.equal(
+      row.overAlerted,
+      row.threatened || row.coveringCells === 0 ? 0 : row.population,
+      `${row.settlementId}: over-alerting is the population, or zero when threatened or uncovered`,
+    );
+  }
+
+  const expected = body.rows.filter((r) => !r.threatened && r.coveringCells > 0).reduce((s, r) => s + r.population, 0);
+  assert.equal(body.totalOverAlerted, expected, 'the total is the sum of the rows, and of nothing else');
+
+  // The fraction is published and is neither absent nor a clean 1. A version that counted the
+  // fallback as measured would report exactly 1 here; one that reported nothing would be null.
+  assert.ok(body.measuredFraction !== null && body.measuredFraction > 0 && body.measuredFraction < 1,
+    `expected a fraction strictly inside (0, 1), got ${String(body.measuredFraction)}`);
+
+  // And the threat set reaches this route from the engine rather than being empty. An empty
+  // one makes every covered settlement over-alerted, which is the whole population.
+  assert.ok(body.threatenedSettlementIds.length > 0, 'the fire reaches at least one settlement');
+  assert.ok(body.threatenedSettlementIds.length < 5, 'and not all of them, or nothing is over-alerted');
+});
