@@ -1,0 +1,4 @@
+# Source and hashed JSON artifacts must have the same bytes on every checkout.
+* text=auto eol=lf
+*.npz binary
+*.png binary

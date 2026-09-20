@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -495,9 +495,8 @@ test('an unusable ledger does not take the alert routes down with it', () => {
   // symlinked path: `/api/alerts` and `/api/cap/:id` both 502.
   const dir = mkdtempSync(join(tmpdir(), 'unusable-ledger-'));
   const path = join(dir, 'recommendations.jsonl');
-  writeFileSync(path, '');
-  chmodSync(path, 0o000);
-  try {
+  mkdirSync(path); // A directory is unavailable as a ledger on every OS.
+  {
     const built = buildAlerts({ atSeconds: CURSOR, ledgerPath: path });
     assert.ok(built.response.packages.length > 0, 'the recommendation is still computed and served');
     assert.ok(built.ledger.length > 0, 'and the response still carries its ledger');
@@ -508,8 +507,6 @@ test('an unusable ledger does not take the alert routes down with it', () => {
       'the pocket whose record was lost is named, not merely the store',
     );
     assert.ok(built.diagnostics.ledger.unavailable, 'and the reason the store was unusable is published');
-  } finally {
-    chmodSync(path, 0o644);
   }
 });
 

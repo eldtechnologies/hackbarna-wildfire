@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, isAbsolute } from 'node:path';
 import { loadGraph, topology, nearestNode, DEFAULT_GRAPH_PATH } from './graph';
 import { HIGHWAY_RANK } from './solve';
 
@@ -99,7 +99,7 @@ test('nearestNode snaps to the closest node and reports nothing for an empty gra
 test('the default graph path resolves from the module, not the working directory', () => {
   // Resolving from process.cwd() works from the repo root and fails everywhere else,
   // which is the deployment case the path exists to survive.
-  assert.ok(DEFAULT_GRAPH_PATH.endsWith('data/graph/los-gallardos.json'));
-  assert.ok(DEFAULT_GRAPH_PATH.startsWith('/'), 'the path must be absolute');
+  assert.ok(DEFAULT_GRAPH_PATH.endsWith(join('data','graph','los-gallardos.json')));
+  assert.ok(isAbsolute(DEFAULT_GRAPH_PATH), 'the path must be absolute');
   assert.ok(loadGraph(DEFAULT_GRAPH_PATH).graph.nodes.length > 0);
 });

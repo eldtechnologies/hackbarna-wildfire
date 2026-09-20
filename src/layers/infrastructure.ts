@@ -26,11 +26,11 @@ import {
 // One Color per category, converted once at module scope rather than per
 // asset, matching the hoisted Color constants in FireLayer.ts.
 const CATEGORY_COLORS: Record<InfrastructureAsset['category'], Color> = {
-  hospital: Color.fromCssColorString(LAYER_COLORS[INFRA_CATEGORY_LAYERS.hospital]!),
-  school: Color.fromCssColorString(LAYER_COLORS[INFRA_CATEGORY_LAYERS.school]!),
-  town: Color.fromCssColorString(LAYER_COLORS[INFRA_CATEGORY_LAYERS.town]!),
+  hospital: Color.fromCssColorString(LAYER_COLORS[INFRA_CATEGORY_LAYERS.hospital]),
+  school: Color.fromCssColorString(LAYER_COLORS[INFRA_CATEGORY_LAYERS.school]),
+  town: Color.fromCssColorString(LAYER_COLORS[INFRA_CATEGORY_LAYERS.town]),
   'power-line': Color.fromCssColorString(
-    LAYER_COLORS[INFRA_CATEGORY_LAYERS['power-line']]!,
+    LAYER_COLORS[INFRA_CATEGORY_LAYERS['power-line']],
   ),
 };
 
