@@ -557,6 +557,7 @@ rather than GeoJSON, ids as strings. The server normalises to that shape once, i
 | [`docs/almeria-infrastructure.md`](docs/almeria-infrastructure.md) | Where the Almería infrastructure came from and what it omits | current |
 | [`docs/validation/`](docs/validation) | Held-out model validation: protocol, results, and the paired Deepfire comparison | current |
 | [`docs/last-safe-departure.md`](docs/last-safe-departure.md) | The spike that established the road-decision problem | historical |
+| [`docs/ojo-de-fuego-wildfire-intelligence-console-for-spain.md`](docs/ojo-de-fuego-wildfire-intelligence-console-for-spain.md) | The pre-build concept brief; three of its feature claims were never delivered | superseded |
 
 ## Attribution
 
