@@ -1,12 +1,9 @@
 // Growth response assembly: for one cluster, the observed advance, the naive
 // predictors' answers for the same cluster, and the held-out scores behind both.
 //
-// The model slot is null. That is the measured outcome, not an unfinished branch: on
-// leave-one-fire-out the model's bearing error is worse than persistence on both
-// corpora (56.2 deg against 42.6 on PT-FireSprd, 86.9 against 70.1 on MedEU), and
-// direction is the question the product asks. Its rate R2 is better, but R2 on a
-// scalar is the weak metric here. The served scores carry the bearing error, so the
-// null is visible as a reasoned choice. See docs/stream3-baselines.md.
+// No learned vector is served yet. The offline benchmark has worse bearing errors
+// for its learned model; scoreScope makes clear that it does not validate the live
+// centroid estimator. See docs/stream3-baselines.md.
 
 import type { FiresResponse, Hotspot } from '../../shared/fires';
 import type { GrowthResponse } from '../../shared/growth';
@@ -44,6 +41,7 @@ export function growthFor(
     model: null,
     baselines: baselinesFor(observed, metrics.meanRateKmh),
     scores: metrics.scores,
+    scoreScope: 'offline_corpus_baselines',
     shippedBaseline: shipped !== 'model',
     shipped,
   };

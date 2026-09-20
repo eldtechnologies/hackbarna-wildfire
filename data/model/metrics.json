@@ -6,7 +6,7 @@
       "corpus": "PT-FireSprd",
       "gap_filter": "all pairs",
       "primary": false,
-      "mean_rate_kmh": 9.5688,
+      "mean_rate_kmh": 0.9569,
       "rate_basis": "frontal",
       "fires": 72,
       "states": 1706,
@@ -29,6 +29,8 @@
         }
       },
       "bearing_rate": {
+        "rate_fires": 69,
+        "direction_fires": 69,
         "pairs_with_direction": 421,
         "persistence": {
           "median_bearing_error_deg": 42.55,
@@ -41,7 +43,7 @@
       "corpus": "PT-FireSprd",
       "gap_filter": "dt <= 168 h",
       "primary": true,
-      "mean_rate_kmh": 9.5688,
+      "mean_rate_kmh": 0.9569,
       "rate_basis": "frontal",
       "fires": 72,
       "states": 1706,
@@ -64,6 +66,8 @@
         }
       },
       "bearing_rate": {
+        "rate_fires": 69,
+        "direction_fires": 69,
         "pairs_with_direction": 421,
         "persistence": {
           "median_bearing_error_deg": 42.55,
@@ -75,10 +79,7 @@
         "computed": true,
         "pairs": 421,
         "fires": 69,
-        "bearing": {
-          "persistence_median_error_deg": 42.55,
-          "model_median_error_deg": 56.18
-        },
+        "folds_trained": 69,
         "rate": {
           "persistence": {
             "r2": 0.087,
@@ -89,7 +90,13 @@
             "median_mape": 73.67
           }
         },
-        "features": "previous area, previous rate, dt, previous bearing (sin/cos) - no wind, terrain or land cover"
+        "features": "previous area, previous rate, dt, previous bearing (sin/cos/valid) - no wind, terrain or land cover",
+        "bearing": {
+          "pairs": 421,
+          "fires": 69,
+          "persistence_median_error_deg": 42.55,
+          "model_median_error_deg": 56.18
+        }
       }
     },
     {
@@ -119,6 +126,8 @@
         }
       },
       "bearing_rate": {
+        "rate_fires": 59,
+        "direction_fires": 59,
         "pairs_with_direction": 113,
         "persistence": {
           "median_bearing_error_deg": 70.09,
@@ -154,6 +163,8 @@
         }
       },
       "bearing_rate": {
+        "rate_fires": 59,
+        "direction_fires": 59,
         "pairs_with_direction": 113,
         "persistence": {
           "median_bearing_error_deg": 70.09,
@@ -165,10 +176,7 @@
         "computed": true,
         "pairs": 113,
         "fires": 59,
-        "bearing": {
-          "persistence_median_error_deg": 70.09,
-          "model_median_error_deg": 86.9
-        },
+        "folds_trained": 59,
         "rate": {
           "persistence": {
             "r2": -1.0431,
@@ -179,7 +187,13 @@
             "median_mape": 83.84
           }
         },
-        "features": "previous area, previous rate, dt, previous bearing (sin/cos) - no wind, terrain or land cover"
+        "features": "previous area, previous rate, dt, previous bearing (sin/cos/valid) - no wind, terrain or land cover",
+        "bearing": {
+          "pairs": 113,
+          "fires": 59,
+          "persistence_median_error_deg": 70.09,
+          "model_median_error_deg": 86.9
+        }
       }
     }
   ]

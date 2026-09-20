@@ -39,15 +39,15 @@ function bearingDeg(a: LatLon, b: LatLon): number {
 
 /**
  * FRP-weighted centroid. A detection with no measured FRP still counts for
- * position at unit weight, so a sensor that reports no power cannot pull the
- * centroid and is not dropped either.
+ * position at unit weight, so missing power does not drop a
+ * detected position.
  */
 export function weightedCentroid(detections: Hotspot[]): LatLon | null {
   let wSum = 0;
   let lonSum = 0;
   let latSum = 0;
   for (const d of detections) {
-    const w = d.frpMw !== null && d.frpMw > 0 ? d.frpMw : 1;
+    const w = positionWeight(d);
     wSum += w;
     lonSum += d.position.lon * w;
     latSum += d.position.lat * w;
@@ -56,13 +56,20 @@ export function weightedCentroid(detections: Hotspot[]): LatLon | null {
   return { lat: latSum / wSum, lon: lonSum / wSum };
 }
 
+const positionWeight = (d: Hotspot): number => d.frpMw !== null && d.frpMw > 0 ? d.frpMw : 1;
+
+function datedDetections(detections: Hotspot[]): { detection: Hotspot; time: number }[] {
+  return detections.flatMap((detection) => {
+    const time = detection.detectedAt === null ? NaN : Date.parse(detection.detectedAt);
+    return Number.isFinite(time) ? [{ detection, time }] : [];
+  });
+}
+
 /** The earlier and later halves of a detection set, split on time. */
 export function timeSplit(detections: Hotspot[]): [Hotspot[], Hotspot[]] | null {
-  const dated = detections.filter(
-    (d): d is Hotspot & { detectedAt: string } => d.detectedAt !== null,
-  );
+  const dated = datedDetections(detections);
   if (dated.length < 4) return null;
-  const ordered = [...dated].sort((a, b) => (a.detectedAt < b.detectedAt ? -1 : 1));
+  const ordered = dated.sort((a, b) => a.time - b.time).map((d) => d.detection);
   const mid = Math.floor(ordered.length / 2);
   return [ordered.slice(0, mid), ordered.slice(mid)];
 }
@@ -73,7 +80,7 @@ export function timeSplit(detections: Hotspot[]): [Hotspot[], Hotspot[]] | null 
  *
  * The rate divides the centroid displacement by the separation of the two
  * half-centroids, not by the window's first-to-last span. Each centroid carries
- * the mean time of its own detections, so dividing by the full span (which reaches
+ * the FRP-weighted mean time of its own detections, so dividing by the full span (which reaches
  * past both centroids) under-reports the rate — roughly half, on evenly spread
  * halves. The displacement and the interval must describe the same two instants.
  */
@@ -81,6 +88,8 @@ export function advanceBetween(
   earlier: Hotspot[],
   later: Hotspot[],
 ): { bearingDeg: number; rateKmh: number } | null {
+  earlier = datedDetections(earlier).map((d) => d.detection);
+  later = datedDetections(later).map((d) => d.detection);
   const a = weightedCentroid(earlier);
   const b = weightedCentroid(later);
   if (!a || !b) return null;
@@ -96,18 +105,15 @@ export function advanceBetween(
 
 /** Epoch milliseconds of the dated detections, dropping unparseable stamps. */
 function epochStamps(detections: Hotspot[]): number[] {
-  return detections
-    .map((d) => d.detectedAt)
-    .filter((t): t is string => t !== null)
-    .map((t) => Date.parse(t))
-    .filter(Number.isFinite);
+  return datedDetections(detections).map((d) => d.time);
 }
 
-/** Mean timestamp of the dated detections, or null when none is dated. */
+/** Time centroid with the same weights as the spatial centroid. */
 function meanStampMs(detections: Hotspot[]): number | null {
-  const ms = epochStamps(detections);
-  if (ms.length === 0) return null;
-  return ms.reduce((sum, x) => sum + x, 0) / ms.length;
+  const dated = datedDetections(detections);
+  if (dated.length === 0) return null;
+  const weight = dated.reduce((sum, d) => sum + positionWeight(d.detection), 0);
+  return dated.reduce((sum, d) => sum + d.time * positionWeight(d.detection), 0) / weight;
 }
 
 export function sourceMixOf(detections: Hotspot[]): Record<string, number> {
@@ -148,6 +154,7 @@ export function observedGrowth(
     predictor: 'observed',
     bearingDeg: advance?.bearingDeg ?? null,
     rateKmh: advance?.rateKmh ?? null,
+    rateBasis: 'detection_centroid_drift',
     detections: detections.length,
     sourceMix: sourceMixOf(detections),
     hoursSinceLastDetection: hoursSinceLastDetection(detections, now),

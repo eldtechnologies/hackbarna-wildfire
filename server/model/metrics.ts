@@ -26,9 +26,11 @@ interface HarnessRow {
   mean_rate_kmh: number | null;
   burned_area: Record<
     string,
-    { r2: number; median_r2_per_fire: number | null; median_mape: number }
+    { r2: number; median_r2_per_fire: number | null; median_mape: number } | { computed: false; reason: string }
   >;
   bearing_rate: {
+    rate_fires: number;
+    direction_fires: number;
     persistence: {
       median_bearing_error_deg: number | null;
       rate_r2: number;
@@ -54,11 +56,13 @@ const isNum = (v: unknown): boolean => typeof v === 'number' && Number.isFinite(
 const isNumOrNull = (v: unknown): boolean => v === null || isNum(v);
 const isArea = (v: any): boolean =>
   v != null && isNum(v.r2) && isNumOrNull(v.median_r2_per_fire) && isNum(v.median_mape);
+const notComputed = (v: any): boolean => v?.computed === false && typeof v.reason === 'string';
 const isBearing = (v: any): boolean =>
   v != null && isNumOrNull(v.median_bearing_error_deg) && isNum(v.rate_r2) && isNum(v.rate_median_mape);
 const isModel = (v: any): boolean =>
   v == null ||
-  (typeof v.computed === 'boolean' &&
+  notComputed(v) ||
+  (v.computed === true &&
     isNum(v.fires) &&
     (v.bearing == null ||
       (isNum(v.bearing.persistence_median_error_deg) && isNum(v.bearing.model_median_error_deg))) &&
@@ -79,7 +83,8 @@ function isHarnessRow(r: any): boolean {
     typeof r.primary === 'boolean' &&
     isNumOrNull(r.mean_rate_kmh) &&
     isArea(r.burned_area?.persistence) &&
-    isArea(r.burned_area?.constant_ros) &&
+    (isArea(r.burned_area?.constant_ros) || notComputed(r.burned_area?.constant_ros)) &&
+    isNum(r.bearing_rate?.rate_fires) && isNum(r.bearing_rate?.direction_fires) &&
     isBearing(r.bearing_rate?.persistence) &&
     isModel(r.model)
   );
@@ -116,7 +121,7 @@ function scoresOf(rows: HarnessRow[]): GrowthScore[] {
     const events = row.fires;
     for (const name of ['persistence', 'constant_ros'] as const) {
       const area = row.burned_area?.[name];
-      if (area) {
+      if (area && 'r2' in area) {
         out.push({
           name,
           target: 'burned_area',
@@ -138,7 +143,7 @@ function scoresOf(rows: HarnessRow[]): GrowthScore[] {
       medianR2PerFire: null,
       medianMape: dir.rate_median_mape,
       medianBearingErrorDeg: dir.median_bearing_error_deg,
-      events,
+      events: row.bearing_rate.rate_fires,
     });
     // The model is fitted on fewer fires than the corpus holds (folds that carry no
     // rate are skipped), so its own count travels with its score.
@@ -162,7 +167,7 @@ function scoresOf(rows: HarnessRow[]): GrowthScore[] {
 /**
  * The corpus mean rate to hold constant, or null when no corpus carries a real rate
  * of frontal advance. MedEU is excluded by design: its centroid drift is not a rate,
- * and serving it would print hundreds of km/h.
+ * and cannot be interpreted as a rate of frontal spread.
  */
 function meanRateOf(rows: HarnessRow[]): number | null {
   const frontal = rows.find(

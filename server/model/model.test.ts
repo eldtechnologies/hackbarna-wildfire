@@ -7,7 +7,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { FiresResponse, Hotspot } from '../../shared/fires';
@@ -77,6 +77,26 @@ test('timeSplit ignores undated detections instead of ordering them as epoch', (
   const split = timeSplit([...dated, hotspot({ detectedAt: null })]);
   assert.ok(split);
   assert.equal(split[0].length + split[1].length, 4, 'the undated detection must not join a half');
+});
+
+test('timeSplit orders UTC instants across offsets and excludes invalid dates', () => {
+  const early = () => hotspot({ detectedAt: '2026-09-19T02:00:00+02:00' });
+  const late = () => hotspot({ detectedAt: '2026-09-19T01:00:00Z', position: { lat: 0, lon: 0.01 } });
+  const split = timeSplit([late(), early(), hotspot({ detectedAt: 'invalid' }), late(), early()]);
+  assert.ok(split);
+  assert.equal(split[0].length + split[1].length, 4);
+  assert.equal(Date.parse(split[0][0].detectedAt!), Date.parse('2026-09-19T00:00:00Z'));
+  assert.ok(advanceBetween(...split));
+});
+
+test('unequal FRP weights do not change a constant-speed track', () => {
+  const track = Array.from({ length: 8 }, (_, h) => hotspot({
+    detectedAt: at(h), position: { lat: 0, lon: 0.0089932 * h },
+    frpMw: h === 3 || h === 4 ? 1000 : 1,
+  }));
+  const result = advanceBetween(track.slice(0, 4), track.slice(4));
+  assert.ok(result);
+  assert.ok(Math.abs(result.rateKmh - 1) < 0.01, `rate ${result.rateKmh}`);
 });
 
 test('advanceBetween reads a due-east move as ~90 degrees', () => {
@@ -222,9 +242,9 @@ test('a pooled score travels with its per-fire reading, because they disagree', 
 
 test('meanRateKmh serves a frontal rate, never MedEU centroid drift', () => {
   // MedEU is marked rate_basis 'centroid_drift' and a drift is not a rate of advance.
-  // Only PT-FireSprd's frontal mean (9.5688 km/h) may become the served constant; a
+  // Only PT-FireSprd's frontal mean (0.9569 km/h) may become the served constant; a
   // regression that included the drift row would serve 0.0173 km/h.
-  assert.equal(loadMetrics().meanRateKmh, 9.5688);
+  assert.equal(loadMetrics().meanRateKmh, 0.9569);
 });
 
 test('the all-pairs rows stay out of the served scores', () => {
@@ -253,6 +273,26 @@ test('a missing metrics file is the supported not-yet-run state', () => {
   try {
     const m = loadMetrics(join(dir, 'absent.json'));
     assert.deepEqual(m, { scores: [], meanRateKmh: null });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('valid uncomputed model and constant-rate blocks still serve available baselines', () => {
+  const document = JSON.parse(readFileSync(new URL('../../data/model/metrics.json', import.meta.url), 'utf8'));
+  for (const row of document.rows) {
+    row.model = { computed: false, reason: 'insufficient data' };
+    row.burned_area.constant_ros = { computed: false, reason: 'one eligible fire' };
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'metrics-baseline-'));
+  try {
+    const path = join(dir, 'metrics.json');
+    writeFileSync(path, JSON.stringify(document));
+    const { scores } = loadMetrics(path);
+    assert.ok(scores.length > 0);
+    assert.ok(scores.every((s) => s.name === 'persistence'));
+    assert.equal(scores.find((s) => s.corpus === 'PT-FireSprd' && s.target === 'bearing_rate')?.events, 69);
+    assert.equal(scores.find((s) => s.corpus === 'FireSpread_MedEU' && s.target === 'bearing_rate')?.events, 59);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -319,6 +359,8 @@ test('growthFor describes a known cluster and refuses an unknown one', () => {
   assert.equal(body.clusterId, 'c1');
   assert.equal(body.model, null, 'the model lost on held-out fires and must not be invented');
   assert.deepEqual(body.baselines.map((b) => b.predictor), ['persistence', 'constant_ros']);
+  assert.deepEqual(body.baselines.map((b) => b.rateBasis), ['detection_centroid_drift', 'frontal_corpus_mean']);
+  assert.equal(body.scoreScope, 'offline_corpus_baselines');
   assert.equal(body.shippedBaseline, true);
   assert.equal(body.shipped, 'persistence');
   assert.ok(body.scores.length > 0, 'the held-out scores must travel with the claim');

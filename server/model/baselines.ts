@@ -20,7 +20,7 @@ export function constantRos(
   observed: GrowthVector,
   meanRateKmh: number | null,
 ): GrowthVector {
-  return { ...observed, predictor: 'constant_ros', rateKmh: meanRateKmh };
+  return { ...observed, predictor: 'constant_ros', rateKmh: meanRateKmh, rateBasis: 'frontal_corpus_mean' };
 }
 
 /**

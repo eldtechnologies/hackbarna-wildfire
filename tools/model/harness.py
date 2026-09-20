@@ -4,7 +4,7 @@
 Runs on the data box. The corpora stay here; only the small outputs are committed
 under `data/model/`, so the numbers are checkable without the bulk data.
 
-    uv run --with geopandas --with pandas --with scikit-learn python tools/model/harness.py
+    uv run --with geopandas --with pyogrio --with pandas --with scikit-learn python tools/model/harness.py
 
 Two corpora, reported separately because their cadence differs by an order of
 magnitude, and because each carries a different usable signal:
@@ -126,7 +126,7 @@ def load_pt_firesprd() -> list[State]:
                     t=(float(r.enddoy) - t0) * 24.0,
                     area_ha=cum,
                     bearing_deg=spdir if 0 <= spdir <= 360 else None,
-                    rate_kmh=ros / 100.0 if ros > 0 else None,  # cm/s -> km/h
+                    rate_kmh=ros / 1000.0 if ros > 0 else None,  # PT-FireSprd Table A5: m/h -> km/h
                 )
             )
     return out
@@ -231,7 +231,7 @@ def score_corpus(
 ) -> dict:
     pairs = pairs_of(states, max_gap)
     rates = held_out_mean_rates(pairs)
-    fires = len(set(s.fire for s in states))
+    fires = len(rates)
 
     obs = [b.area_ha for _, b in pairs]
     pers = [a.area_ha for a, _ in pairs]
@@ -240,7 +240,7 @@ def score_corpus(
     # Constant-ROS is fitted on the OTHER fires. With one fire there are none, the
     # fit collapses to persistence, and publishing that as a scored predictor would
     # dress a placeholder as a result. Publish it only with at least two fires.
-    constant_ros_ok = fires >= 2
+    constant_ros_ok = len(rates) >= 2
     if constant_ros_ok:
         cros = [
             max(0.0, a.area_ha + loo_mean_rate(rates, a.fire) * (b.t - a.t))
@@ -326,6 +326,8 @@ def score_corpus(
             ),
         },
         "bearing_rate": {
+            "rate_fires": len({a.fire for a,b in pairs if a.rate_kmh is not None and b.rate_kmh is not None}),
+            "direction_fires": len({a.fire for a,b in pairs if a.bearing_deg is not None and b.bearing_deg is not None}),
             "pairs_with_direction": len(berr),
             "persistence": {
                 "median_bearing_error_deg": round(statistics.median(berr), 2) if berr else None,
@@ -351,67 +353,71 @@ def score_model(states: list[State], max_gap: float | None) -> dict:
     if len(pairs) < 20:
         return {"computed": False, "reason": f"only {len(pairs)} pairs carry a rate"}
 
-    features = np.array(
-        [
-            [a.area_ha, a.rate_kmh or 0.0, b.t - a.t, math.sin(math.radians(a.bearing_deg or 0)),
-             math.cos(math.radians(a.bearing_deg or 0))]
-            for a, b in pairs
-        ]
-    )
-    sin_t = np.array([math.sin(math.radians(b.bearing_deg or 0)) for _, b in pairs])
-    cos_t = np.array([math.cos(math.radians(b.bearing_deg or 0)) for _, b in pairs])
-    rate_t = np.array([b.rate_kmh for _, b in pairs])
-    fires = np.array([a.fire for a, _ in pairs])
-
-    pred_sin = np.zeros(len(pairs))
-    pred_cos = np.zeros(len(pairs))
-    pred_rate = np.zeros(len(pairs))
+    features = np.array([
+        [a.area_ha, a.rate_kmh, b.t-a.t,
+         math.sin(math.radians(a.bearing_deg)) if a.bearing_deg is not None else 0.0,
+         math.cos(math.radians(a.bearing_deg)) if a.bearing_deg is not None else 0.0,
+         float(a.bearing_deg is not None)] for a,b in pairs
+    ])
+    rate_t = np.array([b.rate_kmh for _,b in pairs])
+    fires = np.array([a.fire for a,_ in pairs])
+    direction_known = np.array([b.bearing_deg is not None for _,b in pairs])
+    target_bearing = np.array([b.bearing_deg if b.bearing_deg is not None else 0 for _,b in pairs])
+    pred_rate = np.full(len(pairs), np.nan)
+    pred_sin = np.full(len(pairs), np.nan)
+    pred_cos = np.full(len(pairs), np.nan)
     folds_trained = 0
-    for held in set(fires):
+    for held in sorted(set(fires)):
         train = fires != held
         test = ~train
-        if test.sum() == 0 or train.sum() < 10:
+        if train.sum() < 10:
             continue
         folds_trained += 1
-        for target, out in ((sin_t, pred_sin), (cos_t, pred_cos), (rate_t, pred_rate)):
-            m = HistGradientBoostingRegressor(max_iter=120, random_state=0).fit(features[train], target[train])
-            out[test] = m.predict(features[test])
+        model = HistGradientBoostingRegressor(max_iter=120, random_state=0)
+        model.fit(features[train], rate_t[train])
+        pred_rate[test] = model.predict(features[test])
+        direction_train = train & direction_known
+        if direction_train.sum() < 10:
+            continue
+        for target, out in ((np.sin(np.radians(target_bearing)),pred_sin),
+                            (np.cos(np.radians(target_bearing)),pred_cos)):
+            model = HistGradientBoostingRegressor(max_iter=120, random_state=0)
+            model.fit(features[direction_train], target[direction_train])
+            out[test] = model.predict(features[test])
 
-    # Every fold was skipped, so every prediction is still the zero placeholder. A
-    # score computed from zeros must not read as a trained one.
-    if folds_trained == 0:
-        return {
-            "computed": False,
-            "reason": (
-                f"no fold had a training split of 10 pairs "
-                f"({len(pairs)} pairs over {len(set(fires))} fires)"
-            ),
-        }
-
-    # Baseline: carry the previous observed bearing and rate forward.
-    pers_bearing = np.array([a.bearing_deg or 0 for a, _ in pairs])
-    obs_bearing = np.array([b.bearing_deg or 0 for _, b in pairs])
-    model_bearing = (np.degrees(np.arctan2(pred_sin, pred_cos)) + 360) % 360
-    err_pers = np.abs((obs_bearing - pers_bearing + 180) % 360 - 180)
-    err_model = np.abs((obs_bearing - model_bearing + 180) % 360 - 180)
-
-    r2_p, mape_p = r2_mape(list(rate_t), list(np.array([a.rate_kmh or 0 for a, _ in pairs])))
-    r2_m, mape_m = r2_mape(list(rate_t), list(pred_rate))
-    return {
+    # Score only predictions a fold actually produced. An untrained fold is not a
+    # zero prediction; a missing direction target is not a due-north observation.
+    valid_rate = np.isfinite(pred_rate)
+    if not valid_rate.any():
+        return {"computed": False, "reason": "no fold had a training split of 10 pairs",
+                "pairs": 0, "fires": 0, "folds_trained": 0}
+    previous_rate = np.array([a.rate_kmh for a,_ in pairs])
+    r2_p, mape_p = r2_mape(list(rate_t[valid_rate]),list(previous_rate[valid_rate]))
+    r2_m, mape_m = r2_mape(list(rate_t[valid_rate]),list(pred_rate[valid_rate]))
+    result = {
         "computed": True,
-        "pairs": len(pairs),
-        "fires": len(set(fires)),
+        "pairs": int(valid_rate.sum()),
+        "fires": len(set(fires[valid_rate])),
         "folds_trained": folds_trained,
-        "bearing": {
-            "persistence_median_error_deg": round(float(np.median(err_pers)), 2),
-            "model_median_error_deg": round(float(np.median(err_model)), 2),
-        },
         "rate": {
-            "persistence": {"r2": round(r2_p, 4), "median_mape": round(mape_p, 2)},
-            "model": {"r2": round(r2_m, 4), "median_mape": round(mape_m, 2)},
+            "persistence": {"r2": round(r2_p,4), "median_mape": round(mape_p,2)},
+            "model": {"r2": round(r2_m,4), "median_mape": round(mape_m,2)},
         },
-        "features": "previous area, previous rate, dt, previous bearing (sin/cos) - no wind, terrain or land cover",
+        "features": "previous area, previous rate, dt, previous bearing (sin/cos/valid) - no wind, terrain or land cover",
     }
+    previous_known = np.array([a.bearing_deg is not None for a,_ in pairs])
+    valid_direction = direction_known & previous_known & np.isfinite(pred_sin) & np.isfinite(pred_cos)
+    if valid_direction.any():
+        previous = np.array([a.bearing_deg if a.bearing_deg is not None else 0 for a,_ in pairs])
+        prediction = np.degrees(np.arctan2(pred_sin,pred_cos)) % 360
+        err_pers = np.abs((target_bearing[valid_direction]-previous[valid_direction]+180)%360-180)
+        err_model = np.abs((target_bearing[valid_direction]-prediction[valid_direction]+180)%360-180)
+        result["bearing"] = {
+            "pairs": int(valid_direction.sum()), "fires": len(set(fires[valid_direction])),
+            "persistence_median_error_deg": round(float(np.median(err_pers)),2),
+            "model_median_error_deg": round(float(np.median(err_model)),2),
+        }
+    return result
 
 
 def main() -> int:
@@ -421,7 +427,7 @@ def main() -> int:
     failed: list[str] = []
     # PT-FireSprd carries an observed rate of frontal advance. MedEU does not, so
     # its "rate" is the displacement of the centroid of a growing polygon over the
-    # gap - a drift measure that reaches hundreds of km/h and is not a rate at all.
+    # gap - a drift measure rather than frontal advance.
     corpora = (
         ("PT-FireSprd", load_pt_firesprd, "frontal"),
         ("FireSpread_MedEU", load_medeu, "centroid_drift"),

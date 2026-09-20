@@ -63,6 +63,17 @@ def synthetic_medeu(path: Path, crs: str) -> None:
 
 
 class TestGeometry(unittest.TestCase):
+    def test_pt_rate_converts_metres_per_hour_to_kilometres_per_hour(self):
+        import pandas as pd
+        frame = pd.DataFrame(dict(fname=['fire'] * 3, type=['p'] * 3,
+                                  enddoy=[1, 1.1, 1.2], area=[100, 100, 100],
+                                  spdir_p=[90, 90, 90], ros_p=[1000, 2000, 3000]))
+        with unittest.mock.patch('pyogrio.read_dataframe', return_value=frame), unittest.mock.patch.object(
+            harness, 'data_dir', return_value=Path('/unused')
+        ):
+            states = harness.load_pt_firesprd()
+        self.assertEqual([s.rate_kmh for s in states], [1, 2, 3])
+
     def test_haversine_matches_a_known_ground_distance(self):
         # 0.01 degrees of latitude is 1.110 km.
         d = haversine_km((-2.0, 37.00), (-2.0, 37.01))
@@ -149,6 +160,15 @@ class TestFixturesReproduceMetrics(unittest.TestCase):
 
 
 class TestDegenerateCorpora(unittest.TestCase):
+    def test_an_unscored_fire_cannot_make_constant_rate_eligible(self):
+        states = [State(fire='near', t=t, area_ha=100*(t+1), bearing_deg=0, rate_kmh=1+t)
+                  for t in [0,1,2]]
+        states += [State(fire='gapped', t=t, area_ha=100*(t+1), bearing_deg=0, rate_kmh=1)
+                   for t in [0,200,400]]
+        row = score_corpus(states, 'example', MAX_GAP_HOURS, 'frontal')
+        self.assertEqual(row['fires'], 1)
+        self.assertFalse(row['burned_area']['constant_ros']['computed'])
+
     def test_one_fire_does_not_publish_a_constant_ros_score(self):
         # With one fire there are no other fires to fit against, so the leave-one-out
         # rate is zero and constant-ROS collapses to persistence. That number must not
@@ -170,6 +190,16 @@ class TestDegenerateCorpora(unittest.TestCase):
 
 
 class TestModelSmallSample(unittest.TestCase):
+    def test_skipped_fold_is_excluded_even_when_another_fold_trains(self):
+        states = [State(fire=f, t=float(i), area_ha=100.0*(i+1), bearing_deg=None,
+                        rate_kmh=0.5+0.1*i)
+                  for f,n in [('large',16),('small',6)] for i in range(n)]
+        score = score_model(states, MAX_GAP_HOURS)
+        self.assertEqual(score['folds_trained'], 1)
+        self.assertEqual(score['pairs'], 5)
+        self.assertEqual(score['fires'], 1)
+        self.assertNotIn('bearing', score, 'unknown directions must not become northward labels')
+
     def test_no_trained_fold_is_not_computed(self):
         # One fire of 25 states gives 24 pairs, but the only leave-one-fire fold has an
         # empty training split, so every prediction stays the zero placeholder. That

@@ -11,6 +11,10 @@ import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import { createApp } from './index';
 import type { Metrics } from './model/metrics';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 let server: Server;
 let base: string;
@@ -39,6 +43,22 @@ const firstClusterId = async (): Promise<string> => {
   assert.ok(id, 'the replay data must carry at least one cluster');
   return id;
 };
+
+test('the executable refuses an unusable ledger before listening', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'growth-ledger-'));
+  try {
+    const child = spawnSync(process.execPath, ['--import', 'tsx', 'server/index.ts'], {
+      env: { ...process.env, DATA_MODE: 'replay', LEDGER_PATH: directory },
+      encoding: 'utf8', timeout: 30_000,
+    });
+    assert.equal(child.status, 1, child.stderr);
+    assert.match(child.stderr, /refusing to start.*ledger is unusable/);
+    assert.ok(child.stderr.includes(directory));
+    assert.doesNotMatch(child.stdout, /server listening/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test('the growth route answers 200 for a known cluster, 400 without an id, 404 for an unknown one', async () => {
   const clusterId = await firstClusterId();
