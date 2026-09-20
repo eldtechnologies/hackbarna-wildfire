@@ -1,9 +1,8 @@
 {
-  "schema": "paper-source-weight-screen-v1",
-  "purpose": "Exploratory follow-up isolating focal class-weight convention after tracing author initialization; declared before these two runs",
+  "schema": "paper-followup-v1",
+  "purpose": "Exploratory focal-weight controls plus a matched 10000-update architecture comparison selected after the initial screen; declared before these follow-up runs",
   "dataset_manifest_sha256": "6a892f380242c2a253393daf59e92c0b84326b7171355db860cae1080e78e31e",
   "seed": 0,
-  "optimizer_updates": 4000,
   "batch_size": 64,
   "concurrent_runs": 2,
   "selection_objective": "novel-mean",
@@ -12,8 +11,6 @@
   "common_args": [
     "--batch-size",
     "64",
-    "--max-steps",
-    "4000",
     "--patience",
     "0",
     "--workers",
@@ -35,8 +32,11 @@
         "--focal-gamma",
         "2",
         "--pos-weight-cap",
-        "1"
-      ]
+        "1",
+        "--max-steps",
+        "4000"
+      ],
+      "optimizer_updates": 4000
     },
     {
       "name": "u_focal_author_ratio",
@@ -46,7 +46,36 @@
         "--focal-gamma",
         "2",
         "--pos-weight-cap",
-        "0.00423728813559322"
+        "0.00423728813559322",
+        "--max-steps",
+        "4000"
+      ],
+      "optimizer_updates": 4000
+    },
+    {
+      "name": "u_focal_lr4_long",
+      "optimizer_updates": 10000,
+      "args": [
+        "--lr",
+        "0.0001",
+        "--focal-gamma",
+        "2",
+        "--max-steps",
+        "10000"
+      ]
+    },
+    {
+      "name": "r18_random_long",
+      "optimizer_updates": 10000,
+      "args": [
+        "--architecture",
+        "resnet18",
+        "--lr",
+        "0.0001",
+        "--focal-gamma",
+        "2",
+        "--max-steps",
+        "10000"
       ]
     }
   ],
@@ -59,7 +88,7 @@
     "maximum_concurrent_owned_pods": 1,
     "maximum_provisioning_attempts": 1
   },
-  "interpretation": "One-variable class-weight comparisons against focal50 in the original screen. Same data, seed, architecture, batch, learning rate and 4000 updates. Post-initial-screen exploratory follow-up, not an independent confirmation.",
+  "interpretation": "The two 4000-update runs isolate class weight against original focal50. The two 10000-update runs isolate encoder architecture at identical focal2/weight50/LR1e-4/seed0 settings and test a longer update budget. This is a post-screen exploratory follow-up, not a fresh test or a seed replication.",
   "author_source": "https://github.com/slahrichi/WildfireSpreadTS/blob/ed221d491fe2142a4b2e93462c2c0b7a1c7c31ad/src/models/BaseModel.py",
   "author_weight_derivation": "Initializer maps w=236 to w/(1+w); focal alpha=1-w/(1+w)=1/237, giving positive/negative ratio 1/236. Our odds-weight loss divides their loss by 236/237. This is a checked-in source convention, not proof of every published run configuration."
 }
