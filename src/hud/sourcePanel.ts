@@ -9,7 +9,6 @@ export function initSourcePanel(playback: FirePlayback, root: HTMLElement): HTML
     <label class="source-label">SOURCE <select aria-label="Fire data source">
       <option value="live">Live satellite observations</option>
       <option value="replay">Recorded fire · Los Gallardos</option>
-      <option value="drill">Exercise · Castelltallat</option>
     </select></label>
   </div><div class="source-status" role="status"></div>`;
   root.appendChild(panel);
@@ -24,7 +23,6 @@ export function initSourcePanel(playback: FirePlayback, root: HTMLElement): HTML
     }
     if (selected) select.value = selected;
     const description = !data ? 'No observations loaded'
-      : data.dataKind === 'exercise' ? 'SIMULATED EXERCISE · illustrative spread, not a validated prediction'
       : data.fallbackReason ? 'LIVE UNAVAILABLE · showing cached real observations'
       : data.provenance === 'live' ? 'LIVE · satellite observations · no spread forecast supplied'
       : 'REPLAY · recorded satellite observations';

@@ -243,7 +243,7 @@ export class LiveProvider implements FireDataProvider {
         fetchWindowed<RawPerimeter>(base, 'deepfire:satellite-perimeters', controller.signal, now),
       ]);
       const payload: RawFiresPayload = { hotspots, clusters, perimeters };
-      return {...normalize(payload, 'live', null), dataKind: 'observations'};
+      return normalize(payload, 'live', null);
     } finally {
       clearTimeout(deadline);
       controller.abort();

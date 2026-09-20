@@ -183,8 +183,8 @@ test('hotspot-only clusters stay selectable and forecast reset and reframe are i
   assert.equal(reframes,1);
   assert.equal(root.querySelector<HTMLButtonElement>('[aria-label="Play spread forecast"]')!.disabled,true);
   const forecast={...cases[0],maxHorizonHours:8};
-  render({...state,cases:[forecast],selectedCase:forecast,selectedId:'fire',scrubHours:3,dataKind:'exercise'});
+  render({...state,cases:[forecast],selectedCase:forecast,selectedId:'fire',scrubHours:3});
   const reset=root.querySelector<HTMLButtonElement>('[aria-label="Reset spread forecast"]')!;
   assert.equal(reset.disabled,false);reset.click();assert.deepEqual(scrubs,[0]);
-  assert.match(root.textContent!,/illustrative, not a validated prediction/);
+  assert.match(root.textContent!,/Forecast from .*not recorded observations/);
 });

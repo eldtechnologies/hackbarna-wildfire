@@ -72,7 +72,7 @@ export function initReplayPanel(playback: FirePlayback, root: HTMLElement): void
       ? 'Could not load observations. The map shows the last loaded time.'
       : 'Could not load observations. No fire data has been loaded.')
       : state.loading ? 'Loading observations…'
-      : timeline ? `${state.data!.hotspots.length.toLocaleString()} detections available · ${state.playing ? 'Playing' : 'Paused'} · ${state.data?.dataKind === 'exercise' ? 'simulated exercise' : 'recorded observations'}`
+      : timeline ? `${state.data!.hotspots.length.toLocaleString()} detections available · ${state.playing ? 'Playing' : 'Paused'} · recorded observations`
       : state.data?.provenance === 'live' ? 'Live observations · historical replay unavailable'
       : 'No observation timeline available';
     retry.hidden = !state.error;

@@ -223,13 +223,13 @@ test('source switches cancel older work and replay seeks pin a live fallback rec
   const sources: (string | undefined)[] = [];
   const playback = new FirePlayback(async (at, _signal, source) => {
     sources.push(source);
-    if (source === 'drill') return old.promise;
+    if (source === 'configured') return old.promise;
     return {...frame(at), source: 'replay', requestedSource: source, fallbackReason: source === 'live' ? 'live_unavailable' : undefined};
   });
   t.after(() => playback.dispose());
-  const slow = playback.selectSource('drill');
+  const slow = playback.selectSource('configured');
   await playback.selectSource('live');
-  old.resolve({...frame(), source:'drill', dataKind:'exercise'}); await slow;
+  old.resolve({...frame(), source:'configured'}); await slow;
   assert.equal(playback.getState().data?.source, 'replay');
   assert.equal(playback.getState().source, 'live');
   await playback.seek(1800);

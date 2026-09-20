@@ -152,7 +152,7 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
     const max = selected.maxHorizonHours;
     const canForecast = max > 0;
     availability.textContent = canForecast
-      ? `${state.dataKind === 'exercise' ? 'Exercise projection' : 'Forecast'} from ${formatClock(selected.basePerimeter.observedAt)} · ${state.dataKind === 'exercise' ? 'illustrative, not a validated prediction' : 'not recorded observations'}`
+      ? `Forecast from ${formatClock(selected.basePerimeter.observedAt)} · not recorded observations`
       : 'No spread forecast available at this observation time.';
     play.disabled = reset.disabled = !canForecast;
     stepBack.disabled = !canForecast || state.scrubHours <= 0;

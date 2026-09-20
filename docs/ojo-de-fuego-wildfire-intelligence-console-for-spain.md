@@ -9,7 +9,22 @@ updated_at: 2026-09-19T09:50:56Z
 
 # Ojo de Fuego — Wildfire Intelligence Console for Spain
 
-> Historical concept brief. This describes the original ambition, not the implemented feature set. For the current architecture, evidence limits, and delivery plan, use [work-plan.md](work-plan.md) and [DESIGN.md](DESIGN.md). Sensor effects and weather-driven spread in this brief are not delivered by the HUD polish PR.
+> **Superseded — kept for the record, not as a description of the service.**
+>
+> This is the concept brief written before the build started. It is the earliest of the three
+> concept documents and the most optimistic: several of its feature claims were never delivered,
+> and three of them are contradicted outright by what shipped.
+>
+> - It says perimeters come from Deepfire fire-spread endpoints and that spread is driven by
+>   Deepfire spread data. Deepfire exposes observed perimeters only, and the in-app projection
+>   interpolates the provider's spread polygons without any physical model.
+> - It describes the agent as summarising in plain language with wind conditions. The server
+>   renders the facts; the optional model may only order them, and there is no wind feed.
+> - Its "sensor look" and scanline effects were not built.
+>
+> For what the service does, use the [README](../README.md) and the [API reference](API.md). For
+> the concept that was actually built against, use [DESIGN.md](DESIGN.md); for the delivery plan
+> and its decision record, [work-plan.md](work-plan.md).
 
 ## Overview
 

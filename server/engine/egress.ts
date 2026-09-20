@@ -135,8 +135,7 @@ export interface Settlement {
   buildings: number;
   /**
    * Languages to broadcast in, derived per settlement rather than fixed. Bédar is in
-   * Andalucía — Spanish and English, not Catalan — and `ca` belongs to the Castelltallat
-   * scenario.
+   * Andalucía, where the configured broadcast languages are Spanish and English.
    */
   languages?: string[];
 }

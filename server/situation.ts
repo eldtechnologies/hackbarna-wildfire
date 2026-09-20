@@ -141,7 +141,7 @@ export function situationFacts(packet: SituationPacket): NarrationFact[] {
         + ` (bearing ${Math.round(packet.spreadBearingDeg) % 360} deg), a geometric projection rather than measured wind.`;
   }
 
-  const detectionFacts = ` ${packet.hotspotCount} ${packet.dataKind === 'exercise' ? 'simulated hotspots' : 'recorded satellite hotspots'}, recorded FRP sum ${packet.totalFrpMw != null ? Math.round(packet.totalFrpMw) : 'unmeasured'} MW`;
+  const detectionFacts = ` ${packet.hotspotCount} recorded satellite hotspots, recorded FRP sum ${packet.totalFrpMw != null ? Math.round(packet.totalFrpMw) : 'unmeasured'} MW`;
   const detected = detectionFacts + (packet.firstDetectedAt != null
     ? `, first detected ${packet.firstDetectedAt.slice(0, 10)}.` : '.');
 
@@ -233,7 +233,6 @@ export async function getSituation(fireId: string, atSeconds?: number, source?: 
     fireId,
     fireName: cluster.name,
     dataProvenance: fires.provenance,
-    dataKind: fires.dataKind,
     hasPerimeter: threats.hasPerimeter,
     perimeterAreaKm2: areaKm2,
     perimeterObservedAt: perimeter?.observedAt ?? null,
@@ -258,7 +257,7 @@ export async function getSituation(fireId: string, atSeconds?: number, source?: 
   const facts=situationFacts(packet);
   const order=await narrator.order(facts);
   const sentences=(order??facts.map(f=>f.id)).map(id=>facts.find(f=>f.id===id)!.text);
-  const summary=`${packet.dataKind === 'exercise' ? 'SIMULATED EXERCISE. ' : ''}Situation report for fire ${packet.fireName??packet.fireId}. ${sentences.join(' ')} `
+  const summary=`Situation report for fire ${packet.fireName??packet.fireId}. ${sentences.join(' ')} `
     + 'Proximity screening only. These priorities are not evacuation orders or road-access decisions.';
 
   const recommendations = recommendationsFor(packet).sort(

@@ -13,7 +13,6 @@ import path from 'node:path';
 import type { RawFiresPayload } from './normalize';
 import { captureTimeline, causalResponse, type HistoricalCapture } from './causal';
 import type {
-  FireDataKind,
   FireDataProvider,
   FiresResponse,
   ReplayTimeline,
@@ -35,7 +34,7 @@ interface FrameFile extends RawFiresPayload {
 interface RecordingFile {
   scenario?: string;
   recordedAt?: string;
-  dataKind?: FireDataKind;
+  dataKind?: string;
   frames?: FrameFile[];
 }
 
@@ -135,6 +134,10 @@ export class ReplayProvider implements FireDataProvider {
       await readFile(path.join(SNAPSHOTS_DIR, file), 'utf8'),
     ) as SnapshotFile | RecordingFile;
 
+    const dataKind = (parsed as RecordingFile).dataKind;
+    if (dataKind !== undefined && dataKind !== 'observations') {
+      throw new Error(`recording ${file} does not contain satellite observations`);
+    }
     const scenario = parsed.scenario ?? path.basename(file, '.json');
     let payload:RawFiresPayload;
     let timeline:ReplayTimeline;
@@ -154,9 +157,6 @@ export class ReplayProvider implements FireDataProvider {
     }
     const offset = atSeconds === undefined ? timeline.durationSeconds : Math.min(timeline.durationSeconds, Math.max(0, atSeconds));
     const issue = Math.min(Date.parse(timeline.end), Date.parse(timeline.start) + offset * 1000);
-    const data = causalResponse(payload, scenario, issue);
-    const dataKind = (parsed as RecordingFile).dataKind === 'exercise' ? 'exercise' : 'observations';
-    if (dataKind === 'exercise' && data.availability) data.availability.policy = 'synthetic-exercise-clock-v1';
-    return {...data, timeline, dataKind};
+    return {...causalResponse(payload, scenario, issue), timeline};
   }
 }

@@ -1,5 +1,5 @@
 // Growth-vector contracts: where a cluster is heading, how fast, and what the naive
-// predictors say about the same held-out fires. Draft for the H0-4 freeze.
+// predictors say about the same held-out fires. Served by GET /api/growth.
 //
 // Offline corpus scores accompany the vectors as context. They are not a validation
 // of the online detection-centroid estimator or a route-safety guarantee.

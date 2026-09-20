@@ -184,7 +184,7 @@ export class AgentPanel {
 
     const footer = document.createElement('div');
     footer.className = 'agent-footer';
-    const provenance = packet.dataKind === 'exercise' ? 'SIMULATED EXERCISE' : packet.dataProvenance === 'live' ? 'LIVE' : 'REPLAY';
+    const provenance = packet.dataProvenance === 'live' ? 'LIVE' : 'REPLAY';
     footer.textContent = `${provenance} DATA / EVIDENCE ${packet.evidenceAsOf??'TIME UNAVAILABLE'} / ${packet.availabilityPolicy??'PROVIDER OBSERVATIONS'} / PROXIMITY SCREENING, NOT EVACUATION ORDERS`;
     this.panel.appendChild(footer);
   }

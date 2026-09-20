@@ -6,7 +6,6 @@ import {
   Viewer,
 } from 'cesium';
 import { LAYERS, LAYER_COLORS, isLayerVisible, setLayerVisible } from '../layers/registry';
-import type { FireDataKind } from '../../shared/fires';
 
 // HUD shell: corner brackets, title, UTC clock, telemetry, layer toggles.
 // Pure DOM overlay on top of the Cesium canvas.
@@ -14,7 +13,7 @@ import type { FireDataKind } from '../../shared/fires';
 export interface HudHandle {
   sidePanels: HTMLElement;
   /** Update the LIVE/REPLAY badge from the API response provenance. */
-  setMode: (mode: 'live' | 'replay', kind?: FireDataKind) => void;
+  setMode: (mode: 'live' | 'replay') => void;
 }
 
 function el(tag: string, className = '', text = ''): HTMLElement {
@@ -108,8 +107,8 @@ export function initHud(viewer: Viewer, root: HTMLElement): HudHandle {
 
   return {
     sidePanels,
-    setMode(mode, kind) {
-      modeBadge.textContent = kind === 'exercise' ? 'EXERCISE' : mode.toUpperCase();
+    setMode(mode) {
+      modeBadge.textContent = mode.toUpperCase();
       // Live gets the cyan accent; replay keeps the default amber.
       modeBadge.classList.toggle('hud-badge-live', mode === 'live');
     },

@@ -11,16 +11,15 @@ const providers: Record<FireSource, FireDataProvider> = {
   live: new LiveProvider(),
   configured: new ReplayProvider(),
   replay: new ReplayProvider('los-gallardos-2026-07-09.json'),
-  drill: new ReplayProvider('castelltallat-drill-2026-09-19T13-55-15-930Z.json'),
 };
 // Live outages always fall back to a pinned real observation capture, even if
-// REPLAY_SNAPSHOT configures an exercise for the normal replay source.
+// REPLAY_SNAPSHOT configures a different recording for the normal replay source.
 const fallback = new ReplayProvider('los-gallardos-2026-07-09.json');
 
 export function parseSource(raw: unknown): FireSource | undefined {
   if (raw === undefined) return undefined;
-  if (raw === 'live' || raw === 'replay' || raw === 'drill' || raw === 'configured') return raw;
-  throw new CursorError('source must be live, replay, drill or configured');
+  if (raw === 'live' || raw === 'replay' || raw === 'configured') return raw;
+  throw new CursorError('source must be live, replay or configured');
 }
 
 export function getProvider(source: FireSource = DEFAULT_SOURCE): FireDataProvider {

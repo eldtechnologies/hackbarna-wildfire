@@ -15,7 +15,6 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.server.json",
     "record:snapshot": "node scripts/record-snapshot.mjs",
-    "mock:deepfire": "node scripts/mock-deepfire.mjs",
     "test": "node --test --import tsx \"server/**/*.test.ts\" \"tests/**/*.test.ts\""
   },
   "dependencies": {

@@ -95,7 +95,7 @@ export type RawPerimeter = OgcFeature<
   PolygonGeometry | MultiPolygonGeometry
 >;
 
-// Mock/recorded spread records (scripts/mock-deepfire.mjs, recordings under
+// Recorded spread records (recordings under
 // data/snapshots/). The live API has no forecast collection, so these only
 // ever arrive from the replay path. A horizon of 0 IS the observed perimeter.
 export interface RawSpreadStep {
