@@ -1,5 +1,5 @@
 // Alert contracts: the package a coordinator would send, the rejections behind it,
-// and the ledger that records both. Draft for the H0-4 freeze — see docs/work-plan.md.
+// and the ledger that records both. Served by GET /api/alerts and /api/cap/:pocketId.
 //
 // The instruction is *selected* from a closed set, never written. `InstructionId` is
 // closed for that reason: it is the set of pre-approved phrasings, and a candidate

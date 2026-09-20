@@ -1,5 +1,5 @@
 // Egress contracts: the road graph, when fire reaches each segment, and how long a
-// pocket has to leave. Draft for the H0-4 freeze — see docs/work-plan.md.
+// pocket has to leave. Served by server/engine/routes.ts.
 //
 // Type-only, matching shared/fires.ts: ISO strings rather than Date, LatLon rather
 // than GeoJSON, ids as strings. The band types exist because the spike showed a

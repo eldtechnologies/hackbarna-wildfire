@@ -1,6 +1,9 @@
 # Ojo de Fuego — Wildfire Intelligence Console for Spain
 
-> Original product concept. Current evidence and road-decision boundaries are specified in [work-plan.md](work-plan.md). The situation panel now provides server-rendered proximity facts; the optional model only orders their IDs. It does not generate evacuation instructions or infer wind.
+> **Original product concept, not an as-built description.** For what the service does today, use
+> the [README](../README.md) and the [API reference](API.md); for the evidence and the
+> road-decision boundaries, use [work-plan.md](work-plan.md). Feature sections below are marked
+> where they diverge from what shipped.
 
 ## Overview
 
@@ -17,7 +20,8 @@ It renders a cinematic 3D globe focused on the Iberian Peninsula with live wildf
 ### F1. 3D Globe Console
 - CesiumJS globe, default camera over Iberia, keyless Esri satellite imagery.
 - Dark HUD chrome: corner brackets, telemetry readouts, layer toggles, UTC clock. Intelligence-console look, not a consumer map.
-- Click-to-track a fire: camera locks on, metadata panel slides in, spread simulation starts.
+- Click-to-track a fire: camera locks on, the threat and situation panels open, and the spread
+  scrubber appears.
 
 ### F2. Live Wildfire Layers
 - **Hotspots:** satellite fire detections (Deepfire API / MTG data, refreshed ~every 10 min), rendered as pulsing markers sized/colored by fire radiative power.
@@ -30,13 +34,13 @@ It renders a cinematic 3D globe focused on the Iberian Peninsula with live wildf
 - Threat ring analysis: for any selected fire, compute assets within buffer zones (5/10/20 km) of current perimeter and projected spread corridor.
 
 ### F4. Situation Agent
-- LLM-powered agent panel: given a selected fire, summarizes the situation in plain language (perimeter size, derived spread heading, threatened assets ordered by severity, and evacuation recommendations ordered by priority).
-- Grounded strictly in the computed threat data, not freeform hallucination: the agent receives a structured JSON situation packet.
+- Situation panel: given a selected fire, presents the perimeter size, derived spread heading, threatened assets and proximity priorities as server-rendered facts.
+- Grounded strictly in computed geometry, never freeform generation: the server assembles a structured situation packet and every rendered number and name comes from it. An optional chat-completions model may only return an ordering of the supplied fact IDs, and any invalid, missing or invented ID falls back to the deterministic order. With no key, the panel works with no model call at all.
 - Spread direction note: the fire schema has no measured wind field, so the packet's spread direction is the drift heading computed from the perimeter centroid toward the furthest spread projection, not a measured wind. A live wind feed (WeatherNext is the planned source) is a follow-up.
 
 ### F5. Live-First with Cached Fallback
 - Data provider abstraction with two sources: `live` (Deepfire API via server proxy) and `replay` (cached snapshots of a real recorded fire event).
-- If the live API fails, rate-limits, or conference wifi dies, the app transparently replays a cached scenario. One toggle in the HUD shows data provenance ("LIVE" vs "REPLAY") so the demo is honest.
+- If the live API fails, rate-limits, or conference wifi dies, the app transparently replays a cached scenario. The HUD badge shows data provenance ("LIVE" vs "REPLAY"). It is not a toggle: it reports the `provenance` field of the last response, so it cannot claim live data that did not arrive.
 
 ## Visual Direction
 
@@ -49,38 +53,49 @@ It renders a cinematic 3D globe focused on the Iberian Peninsula with live wildf
 ```
 ┌─────────────────────────────────────────┐
 │  Browser (Vite + TypeScript + CesiumJS) │
-│  ├── globe/      viewer, camera, layers │
-│  ├── hud/        panels, toggles, clock │
-│  ├── layers/     hotspots, perimeters,  │
-│  │               spread, infrastructure │
-│  └── agent/      situation panel UI     │
+│  ├── globe/      viewer, camera         │
+│  ├── hud/        panels, legend, clock  │
+│  ├── fires/      perimeters, spread sim │
+│  └── layers/     hotspots, clusters,    │
+│                  infrastructure         │
 └──────────────┬──────────────────────────┘
-               │ /api/*
+               │ /api/*  (4 routes)
 ┌──────────────▼──────────────────────────┐
 │  Node proxy server (Express)            │
-│  ├── deepfire client (API key, retry)   │
-│  ├── snapshot cache (data/snapshots/)   │
-│  ├── threat analysis (buffer geometry)  │
-│  └── agent endpoint (LLM w/ JSON packet)│
+│  ├── providers/  live + replay,         │
+│  │               normalizer, latency    │
+│  ├── threats.ts  buffer geometry        │
+│  ├── situation   facts + optional order │
+│  ├── engine/     road egress, CAP,      │
+│  │               ledger                 │
+│  ├── model/      growth, thermal        │
+│  │               forecasts              │
+│  └── reach.ts    over-alerting figure   │
 └─────────────────────────────────────────┘
 ```
 
 - **Frontend:** Vite + TypeScript + CesiumJS (same proven stack as gods-eye-view, minus their complexity).
-- **Server:** thin Express proxy keeps the Deepfire API key out of the browser, normalizes responses, and serves cached snapshots.
+- **Server:** thin Express proxy keeps the Deepfire API key out of the browser, normalizes responses, and serves cached snapshots. Thirteen `GET` routes in total; the console calls four.
 - **Threat analysis:** server-side turf.js buffer/intersect computations over infrastructure GeoJSON.
-- **Agent:** server endpoint that assembles a situation packet (fire metrics + threat list) and calls an LLM for the narrative. Deterministic data in, narrative out.
+- **Agent:** server endpoint that assembles a situation packet (fire metrics + threat list) and renders it. An optional model may only order the supplied fact IDs. Deterministic data in, deterministic prose out.
 
 ## Data Sources
 
-| Source | Use | Access |
-|---|---|---|
-| Deepfire API | Hotspots, clusters, observed (`satellite`) perimeters | API key (hackathon) |
-| MTG satellite | Fire imagery refresher, every 10 min | Via Deepfire |
-| Generalitat de Catalunya | Infrastructure GeoJSON (hospitals, schools, power) | Public download, bundled locally |
-| ELMFIRE model | Spread model reference | Simplified propagation in-app |
-| Google WeatherNext | Wind/weather for spread + agent context | API or cached |
+| Source | Use | Access | Status |
+|---|---|---|---|
+| Deepfire API | Hotspots, clusters, observed (`satellite`) perimeters | Bearer token (hackathon) | implemented |
+| MTG satellite | Fire imagery refresher, every 10 min | Via Deepfire | arrives through Deepfire's fused layer, not a separate feed |
+| Generalitat de Catalunya | Infrastructure GeoJSON (hospitals, schools, power) | Public download, bundled locally | implemented, Catalonia only |
+| OpenStreetMap | Power lines, the road graph | Bundled fetches | implemented |
+| Catastro INSPIRE + INE padrón | Building footprints, population | Bundled fetches | implemented |
+| OpenCelliD | Cell tower footprints | Free key, CC-BY-SA | implemented as a committed fixture |
+| ELMFIRE model | Spread model reference | Open source | **not implemented** — the in-app projection interpolates provider-supplied spread polygons |
+| Google WeatherNext | Wind/weather for spread + agent context | Hackathon-provided | **not implemented**; no live wind feed exists |
 
-## Milestones (2-day hackathon)
+## Planned milestones (2-day hackathon)
+
+The schedule as it was planned before the event. What actually shipped is in
+[work-plan.md](work-plan.md) and the [README](../README.md).
 
 **M1 — Day 1 morning:** Scaffold + globe + HUD shell. Camera over Iberia.
 **M2 — Day 1 afternoon:** Provider layer + hotspots + perimeters live on globe.
