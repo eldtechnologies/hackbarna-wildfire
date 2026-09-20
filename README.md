@@ -149,3 +149,19 @@ The response carries `access_token`, `token_type: "Bearer"` and `expires_in` —
 days, with no refresh token, so re-exchange the same credentials when it lapses. Put both
 values in `.env` (gitignored) and send the token as `Authorization: Bearer …`. Scripts
 reading `.env` directly should note the values may be quoted there.
+
+## Data pipeline
+
+Use [`tools/next_run/README.md`](tools/next_run/README.md) for the corrected extraction,
+weather joins, masked labels, isolated evaluation roles, and training commands.
+Run Python checks from the repository root:
+
+```bash
+python -m pip install -r tools/next_run/requirements.txt
+python -m pytest tools/next_run/test_next_run.py tools/pipeline -q
+```
+
+`tools/pipeline/` and `data/wildfire-spread/` retain the historical Iberian experiment
+for audit. They are not the next training dataset. Legacy build/scoring commands
+require `--legacy-reproduction`; see [`docs/growth-baselines-AP.md`](docs/growth-baselines-AP.md)
+for the old numbers and their limitations. Do not mix their shards with `tools/next_run`.

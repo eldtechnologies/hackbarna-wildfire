@@ -1,0 +1,79 @@
+{
+  "samples": 4789,
+  "events_with_samples": 260,
+  "samples_with_fire_in_window": 4130,
+  "samples_with_fire_in_label": 4789,
+  "samples_with_no_detection": 659,
+  "samples_with_fire_that_stops": 0,
+  "current_frp_mw": {
+    "p50": 167.4805908203125,
+    "p90": 5267.015429687493,
+    "max": 182018.21875
+  },
+  "archive_rows": 246528,
+  "rows_dropped_no_timestamp": 0,
+  "observations_span": [
+    "2026-01-01 00:08:30+00:00",
+    "2026-09-19 09:58:37+00:00"
+  ],
+  "observations_in_events": 207410,
+  "events": 783,
+  "events_without_samples": 523,
+  "cell_deg": 0.02,
+  "horizon_hours": 6,
+  "history_hours": 3,
+  "step_minutes": 60,
+  "episode_params": {
+    "eps_km": 5.0,
+    "min_samples": 4,
+    "gap_hours": 6.0,
+    "min_observations": 30
+  },
+  "shard_samples": 512,
+  "shards": [
+    {
+      "file": "shard-0000.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0001.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0002.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0003.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0004.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0005.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0006.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0007.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0008.npz",
+      "samples": 512
+    },
+    {
+      "file": "shard-0009.npz",
+      "samples": 181
+    }
+  ],
+  "archive": "/Users/ola/Documents/Codex/2026-09-19/file-users-ola-downloads-hackbarna-20/outputs/LSA_SAF_MTFRPPixel_2026/analysis/iberia_bbox_hotspots.csv.gz",
+  "seconds": 8.4,
+  "git_revision": "90022023b2736e29afd0cc3cdbe3def2da6a8ffd",
+  "git_dirty": false
+}
