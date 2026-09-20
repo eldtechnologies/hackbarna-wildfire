@@ -100,3 +100,14 @@ test('projection validity survives reporting and expiry removes future corridor 
   assert.equal(expired.recommendations.find(r=>r.assetId===hospital.id)?.priority,2);
   assert.equal((await getThreats(cluster.id,evidence))?.corridorCount,0);
 });
+
+test('paired analysis requests share one in-flight threat computation', async () => {
+  const {getThreats} = await import('./threats');
+  const evidence=await new ReplayProvider().getFires();
+  const cluster={...evidence.clusters[0],id:'shared-threat-work'};
+  evidence.clusters=[cluster];evidence.perimeters=[];evidence.spread=[];
+  const [first,second]=await Promise.all([getThreats(cluster.id,evidence),getThreats(cluster.id,evidence)]);
+  assert.ok(first);
+  assert.equal(first,second);
+  assert.equal(await getThreats(cluster.id,evidence),first);
+});

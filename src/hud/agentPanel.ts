@@ -1,13 +1,8 @@
-// Agent panel: shows the LLM/template-narrated situation report for the
-// tracked fire. All figures rendered here come from the situation packet the
-// server computed; the narrator only phrases them.
-
 import { fetchSituation } from '../data/api';
 import { CATEGORY_LABEL } from '../../shared/threats';
 import type { SituationResponse } from '../../shared/situation';
 
 export class AgentPanel {
-  private request = 0;
   private trackedKey: string | null = null;
   private controller: AbortController | null = null;
 
@@ -18,25 +13,23 @@ export class AgentPanel {
     const key=fireId===null ? null : JSON.stringify([fireId,atSeconds,evidenceKey]);
     if (key===this.trackedKey) return;
     this.trackedKey=key;
-    const seq=++this.request;
     this.controller?.abort();
-    this.controller=new AbortController();
+    this.controller=null;
     if (!fireId) {
       this.panel.classList.remove('open');
       this.panel.replaceChildren();
       return;
     }
+    const controller=this.controller=new AbortController();
     this.renderLoading();
-    fetchSituation(fireId,atSeconds,this.controller.signal)
+    fetchSituation(fireId,atSeconds,controller.signal)
       .then((situation) => {
-        if (seq === this.request) this.render(situation);
+        if (!controller.signal.aborted) this.render(situation);
       })
       .catch((err) => {
-        if (seq!==this.request) return;
+        if (controller.signal.aborted) return;
         console.error('[agent-panel] situation fetch failed:', err);
-        if (seq === this.request) {
-          this.renderError(fireId,atSeconds,evidenceKey);
-        }
+        this.renderError(fireId,atSeconds,evidenceKey);
       });
   }
 

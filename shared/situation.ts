@@ -3,16 +3,9 @@
 // the model only orders server-rendered facts: every number the client
 // renders comes from these fields, never from the model.
 
-import type { InfrastructureCategory, InfrastructureCoverage, InfrastructureStatus, ThreatRing } from './threats';
+import type { InfrastructureCoverage, InfrastructureStatus, ThreatenedAsset } from './threats';
 
-export interface SituationThreat {
-  assetId: string;
-  name: string;
-  category: InfrastructureCategory;
-  ring: ThreatRing;
-  distanceKm: number;
-  inSpreadCorridor: boolean;
-}
+export type SituationThreat = ThreatenedAsset;
 
 export interface EvacuationRecommendation extends SituationThreat {
   reason: string; // computed justification, template-phrased (the LLM only orders summary facts)

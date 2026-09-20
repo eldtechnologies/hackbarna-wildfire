@@ -120,6 +120,7 @@ function powerLineThreat(
 
 // Geometry identity excludes transport timestamps and raw cursor spellings.
 const threatsCache=new BoundedCache<ThreatsResponse>(64,60_000);
+const threatJobs=new Map<string,Promise<ThreatsResponse | null>>();
 
 export function threatsCacheKey(fireId:string,fires:FiresResponse):string {
   return createHash('sha256').update(JSON.stringify({
@@ -139,18 +140,20 @@ export async function getThreats(
   const cached = threatsCache.get(key);
   if (cached) return cached;
 
-  const value = await computeThreats(fireId, firesSnapshot);
-  if (value) {
-    threatsCache.set(key,value);
-  }
-  return value;
+  const pending = threatJobs.get(key);
+  if (pending) return pending;
+  const job = computeThreats(fireId, firesSnapshot).then(value => {
+    if (value) threatsCache.set(key,value);
+    return value;
+  }).finally(() => threatJobs.delete(key));
+  threatJobs.set(key,job);
+  return job;
 }
 
 async function computeThreats(
   fireId: string,
-  fires?: FiresResponse,
+  fires: FiresResponse,
 ): Promise<ThreatsResponse | null> {
-  fires = fires ?? (await getFires());
   const cluster = fires.clusters.find((c) => c.id === fireId);
   if (!cluster) return null;
 

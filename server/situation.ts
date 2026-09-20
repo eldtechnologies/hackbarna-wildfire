@@ -141,10 +141,9 @@ export function situationFacts(packet: SituationPacket): NarrationFact[] {
         + ` (bearing ${Math.round(packet.spreadBearingDeg) % 360} deg), a geometric projection rather than measured wind.`;
   }
 
-  const detected =
-    packet.firstDetectedAt != null
-      ? ` ${packet.hotspotCount} recorded satellite hotspots, recorded FRP sum ${packet.totalFrpMw != null ? Math.round(packet.totalFrpMw) : 'unmeasured'} MW, first detected ${packet.firstDetectedAt.slice(0, 10)}.`
-      : ` ${packet.hotspotCount} recorded satellite hotspots, recorded FRP sum ${packet.totalFrpMw != null ? Math.round(packet.totalFrpMw) : 'unmeasured'} MW.`;
+  const detectionFacts = ` ${packet.hotspotCount} recorded satellite hotspots, recorded FRP sum ${packet.totalFrpMw != null ? Math.round(packet.totalFrpMw) : 'unmeasured'} MW`;
+  const detected = detectionFacts + (packet.firstDetectedAt != null
+    ? `, first detected ${packet.firstDetectedAt.slice(0, 10)}.` : '.');
 
   const insideCount = packet.threats.filter((t) => t.ring === 'inside').length;
   const corridorCount = packet.corridorCount;
@@ -177,12 +176,7 @@ export function situationFacts(packet: SituationPacket): NarrationFact[] {
 
 function recommendationsFor(packet:SituationPacket): EvacuationRecommendation[] {
   const recommendations = packet.threats.map((t) => ({
-    assetId: t.assetId,
-    name: t.name,
-    category: t.category,
-    ring: t.ring,
-    distanceKm: t.distanceKm,
-    inSpreadCorridor: t.inSpreadCorridor,
+    ...t,
     reason: reasonFor(t, packet.hasPerimeter),
     priority: recommendationPriority(t, packet.hasPerimeter),
   }));
@@ -230,12 +224,7 @@ export async function getSituation(fireId: string, atSeconds?: number): Promise<
     : null;
 
   const situationThreats = threats.threatened.map((t) => ({
-    assetId: t.assetId,
-    name: t.name,
-    category: t.category,
-    ring: t.ring,
-    distanceKm: t.distanceKm,
-    inSpreadCorridor: t.inSpreadCorridor,
+    ...t,
   }));
 
   const packet: SituationPacket = {
