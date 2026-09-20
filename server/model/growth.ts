@@ -15,6 +15,7 @@ const R_EARTH_KM = 6371.0088;
 const MIN_DISPLACEMENT_KM = 0.1;
 // A swath's sequential pixel acquisition is not a fire trajectory. Require
 // separation across observation cycles, not seconds within one overpass.
+export const EVIDENCE_WINDOW_HOURS = 6;
 const MIN_CENTROID_INTERVAL_MS = 30 * 60 * 1000;
 
 function haversineKm(a: LatLon, b: LatLon): number {
@@ -156,7 +157,7 @@ export function observedGrowth(
   const end = now.getTime();
   detections = detections.filter(d => {
     const t = d.detectedAt === null ? NaN : Date.parse(d.detectedAt);
-    return Number.isFinite(t) && t <= end && t >= end - 6 * 3_600_000;
+    return Number.isFinite(t) && t <= end && t >= end - EVIDENCE_WINDOW_HOURS * 3_600_000;
   });
   const split = timeSplit(detections);
   const advance = split ? advanceBetween(split[0], split[1]) : null;

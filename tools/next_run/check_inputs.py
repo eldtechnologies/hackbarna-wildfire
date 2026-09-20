@@ -7,7 +7,7 @@ from tools.next_run.inputs import InputFrame
 from tools.next_run.quality import Quality
 from tools.next_run.weather import Weather
 from tools.next_run.terrain import Terrain
-from tools.next_run.common import file_hash
+from tools.next_run.common import file_hash, write_json, SIZE
 import argparse
 
 
@@ -17,7 +17,6 @@ def main():
     a=p.parse_args();root=a.data
     m=json.loads((root/'manifest.json').read_text());cfg=m['config']
     q=Quality(cfg['archive']);w=Weather(cfg['weather']);t=Terrain(cfg['static_cache'],cfg.get('existing_tiles'),allow_remote=False)
-    obs=pd.read_parquet(Path(cfg['extract'])/'observations.parquet',columns=['ABS_LINE','ABS_SAMP','observed_at','scan_time','FRP'])
     cat=pd.read_parquet(Path(cfg['catalogue'])/'events.parquet').set_index('event_id')
     rows=[]
     # Feature-only comparison in train/selection; never open test labels or scores.
@@ -25,6 +24,11 @@ def main():
         events=[e for e in m['events'] if e['role']==role and e.get('samples')]
         for e in [events[0],events[len(events)//2]]:
             event=cat.loc[e['event_id']].to_dict();event['event_id']=e['event_id']
+            row0=int(event['seed_row'])-SIZE//2;col0=int(event['seed_col'])-SIZE//2
+            obs=pd.read_parquet(Path(cfg['extract'])/'observations.parquet',
+                columns=['ABS_LINE','ABS_SAMP','observed_at','scan_time','FRP'],
+                filters=[('ABS_LINE','>=',row0),('ABS_LINE','<',row0+SIZE),
+                         ('ABS_SAMP','>=',col0),('ABS_SAMP','<',col0+SIZE)])
             frame=InputFrame(event,q,w,t,obs)
             path=root/e['file'];times=np.load(path/'issue.npy',allow_pickle=False)
             oldx=np.load(path/'X.npy',mmap_mode='r',allow_pickle=False);oldp=np.load(path/'P.npy',mmap_mode='r',allow_pickle=False)
@@ -32,7 +36,7 @@ def main():
                 x,p=frame.at(str(times[i]));row=dict(event=e['event_id'],role=role,issue=str(times[i]),input_equal=bool(np.array_equal(x,oldx[i])),persistence_equal=bool(np.array_equal(p,oldp[i])),max_absolute_input_delta=float(np.max(np.abs(x.astype(float)-oldx[i].astype(float)))))
                 rows.append(row);print(json.dumps(row),flush=True)
     report=dict(manifest_sha256=file_hash(root/'manifest.json'),future_labels_read=False,all_equal=all(r['input_equal'] and r['persistence_equal'] for r in rows),comparisons=rows)
-    a.out.write_text(json.dumps(report,indent=2)+'\n')
+    write_json(a.out,report)
     if not report['all_equal']:raise ValueError('Shared inference inputs differ from frozen arrays')
 
 

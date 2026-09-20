@@ -131,29 +131,25 @@ export class ReplayProvider implements FireDataProvider {
       await readFile(path.join(SNAPSHOTS_DIR, file), 'utf8'),
     ) as SnapshotFile | RecordingFile;
 
+    const scenario = parsed.scenario ?? path.basename(file, '.json');
+    let payload:RawFiresPayload;
+    let timeline:ReplayTimeline;
     if (isRecording(parsed)) {
       const frames = (parsed.frames ?? []) as FrameFile[];
       if (frames.length === 0) {
         throw new Error(`recording ${file} has no frames`);
       }
-      const scenario = parsed.scenario ?? path.basename(file, '.json');
-      const frame =
+      payload =
         atSeconds === undefined
           ? sortedFrames(frames)[frames.length - 1]
           : frameAt(frames, atSeconds);
-      const timeline = buildTimeline(scenario, frames);
-      const offset = atSeconds === undefined ? timeline.durationSeconds : Math.min(timeline.durationSeconds, Math.max(0, atSeconds));
-      const issue = Math.min(Date.parse(timeline.end), Date.parse(timeline.start) + offset * 1000);
-      const response = causalResponse(frame, scenario, issue);
-      response.timeline = timeline;
-      return response;
+      timeline = buildTimeline(scenario, frames);
+    } else {
+      payload = parsed as SnapshotFile;
+      timeline = captureTimeline(parsed as SnapshotFile, scenario);
     }
-
-    const flat = parsed as SnapshotFile;
-    const scenario = flat.scenario ?? path.basename(file, '.json');
-    const timeline = captureTimeline(flat, scenario);
     const offset = atSeconds === undefined ? timeline.durationSeconds : Math.min(timeline.durationSeconds, Math.max(0, atSeconds));
     const issue = Math.min(Date.parse(timeline.end), Date.parse(timeline.start) + offset * 1000);
-    return {...causalResponse(flat, scenario, issue), timeline};
+    return {...causalResponse(payload, scenario, issue), timeline};
   }
 }

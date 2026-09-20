@@ -8,7 +8,7 @@
 import type { FiresResponse, Hotspot } from '../../shared/fires';
 import type { GrowthResponse } from '../../shared/growth';
 import { baselinesFor } from './baselines';
-import { observedGrowth } from './growth';
+import { EVIDENCE_WINDOW_HOURS, observedGrowth } from './growth';
 import { loadMetrics, type Metrics } from './metrics';
 
 /** Detections that belong to a cluster. */
@@ -44,7 +44,7 @@ export function growthFor(
     validation: 'diagnostic_only',
     roadUse: 'unsupported',
     availabilityPolicy: response.availability?.policy ?? 'provider_response_time',
-    evidenceWindowHours: 6,
+    evidenceWindowHours: EVIDENCE_WINDOW_HOURS,
     model: null,
     baselines: baselinesFor(observed, metrics.meanRateKmh),
     scores: metrics.scores,
