@@ -207,6 +207,22 @@ function warnSkipped(kind: string, skipped: number, total: number): void {
   console.warn(`[normalize] dropped ${skipped}/${total} ${kind} with no usable geometry`);
 }
 
+// Shared ingest boundary for live normalization and causal replay derivation.
+export function normalizeHotspot(f: RawHotspot | null | undefined): Hotspot | null {
+  const position = pointOf(f?.geometry);
+  if (!position || !f) return null;
+  const p = f.properties ?? ({} as RawHotspotProps);
+  return {
+    id: String(p.id ?? f.id ?? ''),
+    position,
+    frpMw: numberOrNull(p.fire_radiative_power),
+    confidence: confidenceOf(p.confidence),
+    detectedAt: firstNonBlank(p.observed_at),
+    satellite: firstNonBlank(p.source),
+    clusterId: firstNonBlank(p.cluster_id == null ? null : String(p.cluster_id)),
+  };
+}
+
 export function normalize(
   raw: RawFiresPayload,
   provenance: 'live' | 'replay',
@@ -216,21 +232,9 @@ export function normalize(
   const hotspots: Hotspot[] = [];
   let skippedHotspots = 0;
   for (const f of rawHotspots) {
-    const position = pointOf(f?.geometry);
-    if (!position) {
-      skippedHotspots += 1;
-      continue;
-    }
-    const p = f.properties ?? ({} as RawHotspotProps);
-    hotspots.push({
-      id: String(p.id ?? f.id ?? ''),
-      position,
-      frpMw: numberOrNull(p.fire_radiative_power),
-      confidence: confidenceOf(p.confidence),
-      detectedAt: firstNonBlank(p.observed_at),
-      satellite: firstNonBlank(p.source),
-      clusterId: firstNonBlank(p.cluster_id == null ? null : String(p.cluster_id)),
-    });
+    const hotspot = normalizeHotspot(f);
+    if (hotspot) hotspots.push(hotspot);
+    else skippedHotspots += 1;
   }
   warnSkipped('hotspots', skippedHotspots, rawHotspots.length);
 

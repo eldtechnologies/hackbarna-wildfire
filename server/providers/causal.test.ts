@@ -73,3 +73,43 @@ test('a zero-horizon polygon cannot become a future observed perimeter',()=>{
   raw.spread[0].valid_time='2026-07-09T17:00:00Z';
   assert.equal(causalResponse(raw,'test',Date.parse('2026-07-09T18:00:00Z')).perimeters.length,1);
 });
+
+test('flat and recorded replay reject malformed observations before deriving valid clusters', async (t) => {
+  const { writeFileSync, unlinkSync } = await import('node:fs');
+  const { spawnSync } = await import('node:child_process');
+  const { randomUUID } = await import('node:crypto');
+  const good = structuredClone(source.hotspots[0]);
+  good.properties = {...good.properties, id:'good', cluster_id:'c',
+    observed_at:'2026-07-09T12:00:00Z', available_at:'2026-07-09T12:05:00Z'};
+  good.geometry.coordinates = [-1.9,37.2];
+  const short = structuredClone(good);
+  short.properties.id='short'; short.geometry.coordinates=[-1.9];
+  const missing = structuredClone(good); missing.geometry=null;
+  const delayed = structuredClone(good);
+  delayed.properties.id='delayed'; delayed.properties.available_at='2026-07-09T19:00:00Z';
+  const invalidDelivery = structuredClone(good);
+  invalidDelivery.properties.id='invalid-delivery'; invalidDelivery.properties.available_at='bad';
+  const raw={hotspots:[good,short,null,missing,delayed,invalidDelivery],clusters:[],perimeters:[null],spread:[null]};
+  // Invalid geometry cannot extend the derived timeline, even with a valid late delivery.
+  short.properties.available_at='2099-01-01T00:00:00Z';
+  assert.equal(captureTimeline(raw as unknown as import('./normalize').RawFiresPayload,'test').end,delayed.properties.available_at.replace('Z','.000Z'));
+  for (const kind of ['flat','recorded']) {
+    const capture=kind==='flat' ? {...raw,window:{from:'2026-07-09T12:00:00Z',to:'2026-07-09T18:00:00Z'}}
+      : {frames:[{...raw,t:'2026-07-09T12:00:00Z'},{...raw,t:'2026-07-09T18:00:00Z'}]};
+    const name=`causal-test-${randomUUID()}.json`;
+    const file=new URL(`../../data/snapshots/${name}`,import.meta.url);
+    writeFileSync(file,JSON.stringify(capture));
+    t.after(()=>unlinkSync(file));
+    const child=spawnSync(process.execPath,['--import','tsx','--input-type=module','-e',
+      "import {ReplayProvider} from './server/providers/replay.ts'; console.log(JSON.stringify(await new ReplayProvider().getFires()));"],
+      {env:{...process.env,REPLAY_SNAPSHOT:name},encoding:'utf8',timeout:10000});
+    assert.equal(child.status,0,`${kind}: ${child.stderr}`);
+    const result=JSON.parse(child.stdout);
+    assert.deepEqual(result.hotspots.map((h:{id:string})=>h.id),['good'],kind);
+    assert.equal(result.clusters.length,1,kind);
+    assert.deepEqual(result.clusters[0].centroid,{lon:-1.9,lat:37.2},kind);
+    assert.deepEqual(result.clusters[0].hotspotIds,['good'],kind);
+    assert.equal(result.clusters[0].firstDetectedAt,'2026-07-09T12:00:00.000Z',kind);
+    assert.equal(result.asOf,'2026-07-09T18:00:00.000Z',kind);
+  }
+});
