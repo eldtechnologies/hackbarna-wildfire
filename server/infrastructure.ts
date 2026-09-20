@@ -22,9 +22,17 @@ export const INFRASTRUCTURE_COVERAGE: InfrastructureCoverage = {
   bbox: [0.25, 40.54, 3.28, 42.84], // [west, south, east, north] degrees
 };
 
-export function pointInCoverage(p: LatLon): boolean {
-  const [west, south, east, north] = INFRASTRUCTURE_COVERAGE.bbox;
-  return p.lat >= south && p.lat <= north && p.lon >= west && p.lon <= east;
+const ALMERIA_COVERAGE: InfrastructureCoverage = {
+  label: 'Eastern Almería (OpenStreetMap)',
+  bbox: [-2.45, 36.8, -1.55, 37.65],
+  note: 'OSM snapshot 2026-09-18; not a historical inventory. Mapped assets may be incomplete.',
+};
+
+export function coverageAt(p: LatLon): InfrastructureCoverage | null {
+  return [INFRASTRUCTURE_COVERAGE, ALMERIA_COVERAGE].find(coverage => {
+    const [west, south, east, north] = coverage.bbox;
+    return p.lat >= south && p.lat <= north && p.lon >= west && p.lon <= east;
+  }) ?? null;
 }
 
 const INFRA_DIR = path.resolve(process.cwd(), 'data/infrastructure');
@@ -120,12 +128,12 @@ export async function loadInfrastructure(directory: string): Promise<Infrastruct
     try {
       parsed = JSON.parse(await readFile(path.join(directory, file), 'utf8'));
       if (!parsed || !Array.isArray(parsed.features)) throw new Error('missing features array');
-      loadedFiles.push(file);
     } catch (err) {
       console.warn(`[infrastructure] ${file} missing or unreadable, skipping:`, err instanceof Error ? err.message : err);
       failedFiles.push(file);
       continue;
     }
+    const countBefore = assets.length;
     for (const f of parsed.features ?? []) {
       if (kind === 'point') {
         const asset = toAsset(f as RawPointFeature);
@@ -139,6 +147,8 @@ export async function loadInfrastructure(directory: string): Promise<Infrastruct
         } else rejectedFeatures++;
       }
     }
+    if (assets.length > countBefore) loadedFiles.push(file);
+    else failedFiles.push(file);
   }
 
   return { assets, powerLinePaths, status: {

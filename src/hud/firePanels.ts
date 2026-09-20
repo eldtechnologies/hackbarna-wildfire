@@ -8,7 +8,7 @@ import { clusterDisplayName } from '../fires/display';
 import type { FireLayer, FireLayerState } from '../fires/fireLayer';
 import { driftLabel, SCRUB_SNAP } from '../fires/fireLayer';
 
-function el(tag: string, className = '', text = ''): HTMLElement {
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   node.className = className;
   if (text) node.textContent = text;
@@ -16,7 +16,7 @@ function el(tag: string, className = '', text = ''): HTMLElement {
 }
 
 function formatClock(iso: string): string {
-  return iso.slice(11, 16) + 'Z';
+  return iso.replace('T', ' ').slice(0, 16) + ' UTC';
 }
 
 export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElement {
@@ -41,10 +41,12 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
   timeRow.appendChild(tPlus);
   timeRow.appendChild(valid);
 
+  const availability = el('div', 'forecast-availability');
   const controlsRow = el('div', 'hud-scrubber-controls');
   const stepBack = el('button', 'hud-btn', '-1H');
   const play = el('button', 'hud-btn', 'PLAY');
   const stepFwd = el('button', 'hud-btn', '+1H');
+  play.setAttribute('aria-label', 'Play spread forecast');
   stepBack.addEventListener('click', () => layer.setScrub(stateRef.scrubHours - 1));
   stepFwd.addEventListener('click', () => layer.setScrub(stateRef.scrubHours + 1));
   play.addEventListener('click', () => layer.setPlaying(!stateRef.playing));
@@ -67,7 +69,7 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
   statsRow.appendChild(areaStat);
   statsRow.appendChild(driftStat);
 
-  scrubPanel.append(titleRow, timeRow, controlsRow, sliderRow, tickRow, statsRow);
+  scrubPanel.append(titleRow, availability, timeRow, controlsRow, sliderRow, tickRow, statsRow);
   panels.appendChild(scrubPanel);
 
   // Latest state, read by the step buttons. Kept current by render().
@@ -96,7 +98,7 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
       return;
     }
     for (const caseData of state.cases) {
-      const row = el('div', 'hud-fire-row');
+      const row = el('button', 'hud-fire-row');
       row.classList.toggle(
         'hud-fire-row-selected',
         caseData.cluster.id === state.selectedCase?.cluster.id,
@@ -126,11 +128,18 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
     play.textContent = state.playing ? 'PAUSE' : 'PLAY';
 
     const max = selected.maxHorizonHours;
-    if (ticksForId !== selected.cluster.id) {
-      // Rebuild the horizon ticks only when the selected fire changes.
-      ticksForId = selected.cluster.id;
+    const canForecast = max > 0;
+    availability.textContent = canForecast
+      ? `Forecast from ${formatClock(selected.basePerimeter.observedAt)} · not recorded observations`
+      : 'No spread forecast available at this observation time.';
+    play.disabled = stepBack.disabled = stepFwd.disabled = !canForecast;
+    slider.disabled = !canForecast;
+    sliderRow.hidden = tickRow.hidden = timeRow.hidden = !canForecast;
+    if (!canForecast) play.textContent = 'PLAY';
+    if (ticksForCase !== selected) {
+      // A new observation can change horizons for the same fire.
+      ticksForCase = selected;
       slider.max = String(max);
-      slider.disabled = max === 0;
       tickRow.replaceChildren();
       for (const step of selected.steps) {
         const pct = max > 0 ? (step.horizonHours / max) * 100 : 0;
@@ -146,8 +155,8 @@ export function initFirePanels(layer: FireLayer, hudRoot: HTMLElement): HTMLElem
     driftStat.textContent = drift ? `DRIFT ${drift}` : '';
   };
 
-  // Which cluster the horizon ticks were built for.
-  let ticksForId: string | null = null;
+  // The observation-specific case used to build the horizon ticks.
+  let ticksForCase: FireLayerState['selectedCase'] = null;
 
   // While the user drags the slider, its own position wins over state pushes.
   let dragging = false;

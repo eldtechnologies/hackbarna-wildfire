@@ -94,10 +94,15 @@ Returns `status` (`state` of `available` / `partial` / `unavailable`, plus `load
 A missing or unparseable GeoJSON file degrades `status.state` rather than failing the request, so
 a partial bundle is visible in the response instead of looking like an empty region.
 
-`assets` carries all 7,000 features in the committed bundle: 5,759 points (hospitals, schools,
-towns) and 1,241 power lines. The line assets appear in `assets` as well as in `powerLinePaths`,
-which is the id-keyed lookup for their geometry — so do not read `assets` as points only, and do
-not add the two arrays together.
+`assets` carries all 8,079 features in the committed bundle: 6,523 points (80 hospitals, 4,895
+schools, 1,548 towns) and 1,556 power lines. The line assets appear in `assets` as well as in
+`powerLinePaths`, which is the id-keyed lookup for their geometry — so do not read `assets` as
+points only, and do not add the two arrays together.
+
+The bundle spans two regions that are not equally good, described by `INFRASTRUCTURE_COVERAGE`
+and `ALMERIA_COVERAGE` in `server/infrastructure.ts`: Catalonia from Generalitat open data, and
+eastern Almería from an OpenStreetMap snapshot taken 18 September 2026. Only the Catalonia region
+is an administrative inventory.
 
 `502` infrastructure data unavailable. Read once per process.
 
@@ -116,8 +121,11 @@ not any asset falls in them, so a reader can tell "no assets in this ring" from 
 not evaluated". Results are sorted innermost ring first, then by distance. Power lines are
 sampled every 500 m along their length, so a span crossing a ring is not missed between vertices.
 
-`infrastructureCoverage` is `null` outside the bundled region rather than an empty threat list, so
-"nothing near this fire" cannot be confused with "we hold no data here".
+`infrastructureCoverage` names the region the answer came from, as `{label, bbox}` plus a `note`
+on the Almería region recording that its OSM snapshot is not a historical inventory and that
+mapped assets may be incomplete. It is `null` only when the fire falls outside both regions, which
+is a different statement from an empty threat list — so "nothing near this fire" can never be
+confused with "we hold no data here".
 
 `400` missing `fireId` or malformed cursor · `404` unknown `fireId` · `502` threat analysis
 unavailable.

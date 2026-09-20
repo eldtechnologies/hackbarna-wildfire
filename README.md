@@ -4,8 +4,7 @@ A real-time wildfire intelligence console for Spain — satellite hotspots, obse
 an infrastructure proximity report on a 3D globe, with a road-egress engine behind it that answers
 when the road out closes and whether a village can still leave.
 
-<!-- Hero image: docs/screenshots/01-fire-selected.png — the globe with a fire selected, the
-     threat panel and situation report open. Captured after PR #45 lands, which reworks the HUD. -->
+![The console replaying the Los Gallardos capture over eastern Almería: hotspots and infrastructure on the globe, the observation replay scrubber, and the situation report panel](docs/screenshots/observation-replay-after.jpg)
 
 Built at [HackBarna 2026](https://hackbarna.com) (Barcelona, 19–20 September 2026), tracks
 **Monitoring active fires** and **Values at risk**.
@@ -35,8 +34,8 @@ whether it came from `live` or `replay`. A quantity the source did not supply is
 plausible number. The thermal model is a research target and its endpoint says so in the response
 body.
 
-What is in the box: 2,743 hotspots and 12 observed perimeters in the demo capture, 7,000
-infrastructure assets, a 13,069-node road graph, 13 API routes and 28 test files.
+What is in the box: 2,743 hotspots and 12 observed perimeters in the demo capture, 8,079
+infrastructure assets, a 13,069-node road graph, 13 API routes and 31 test files.
 
 ## Quick start
 
@@ -70,7 +69,7 @@ curl localhost:3001/api/health
 
 ```bash
 npm run typecheck   # client and server, strict
-npm test            # 28 test files, Node's built-in runner
+npm test            # 31 test files, Node's built-in runner
 npm run build       # production bundle into dist/
 ```
 
@@ -79,7 +78,6 @@ CI runs all three on Linux, macOS and Windows across Node 22.9 and 24
 
 ## The console
 
-<!-- Screenshot: docs/screenshots/02-hud-layers.png — the header and LAYERS panel. -->
 
 Everything is drawn on one Cesium globe with a DOM overlay on top. There is no second view and no
 sidebar page: selecting a fire opens panels over the globe, and deselecting closes them.
@@ -119,23 +117,39 @@ The camera flies to frame the fire, the close button on the scrubber appears, th
 fills with the assets near the fire, and the **situation panel** fills with its report. Clicking
 empty space or the panel's close button deselects.
 
+### Observation playback
+
+The **Observation replay** panel plays recorded evidence, including the Los Gallardos capture.
+Start/End, ±1H and the slider send `?at=<seconds>` to the server. The date above the slider always
+belongs to the snapshot currently on the map. Play advances half an event-hour per loaded frame;
+Pause freezes the current snapshot. It stops at the end, where Replay starts again from the
+beginning.
+
+Hotspots, cluster geometry, observed perimeters and the selected fire's threat and situation
+reports all follow the same cursor. While a new frame loads, the previous one stays visible; if
+loading fails, playback stops and offers Retry rather than labelling the old frame with a new
+time. Layer visibility and camera position survive scrubbing.
+
+Stepping the cursor through the July capture is where you watch the fire itself grow: the observed
+perimeter runs from 40.5 km² to 68.1 km² across the capture. That is observation, not prediction.
+
 ### The spread simulation
 
-Selecting a fire opens a scrubber: a `T+` readout, the absolute `VALID` time the projection refers
-to, `-1H` / `PLAY` / `+1H` buttons, a slider snapped to quarter-hours, horizon ticks, and `AREA`
-and `DRIFT` statistics. `PLAY` advances half a fire-hour per real second, holds two seconds at the
-far horizon, and loops.
+The spread scrubber is a different control from the playback panel, and it is deliberately
+separate. It offers a `T+` readout, the absolute `VALID` time the projection refers to, `-1H` /
+`PLAY` / `+1H` buttons, a slider snapped to quarter-hours, horizon ticks, and `AREA` and `DRIFT`
+statistics. `PLAY` advances half a fire-hour per real second, holds two seconds at the far horizon,
+and loops.
 
-The projection interpolates between the provider's forecast polygons, and it only advances for a
-fire that carries forecast steps. **It is not a wind field.** The fire schema carries no measured
-wind, so the drift bearing is computed from the centroid of the observed perimeter toward the
-furthest projection — a derived heading, not an observation.
+When the selected fire carries no forecast polygons the controls are **disabled**, with the reason
+shown next to them: *"No spread forecast available at this observation time."* A recorded
+observation is not a prediction, and the panel does not let you mistake one for the other. Neither
+committed scenario delivers forecast steps through the API, so that is what a fresh checkout shows.
 
-Neither committed scenario delivers forecast steps through the API, so on a fresh checkout the
-scrubber holds at the observed perimeter. This is the one place the console tells you less than
-the server does: stepping the evidence cursor through the July capture returns a perimeter growing
-from 40.5 km² to 68.1 km², but the console loads one cursor and holds it. Wiring the cursor into
-the UI is [#35](https://github.com/eldtechnologies/hackbarna-wildfire/issues/35).
+When it does have steps, the projection interpolates between the provider's forecast polygons.
+**It is not a wind field.** The fire schema carries no measured wind, so the drift bearing is
+computed from the centroid of the observed perimeter toward the furthest projection — a derived
+heading, not an observation.
 
 ### Inspecting a hotspot
 
@@ -437,6 +451,7 @@ python -m pytest tools/pipeline -q
 
 ```bash
 uv run --with-requirements tools/next_run/requirements.txt python -m pytest tools/next_run -q
+uv run --with-requirements tools/pipeline/requirements.txt python -m pytest tools/pipeline -q
 ```
 
 `tools/pipeline/` and `data/wildfire-spread/` retain the historical Iberian experiment for audit.
@@ -483,10 +498,11 @@ tests/        Client tests
 | `npm run mock:deepfire` | Stand-in Deepfire server for recording |
 | `npm run record:snapshot` | Capture a scenario into `data/snapshots/` |
 
-28 test files, 333 tests. The server is well covered — geometry, the cut-time sweep, CAP schema
-validation, the ledger, HTTP error paths and startup. The Cesium client has **no automated tests**:
-one jsdom suite covers the situation panel's request lifecycle, and everything that draws on the
-globe is verified by running it. That is a deliberate trade for a two-day build, not an oversight.
+31 test files, 360 tests. The server is well covered — geometry, the cut-time sweep, CAP schema
+validation, the ledger, HTTP error paths and startup. The Cesium client is covered thinly: jsdom
+suites exercise the situation panel's request lifecycle and the fire layers' state, and everything
+that *draws* on the globe is still verified by running it and looking. That is a deliberate trade
+for a two-day build, not an oversight.
 
 Contracts live in `shared/` and are type-only: ISO strings rather than `Date`, `LatLon` objects
 rather than GeoJSON, ids as strings. The server normalises to that shape once, in
@@ -498,11 +514,13 @@ rather than GeoJSON, ids as strings. The server normalises to that shape once, i
   and Deepfire's own documentation says their perimeters are estimates, not authoritative for
   safety purposes. This is decision support for coordinators, not a public alerting authority and
   not an evacuation order.
-- **Regional coverage.** The bundled infrastructure is Generalitat de Catalunya open data plus an
-  OSM power-line fetch over a Catalonia bounding box. The committed demo fire is in Almería, some
-  500 km away, so its threat panel is empty by design and the situation report says the fire is
-  outside the covered region. The API reports `infrastructureCoverage: null` rather than an empty
-  list, precisely so that "nothing near this fire" cannot be confused with "we hold no data here".
+- **Two regions, and they are not equally good.** The bundled infrastructure covers Catalonia from
+  Generalitat open data, and eastern Almería from an OpenStreetMap snapshot taken 18 September
+  2026. The Catalonia bundle is an administrative inventory; the Almería one is what OSM happened
+  to have, it is not a historical inventory, and mapped assets may be incomplete. Every response
+  says which region it answered from, with that caveat attached, and the API reports
+  `infrastructureCoverage: null` outside both rather than an empty list — so "nothing near this
+  fire" can never be confused with "we hold no data here".
 - **No measured wind.** The fire schema carries no wind field. Spread direction is a derived drift
   heading, and there is no live weather feed.
 - **No physical spread model.** The projection interpolates provider-supplied forecast polygons.
@@ -528,6 +546,8 @@ rather than GeoJSON, ids as strings. The server normalises to that shape once, i
 | [`docs/training-performance.md`](docs/training-performance.md) | Training throughput measurements and what they do not show | current |
 | [`docs/growth-baselines-AP.md`](docs/growth-baselines-AP.md) | The historical MTG baseline experiment | historical |
 | [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md) | Every data source considered, and the traps in each | reference |
+| [`docs/almeria-infrastructure.md`](docs/almeria-infrastructure.md) | Where the Almería infrastructure came from and what it omits | current |
+| [`docs/validation/`](docs/validation) | Held-out model validation: protocol, results, and the paired Deepfire comparison | current |
 | [`docs/last-safe-departure.md`](docs/last-safe-departure.md) | The spike that established the road-decision problem | historical |
 
 ## Attribution

@@ -1,0 +1,658 @@
+[
+  {
+    "roi_km": 20,
+    "mask": "novel",
+    "horizon": 3,
+    "forecasts": 38,
+    "clusters": 36,
+    "positive_forecasts": 2,
+    "cells": 12971,
+    "positive_cells": 7,
+    "scores": {
+      "model_0.1": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 6,
+        "tn": 12963,
+        "precision": 0.5,
+        "recall": 0.14285714285714285,
+        "f1": 0.2222222222222222,
+        "csi": 0.125
+      },
+      "model_0.25": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 7,
+        "tn": 12964,
+        "precision": null,
+        "recall": 0.0,
+        "f1": 0.0,
+        "csi": 0.0
+      },
+      "model_0.5": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 7,
+        "tn": 12964,
+        "precision": null,
+        "recall": 0.0,
+        "f1": 0.0,
+        "csi": 0.0
+      },
+      "deepfire_earlier": {
+        "tp": 0,
+        "fp": 56,
+        "fn": 7,
+        "tn": 12908,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "csi": 0.0
+      },
+      "deepfire_later": {
+        "tp": 1,
+        "fp": 80,
+        "fn": 6,
+        "tn": 12884,
+        "precision": 0.012345679012345678,
+        "recall": 0.14285714285714285,
+        "f1": 0.022727272727272728,
+        "csi": 0.011494252873563218
+      },
+      "persistence": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 7,
+        "tn": 12964,
+        "precision": null,
+        "recall": 0.0,
+        "f1": 0.0,
+        "csi": 0.0
+      },
+      "dilation_2px": {
+        "tp": 1,
+        "fp": 4,
+        "fn": 6,
+        "tn": 12960,
+        "precision": 0.2,
+        "recall": 0.14285714285714285,
+        "f1": 0.16666666666666666,
+        "csi": 0.09090909090909091
+      }
+    }
+  },
+  {
+    "roi_km": 20,
+    "mask": "novel",
+    "horizon": 6,
+    "forecasts": 38,
+    "clusters": 36,
+    "positive_forecasts": 2,
+    "cells": 7965,
+    "positive_cells": 8,
+    "scores": {
+      "model_0.1": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 7,
+        "tn": 7956,
+        "precision": 0.5,
+        "recall": 0.125,
+        "f1": 0.2,
+        "csi": 0.1111111111111111
+      },
+      "model_0.25": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 8,
+        "tn": 7957,
+        "precision": null,
+        "recall": 0.0,
+        "f1": 0.0,
+        "csi": 0.0
+      },
+      "model_0.5": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 8,
+        "tn": 7957,
+        "precision": null,
+        "recall": 0.0,
+        "f1": 0.0,
+        "csi": 0.0
+      },
+      "deepfire_earlier": {
+        "tp": 3,
+        "fp": 64,
+        "fn": 5,
+        "tn": 7893,
+        "precision": 0.04477611940298507,
+        "recall": 0.375,
+        "f1": 0.08,
+        "csi": 0.041666666666666664
+      },
+      "deepfire_later": {
+        "tp": 3,
+        "fp": 84,
+        "fn": 5,
+        "tn": 7873,
+        "precision": 0.034482758620689655,
+        "recall": 0.375,
+        "f1": 0.06315789473684211,
+        "csi": 0.03260869565217391
+      },
+      "persistence": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 8,
+        "tn": 7957,
+        "precision": null,
+        "recall": 0.0,
+        "f1": 0.0,
+        "csi": 0.0
+      },
+      "dilation_2px": {
+        "tp": 2,
+        "fp": 4,
+        "fn": 6,
+        "tn": 7953,
+        "precision": 0.3333333333333333,
+        "recall": 0.25,
+        "f1": 0.2857142857142857,
+        "csi": 0.16666666666666666
+      }
+    }
+  },
+  {
+    "roi_km": 20,
+    "mask": "all",
+    "horizon": 3,
+    "forecasts": 38,
+    "clusters": 36,
+    "positive_forecasts": 4,
+    "cells": 12983,
+    "positive_cells": 15,
+    "scores": {
+      "model_0.1": {
+        "tp": 3,
+        "fp": 1,
+        "fn": 12,
+        "tn": 12967,
+        "precision": 0.75,
+        "recall": 0.2,
+        "f1": 0.3157894736842105,
+        "csi": 0.1875
+      },
+      "model_0.25": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 14,
+        "tn": 12968,
+        "precision": 1.0,
+        "recall": 0.06666666666666667,
+        "f1": 0.125,
+        "csi": 0.06666666666666667
+      },
+      "model_0.5": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 14,
+        "tn": 12968,
+        "precision": 1.0,
+        "recall": 0.06666666666666667,
+        "f1": 0.125,
+        "csi": 0.06666666666666667
+      },
+      "deepfire_earlier": {
+        "tp": 5,
+        "fp": 59,
+        "fn": 10,
+        "tn": 12909,
+        "precision": 0.078125,
+        "recall": 0.3333333333333333,
+        "f1": 0.12658227848101267,
+        "csi": 0.06756756756756757
+      },
+      "deepfire_later": {
+        "tp": 8,
+        "fp": 83,
+        "fn": 7,
+        "tn": 12885,
+        "precision": 0.08791208791208792,
+        "recall": 0.5333333333333333,
+        "f1": 0.1509433962264151,
+        "csi": 0.08163265306122448
+      },
+      "persistence": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 14,
+        "tn": 12968,
+        "precision": 1.0,
+        "recall": 0.06666666666666667,
+        "f1": 0.125,
+        "csi": 0.06666666666666667
+      },
+      "dilation_2px": {
+        "tp": 3,
+        "fp": 4,
+        "fn": 12,
+        "tn": 12964,
+        "precision": 0.42857142857142855,
+        "recall": 0.2,
+        "f1": 0.2727272727272727,
+        "csi": 0.15789473684210525
+      }
+    }
+  },
+  {
+    "roi_km": 20,
+    "mask": "all",
+    "horizon": 6,
+    "forecasts": 38,
+    "clusters": 36,
+    "positive_forecasts": 4,
+    "cells": 7977,
+    "positive_cells": 16,
+    "scores": {
+      "model_0.1": {
+        "tp": 3,
+        "fp": 1,
+        "fn": 13,
+        "tn": 7960,
+        "precision": 0.75,
+        "recall": 0.1875,
+        "f1": 0.3,
+        "csi": 0.17647058823529413
+      },
+      "model_0.25": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 14,
+        "tn": 7961,
+        "precision": 1.0,
+        "recall": 0.125,
+        "f1": 0.2222222222222222,
+        "csi": 0.125
+      },
+      "model_0.5": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 15,
+        "tn": 7961,
+        "precision": 1.0,
+        "recall": 0.0625,
+        "f1": 0.11764705882352941,
+        "csi": 0.0625
+      },
+      "deepfire_earlier": {
+        "tp": 10,
+        "fp": 68,
+        "fn": 6,
+        "tn": 7893,
+        "precision": 0.1282051282051282,
+        "recall": 0.625,
+        "f1": 0.2127659574468085,
+        "csi": 0.11904761904761904
+      },
+      "deepfire_later": {
+        "tp": 10,
+        "fp": 88,
+        "fn": 6,
+        "tn": 7873,
+        "precision": 0.10204081632653061,
+        "recall": 0.625,
+        "f1": 0.17543859649122806,
+        "csi": 0.09615384615384616
+      },
+      "persistence": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 15,
+        "tn": 7961,
+        "precision": 1.0,
+        "recall": 0.0625,
+        "f1": 0.11764705882352941,
+        "csi": 0.0625
+      },
+      "dilation_2px": {
+        "tp": 4,
+        "fp": 4,
+        "fn": 12,
+        "tn": 7957,
+        "precision": 0.5,
+        "recall": 0.25,
+        "f1": 0.3333333333333333,
+        "csi": 0.2
+      }
+    }
+  },
+  {
+    "roi_km": 10,
+    "mask": "novel",
+    "horizon": 3,
+    "forecasts": 38,
+    "clusters": 36,
+    "positive_forecasts": 2,
+    "cells": 3290,
+    "positive_cells": 7,
+    "scores": {
+      "model_0.1": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 6,
+        "tn": 3282,
+        "precision": 0.5,
+        "recall": 0.14285714285714285,
+        "f1": 0.2222222222222222,
+        "csi": 0.125
+      },
+      "model_0.25": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 7,
+        "tn": 3283,
+        "precision": null,
+        "recall": 0.0,
+        "f1": 0.0,
+        "csi": 0.0
+      },
+      "model_0.5": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 7,
+        "tn": 3283,
+        "precision": null,
+        "recall": 0.0,
+        "f1": 0.0,
+        "csi": 0.0
+      },
+      "deepfire_earlier": {
+        "tp": 0,
+        "fp": 56,
+        "fn": 7,
+        "tn": 3227,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "csi": 0.0
+      },
+      "deepfire_later": {
+        "tp": 1,
+        "fp": 80,
+        "fn": 6,
+        "tn": 3203,
+        "precision": 0.012345679012345678,
+        "recall": 0.14285714285714285,
+        "f1": 0.022727272727272728,
+        "csi": 0.011494252873563218
+      },
+      "persistence": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 7,
+        "tn": 3283,
+        "precision": null,
+        "recall": 0.0,
+        "f1": 0.0,
+        "csi": 0.0
+      },
+      "dilation_2px": {
+        "tp": 1,
+        "fp": 4,
+        "fn": 6,
+        "tn": 3279,
+        "precision": 0.2,
+        "recall": 0.14285714285714285,
+        "f1": 0.16666666666666666,
+        "csi": 0.09090909090909091
+      }
+    }
+  },
+  {
+    "roi_km": 10,
+    "mask": "novel",
+    "horizon": 6,
+    "forecasts": 38,
+    "clusters": 36,
+    "positive_forecasts": 2,
+    "cells": 1988,
+    "positive_cells": 8,
+    "scores": {
+      "model_0.1": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 7,
+        "tn": 1979,
+        "precision": 0.5,
+        "recall": 0.125,
+        "f1": 0.2,
+        "csi": 0.1111111111111111
+      },
+      "model_0.25": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 8,
+        "tn": 1980,
+        "precision": null,
+        "recall": 0.0,
+        "f1": 0.0,
+        "csi": 0.0
+      },
+      "model_0.5": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 8,
+        "tn": 1980,
+        "precision": null,
+        "recall": 0.0,
+        "f1": 0.0,
+        "csi": 0.0
+      },
+      "deepfire_earlier": {
+        "tp": 3,
+        "fp": 64,
+        "fn": 5,
+        "tn": 1916,
+        "precision": 0.04477611940298507,
+        "recall": 0.375,
+        "f1": 0.08,
+        "csi": 0.041666666666666664
+      },
+      "deepfire_later": {
+        "tp": 3,
+        "fp": 84,
+        "fn": 5,
+        "tn": 1896,
+        "precision": 0.034482758620689655,
+        "recall": 0.375,
+        "f1": 0.06315789473684211,
+        "csi": 0.03260869565217391
+      },
+      "persistence": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 8,
+        "tn": 1980,
+        "precision": null,
+        "recall": 0.0,
+        "f1": 0.0,
+        "csi": 0.0
+      },
+      "dilation_2px": {
+        "tp": 2,
+        "fp": 4,
+        "fn": 6,
+        "tn": 1976,
+        "precision": 0.3333333333333333,
+        "recall": 0.25,
+        "f1": 0.2857142857142857,
+        "csi": 0.16666666666666666
+      }
+    }
+  },
+  {
+    "roi_km": 10,
+    "mask": "all",
+    "horizon": 3,
+    "forecasts": 38,
+    "clusters": 36,
+    "positive_forecasts": 4,
+    "cells": 3302,
+    "positive_cells": 15,
+    "scores": {
+      "model_0.1": {
+        "tp": 3,
+        "fp": 1,
+        "fn": 12,
+        "tn": 3286,
+        "precision": 0.75,
+        "recall": 0.2,
+        "f1": 0.3157894736842105,
+        "csi": 0.1875
+      },
+      "model_0.25": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 14,
+        "tn": 3287,
+        "precision": 1.0,
+        "recall": 0.06666666666666667,
+        "f1": 0.125,
+        "csi": 0.06666666666666667
+      },
+      "model_0.5": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 14,
+        "tn": 3287,
+        "precision": 1.0,
+        "recall": 0.06666666666666667,
+        "f1": 0.125,
+        "csi": 0.06666666666666667
+      },
+      "deepfire_earlier": {
+        "tp": 5,
+        "fp": 59,
+        "fn": 10,
+        "tn": 3228,
+        "precision": 0.078125,
+        "recall": 0.3333333333333333,
+        "f1": 0.12658227848101267,
+        "csi": 0.06756756756756757
+      },
+      "deepfire_later": {
+        "tp": 8,
+        "fp": 83,
+        "fn": 7,
+        "tn": 3204,
+        "precision": 0.08791208791208792,
+        "recall": 0.5333333333333333,
+        "f1": 0.1509433962264151,
+        "csi": 0.08163265306122448
+      },
+      "persistence": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 14,
+        "tn": 3287,
+        "precision": 1.0,
+        "recall": 0.06666666666666667,
+        "f1": 0.125,
+        "csi": 0.06666666666666667
+      },
+      "dilation_2px": {
+        "tp": 3,
+        "fp": 4,
+        "fn": 12,
+        "tn": 3283,
+        "precision": 0.42857142857142855,
+        "recall": 0.2,
+        "f1": 0.2727272727272727,
+        "csi": 0.15789473684210525
+      }
+    }
+  },
+  {
+    "roi_km": 10,
+    "mask": "all",
+    "horizon": 6,
+    "forecasts": 38,
+    "clusters": 36,
+    "positive_forecasts": 4,
+    "cells": 2000,
+    "positive_cells": 16,
+    "scores": {
+      "model_0.1": {
+        "tp": 3,
+        "fp": 1,
+        "fn": 13,
+        "tn": 1983,
+        "precision": 0.75,
+        "recall": 0.1875,
+        "f1": 0.3,
+        "csi": 0.17647058823529413
+      },
+      "model_0.25": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 14,
+        "tn": 1984,
+        "precision": 1.0,
+        "recall": 0.125,
+        "f1": 0.2222222222222222,
+        "csi": 0.125
+      },
+      "model_0.5": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 15,
+        "tn": 1984,
+        "precision": 1.0,
+        "recall": 0.0625,
+        "f1": 0.11764705882352941,
+        "csi": 0.0625
+      },
+      "deepfire_earlier": {
+        "tp": 10,
+        "fp": 68,
+        "fn": 6,
+        "tn": 1916,
+        "precision": 0.1282051282051282,
+        "recall": 0.625,
+        "f1": 0.2127659574468085,
+        "csi": 0.11904761904761904
+      },
+      "deepfire_later": {
+        "tp": 10,
+        "fp": 88,
+        "fn": 6,
+        "tn": 1896,
+        "precision": 0.10204081632653061,
+        "recall": 0.625,
+        "f1": 0.17543859649122806,
+        "csi": 0.09615384615384616
+      },
+      "persistence": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 15,
+        "tn": 1984,
+        "precision": 1.0,
+        "recall": 0.0625,
+        "f1": 0.11764705882352941,
+        "csi": 0.0625
+      },
+      "dilation_2px": {
+        "tp": 4,
+        "fp": 4,
+        "fn": 12,
+        "tn": 1980,
+        "precision": 0.5,
+        "recall": 0.25,
+        "f1": 0.3333333333333333,
+        "csi": 0.2
+      }
+    }
+  }
+]

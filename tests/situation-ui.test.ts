@@ -65,3 +65,17 @@ test('report marks an expired projection with its absolute valid time', async (t
   assert.match(root.textContent!,/PROJECTION VALID2026-07-09T18:00:00Z/);
   assert.doesNotMatch(root.textContent!,/6 H/);
 });
+
+test('situation panel renders the snapshot limitation from the evidence packet',async t=>{
+  const dom=new JSDOM('<main></main>');
+  Object.defineProperty(globalThis,'document',{value:dom.window.document,configurable:true});
+  t.after(()=>{delete (globalThis as {document?:Document}).document;dom.window.close();});
+  const note='OSM snapshot 2026-09-18; not a historical inventory. Mapped assets may be incomplete.';
+  const original=report('almeria');
+  const response={...original,packet:{...original.packet,infrastructureCoverage:{label:'Eastern Almería',bbox:[-2.45,36.8,-1.55,37.65],note}}};
+  t.mock.method(globalThis,'fetch',async()=>Response.json(response));
+  const root=dom.window.document.querySelector('main')!;
+  new AgentPanel(root).track('almeria');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.ok(root.textContent!.includes(note));
+});

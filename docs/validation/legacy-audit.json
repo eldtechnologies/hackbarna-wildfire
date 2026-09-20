@@ -1,0 +1,58 @@
+{
+  "samples": 5077,
+  "episodes": 294,
+  "folds": [
+    {
+      "shared_episode_ids": 0,
+      "shared_spatial_clusters": 20,
+      "train_samples": 4061,
+      "test_samples": 1016
+    },
+    {
+      "shared_episode_ids": 0,
+      "shared_spatial_clusters": 19,
+      "train_samples": 4061,
+      "test_samples": 1016
+    },
+    {
+      "shared_episode_ids": 0,
+      "shared_spatial_clusters": 23,
+      "train_samples": 4062,
+      "test_samples": 1015
+    },
+    {
+      "shared_episode_ids": 0,
+      "shared_spatial_clusters": 16,
+      "train_samples": 4062,
+      "test_samples": 1015
+    },
+    {
+      "shared_episode_ids": 0,
+      "shared_spatial_clusters": 25,
+      "train_samples": 4062,
+      "test_samples": 1015
+    }
+  ],
+  "positive_cell_samples": 64703,
+  "positives_outside_all_input_detection_cells": 28859,
+  "future_grid_counterexample": {
+    "issue_label": "2026-01-01 03:00:00+00:00",
+    "input_window_ends": "2026-01-01 04:00:00+00:00",
+    "grid_origin_a": [
+      -1.28,
+      38.72
+    ],
+    "grid_origin_b": [
+      -1.27,
+      38.72
+    ],
+    "current_inputs_equal": false
+  },
+  "semantics": [
+    "5-fold GroupKFold by episode, not leave-one-event-out",
+    "Grid center uses all episode observations including future",
+    "Current window is [t,t+1h); issue must be treated as t+1h, with further publication latency absent",
+    "Missing observations labelled negative without quality mask",
+    "Samples truncated by future event end; nearly all retained windows have future detections"
+  ]
+}

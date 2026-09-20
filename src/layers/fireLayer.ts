@@ -1,4 +1,4 @@
-// Fire layer controller: polls /api/fires and renders hotspots as pulsing
+// Fire layer renderer: receives the shared snapshot and renders hotspots as pulsing
 // markers (sized/colored by fire radiative power) plus clusters as bounding
 // regions. Clicking a hotspot selects it and opens the metadata panel.
 
@@ -14,15 +14,8 @@ import {
   Viewer,
 } from 'cesium';
 import type { FireCluster, FiresResponse, Hotspot } from '../../shared/fires';
-import { fetchFires } from '../data/api';
 import { createHotspotPanel } from '../hud/hotspotPanel';
 import { isLayerVisible, onVisibilityChanged } from './registry';
-
-// Poll cadence. MTG hotspot cadence is ~10 min live; replay snapshots are
-// static per request so we refresh faster to keep the demo responsive.
-const LIVE_POLL_MS = 10 * 60 * 1000;
-const REPLAY_POLL_MS = 60 * 1000;
-const RETRY_POLL_MS = 15 * 1000;
 
 // FRP ceiling that clamps marker size and color scaling (display only, not
 // simulated).
@@ -64,8 +57,7 @@ function pulsingSize(base: number, phase: number): CallbackProperty {
 export function createFireLayer(
   viewer: Viewer,
   hudRoot: HTMLElement,
-  onProvenance: (provenance: 'live' | 'replay') => void,
-): void {
+): { setData: (data: FiresResponse) => void } {
   const hotspotEntities = new Map<string, Entity>();
   const clusterEntities = new Map<string, Entity>();
   const hotspotsById = new Map<string, Hotspot>();
@@ -87,20 +79,19 @@ export function createFireLayer(
   const panel = createHotspotPanel(hudRoot, deselect);
 
   function renderFires(data: FiresResponse): void {
-    for (const entity of hotspotEntities.values()) {
+    const nextIds = new Set(data.hotspots.map(hotspot => hotspot.id));
+    for (const [id, entity] of hotspotEntities) {
+      if (nextIds.has(id)) continue;
       viewer.entities.remove(entity);
+      hotspotEntities.delete(id);
+      hotspotsById.delete(id);
     }
-    hotspotEntities.clear();
     for (const entity of clusterEntities.values()) {
       viewer.entities.remove(entity);
     }
     clusterEntities.clear();
-    hotspotsById.clear();
     clustersById.clear();
 
-    for (const hotspot of data.hotspots) {
-      hotspotsById.set(hotspot.id, hotspot);
-    }
     for (const cluster of data.clusters) {
       clustersById.set(cluster.id, cluster);
     }
@@ -141,6 +132,14 @@ export function createFireLayer(
 
     const hotspotsVisible = isLayerVisible('hotspots');
     for (const [index, hotspot] of data.hotspots.entries()) {
+      const previous = hotspotsById.get(hotspot.id);
+      const existing = hotspotEntities.get(hotspot.id);
+      hotspotsById.set(hotspot.id, hotspot);
+      // Most observations survive the next replay frame unchanged. Keep their
+      // Cesium entities and callbacks instead of rebuilding thousands each step.
+      if (existing && previous?.frpMw === hotspot.frpMw &&
+          previous.position.lat === hotspot.position.lat && previous.position.lon === hotspot.position.lon) continue;
+      if (existing) viewer.entities.remove(existing);
       // An unmeasured FRP (null) renders as the smallest, coolest marker.
       const frpMw = hotspot.frpMw ?? 0;
       const entity = viewer.entities.add({
@@ -165,6 +164,9 @@ export function createFireLayer(
 
     if (selectedId && !hotspotEntities.has(selectedId)) {
       deselect();
+    } else if (selectedId) {
+      const hotspot = hotspotsById.get(selectedId)!;
+      panel.show(hotspot, hotspot.clusterId ? clustersById.get(hotspot.clusterId) ?? null : null);
     }
   }
 
@@ -216,24 +218,5 @@ export function createFireLayer(
     }
   }, ScreenSpaceEventType.LEFT_CLICK);
 
-  let pollTimer: ReturnType<typeof setTimeout> | undefined;
-
-  function schedule(delayMs: number): void {
-    clearTimeout(pollTimer);
-    pollTimer = setTimeout(() => void poll(), delayMs);
-  }
-
-  async function poll(): Promise<void> {
-    try {
-      const data = await fetchFires();
-      onProvenance(data.provenance);
-      renderFires(data);
-      schedule(data.provenance === 'live' ? LIVE_POLL_MS : REPLAY_POLL_MS);
-    } catch (err) {
-      console.error('[fire-layer] fetch failed, will retry', err);
-      schedule(RETRY_POLL_MS);
-    }
-  }
-
-  void poll();
+  return { setData: renderFires };
 }
