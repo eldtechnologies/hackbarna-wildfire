@@ -109,9 +109,9 @@ test('the default one-frame exercise recorder preserves forecasts whose issue fo
   const stored=JSON.parse(await readFile(join(folder,'data/snapshots',file),'utf8'));
   assert.equal(stored.frames.length,1);
   assert.equal(stored.dataKind,'exercise');
-  const script=`import {ReplayProvider} from ${JSON.stringify(resolve('server/providers/replay.ts'))};
+  const script=`import {ReplayProvider} from ${JSON.stringify(new URL('./replay.ts',import.meta.url).href)};
     const value=await new ReplayProvider(${JSON.stringify(file)}).getFires();
     console.log(JSON.stringify({perimeters:value.perimeters.length,spread:value.spread.length,asOf:value.asOf,kind:value.dataKind}));`;
-  const replay=await run(process.execPath,['--import',resolve('node_modules/tsx/dist/loader.mjs'),'--input-type=module','-e',script],{cwd:folder,timeout:5000});
+  const replay=await run(process.execPath,['--import',import.meta.resolve('tsx'),'--input-type=module','-e',script],{cwd:folder,timeout:5000});
   assert.deepEqual(JSON.parse(replay.stdout),{perimeters:1,spread:4,asOf:stored.frames[0].t,kind:'exercise'});
 });
