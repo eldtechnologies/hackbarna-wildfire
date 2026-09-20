@@ -96,12 +96,19 @@ const cellId = (c) => [c.mcc, c.mnc, c.lac, c.cellid].map((v) => String(v ?? '?'
 // either form back.
 function safeText(text, token) {
   let out = String(text);
-  for (const form of [token, encodeURIComponent(token)]) {
+  // Three encodings, because a mirror or proxy may echo any of them: the raw key, the
+  // query-string form `encodeURIComponent` produces, and the FORM-encoded form, which differs
+  // from both whenever the key holds a character encodeURIComponent leaves alone but
+  // application/x-www-form-urlencoded escapes — `!`, `'`, `(`, `)`, `*` and space. An
+  // alphanumeric key makes all three identical, which is why this is easy to miss.
+  for (const form of [token, encodeURIComponent(token), new URLSearchParams({ k: token }).toString().slice(2)]) {
     if (form) out = out.split(form).join('<redacted>');
   }
   // Control characters would let an upstream — or a mirror set through OPENCELLID_BASE_URL —
-  // write terminal escapes into a CI log from inside the fixture.
-  out = out.replace(/[\u0000-\u001f\u007f]/g, ' ');
+  // write terminal escapes into a CI log from inside the fixture. The C0 range alone was not
+  // enough: C1 (U+0080–U+009F, including the 8-bit CSI at U+009B) and the bidi overrides
+  // (U+202A–U+202E, U+2066–U+2069) are the same trick spelled differently.
+  out = out.replace(/[\u0000-\u001f\u007f-\u009f‪-‮⁦-⁩]/g, ' ');
   return out.length > 160 ? `${out.slice(0, 160)}...` : out;
 }
 
@@ -117,7 +124,11 @@ async function fetchTile(tile, token, base) {
       const res = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
       const body = await res.text();
       if (!res.ok) {
-        const detail = safeText(body.slice(0, 120), token);
+        // SCRUB FIRST, BOUND SECOND. `safeText(body.slice(0, 120), token)` truncates before the
+        // scrub runs, so a key straddling the cut is never matched and its surviving PREFIX is
+        // written to the committed fixture and republished on `/api/reach`. Reproduced: a body
+        // padded so the key began at index 100 put 20 of its 24 characters into the fixture.
+        const detail = safeText(body, token).slice(0, 120);
         // A refused credential fails every tile identically. Retrying the other 87 and then
         // writing what they returned produces a fixture with no cells that reads as "this region
         // has no towers" — the empty-reads-as-fact inversion, plus a key in the file.
@@ -126,7 +137,19 @@ async function fetchTile(tile, token, base) {
         }
         throw new Error(`HTTP ${res.status}: ${detail}`);
       }
-      const parsed = JSON.parse(body);
+      let parsed;
+      try {
+        parsed = JSON.parse(body);
+      } catch {
+        // Deliberately NOT `err.message`. `JSON.parse`'s SyntaxError QUOTES the opening of the body
+        // — `Unexpected token 'K', "Kf3c1d9e2b..." is not valid JSON` — so a non-JSON response that
+        // begins with the key puts a PREFIX of it into a string that no exact-match scrub can
+        // match, because the token is not present in full anywhere. Verified: 10 characters of a
+        // 36-character key reached the committed fixture and then the unauthenticated `/api/reach`.
+        // A scrub cannot close this class, so the parser's own words are never persisted: only a
+        // length, which is a number and carries nothing.
+        throw new Error(`the response body was not JSON (${body.length} bytes)`);
+      }
       // The API reports refusals in the body with a 200 in some deployments, so a body-level
       // error is treated as a failure rather than as an empty tile.
       if (parsed && typeof parsed === 'object' && parsed.error) {
@@ -135,7 +158,7 @@ async function fetchTile(tile, token, base) {
         throw new Error(`API refused: ${safeText(parsed.error, token)}`);
       }
       if (!Array.isArray(parsed.cells)) {
-        throw new Error(`no cells array: ${safeText(body.slice(0, 120), token)}`);
+        throw new Error(`no cells array: ${safeText(body, token).slice(0, 120)}`);
       }
       return { ok: true, cells: parsed.cells };
     } catch (err) {
@@ -190,6 +213,36 @@ async function main() {
 
   const cells = [...byId.values()];
   const measured = cells.filter((c) => typeof c.range === 'number' && c.range !== 1000).length;
+
+  // The usability rule `servedFootprints` applies, duplicated for the same reason the tiling is:
+  // this script is .mjs and cannot import the TypeScript module. It matters because counting cells
+  // is not counting USABLE cells — a survey whose entries carry no position or no radius passes a
+  // `cells.length` test, reports `0 tiles failed`, and exits 0, and the module then refuses the
+  // fixture it was just handed. The failure would surface as a 502 against a file the script
+  // called a success.
+  //
+  // Computed BEFORE the payload is built: the payload carries `unusableCells`, and declaring it
+  // after the payload is a temporal-dead-zone crash at write time — which is how this was found,
+  // by running the script rather than reading it.
+  const usable = cells.filter(
+    (c) =>
+      typeof c.lat === 'number' && Number.isFinite(c.lat) &&
+      typeof c.lon === 'number' && Number.isFinite(c.lon) &&
+      typeof c.range === 'number' && Number.isFinite(c.range) && c.range > 0,
+  );
+  const unusableCells = cells.length - usable.length;
+
+  // Refusing to write is the point here, not a nicety. A fixture with no usable cells makes
+  // `loadFixture` throw and the endpoint answer 502, which is the loud failure this module wants —
+  // but the fixture on disk would already have replaced a good one. Fail before the write, so the
+  // bad survey never lands.
+  if (usable.length === 0) {
+    throw new Error(
+      `none of the ${cells.length} cells returned by ${tiles.length} tiles has a usable position ` +
+        `and radius; refusing to overwrite ${OUT_PATH} with a survey that would read as "no coverage"`,
+    );
+  }
+
   const payload = {
     source: 'OpenCelliD',
     endpoint: `${base}/cell/getInArea`,
@@ -203,25 +256,24 @@ async function main() {
     failures: failed,
     cells,
     measuredRangeCells: measured,
+    // Cells the module will refuse to turn into a footprint. Counted because a survey can complete
+    // every tile and still be useless: the entries may carry no position or no radius, which a
+    // `cells.length` test cannot see.
+    unusableCells,
   };
-
-  // Refusing to write is the point here, not a nicety. A zero-cell fixture makes `loadFixture`
-  // throw and the endpoint answer 502, which is the loud failure this module wants — but the
-  // fixture on disk would already have replaced a good one. Fail before the write, so the bad
-  // survey never lands.
-  if (cells.length === 0) {
-    throw new Error(
-      `the fetch returned no cells from any of ${tiles.length} tiles; refusing to overwrite ` +
-        `${OUT_PATH} with a survey that would read as "no coverage"`,
-    );
-  }
 
   mkdirSync(dirname(OUT_PATH), { recursive: true });
   writeFileSync(OUT_PATH, `${JSON.stringify(payload, null, 1)}\n`);
   console.log(
-    `[reach] wrote ${cells.length} cells to ${OUT_PATH} ` +
-      `(${measured} with a non-fallback range, ${failed.length} tiles failed)`,
+    `[reach] wrote ${cells.length} cells to ${OUT_PATH} (${measured} with a non-fallback range, ` +
+      `${unusableCells} unusable, ${failed.length} tiles failed)`,
   );
+  if (unusableCells > 0) {
+    console.warn(
+      `[reach] ${unusableCells} cells have no usable position or radius — the module will refuse ` +
+        'them, so they are recorded but do not become footprints',
+    );
+  }
   if (failed.length > 0) {
     console.warn(`[reach] ${failed.length} tiles could not be fetched — coverage in those boxes is UNKNOWN, not empty`);
     for (const f of failed) console.warn(`[reach]   ${f.bbox}: ${f.reason}`);

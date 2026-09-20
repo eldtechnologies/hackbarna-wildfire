@@ -10,7 +10,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -42,6 +42,16 @@ const settlement = (over: Partial<ReachSettlement> = {}): ReachSettlement => ({
  * a readable fixture spreads this rather than restating nine fields — and each test that wants to
  * check a missing one deletes exactly one key from it.
  */
+/** A fixture directory of its own per call, so one test's file never answers another's read. */
+const fixtureDir = (): string => mkdtempSync(join(tmpdir(), 'reach-fixture-'));
+
+/** `loadFixture` reads from disk, so a fixture to test has to be written first. */
+const writeFixture = (dir: string, name: string, body: unknown): string => {
+  const path = join(dir, name);
+  writeFileSync(path, JSON.stringify(body));
+  return path;
+};
+
 const PROVENANCE = {
   source: 'OpenCelliD',
   endpoint: 'https://opencellid.org/cell/getInArea',
@@ -213,13 +223,19 @@ test('a null or primitive entry is refused by position, not thrown', () => {
 });
 
 test('a cell whose position is not a pair of numbers is refused too', () => {
+  // Both halves of the guard and both failure kinds. The `lon` half and the finiteness half were
+  // unpinned: removing either left every test in this file passing, because no input reached them.
+  // A non-finite coordinate is the case a `typeof` check alone would let through — `typeof NaN` is
+  // 'number' — and it yields a footprint at a position no settlement can ever be inside.
   const { cells, unusable } = servedFootprints([
     cell({ cellid: 1, lat: 'north' }),
     cell({ cellid: 2, lon: null }),
-    cell({ cellid: 3 }),
+    cell({ cellid: 3, lat: Number.NaN }),
+    cell({ cellid: 4, lat: 37.19, lon: Number.POSITIVE_INFINITY }),
+    cell({ cellid: 5 }),
   ]);
   assert.equal(cells.length, 1, 'only the positioned cell survives');
-  assert.equal(unusable.length, 2);
+  assert.deepEqual(unusable.map((u) => u.id), ['214-7-404-1', '214-7-404-2', '214-7-404-3', '214-7-404-4']);
 });
 
 test('a threatened settlement contributes nothing to the over-alerting figure', () => {
@@ -272,15 +288,26 @@ test('a settlement with no usable position is reported, not counted as uncovered
     set,
     [
       settlement({ id: 'placed', population: 100 }),
-      settlement({ id: 'unplaceable', population: 200, lat: null as unknown as number, lon: -1.98 }),
+      settlement({ id: 'null-lat', population: 200, lat: null as unknown as number, lon: -1.98 }),
+      // The `lon` half and the finiteness half of the guard, which no input reached before this:
+      // removing either left the whole suite green.
+      settlement({ id: 'null-lon', population: 200, lat: 37.19, lon: null as unknown as number }),
+      settlement({ id: 'nan-lat', population: 200, lat: Number.NaN, lon: -1.98 }),
     ],
     new Set<string>(),
   );
 
-  assert.deepEqual(unusableSettlements.map((u) => u.id), ['unplaceable']);
-  assert.ok(unusableSettlements[0].reason.length > 0, 'with a reason');
-  const row = rows.find((r) => r.settlementId === 'unplaceable');
-  assert.equal(row?.overAlerted, null, 'not zero, and not a made-up covering count');
+  assert.deepEqual(
+    unusableSettlements.map((u) => u.id),
+    ['null-lat', 'null-lon', 'nan-lat'],
+    'every unplaceable settlement is reported, on either axis',
+  );
+  for (const u of unusableSettlements) assert.ok(u.reason.length > 0, `${u.id} carries a reason`);
+  for (const id of ['null-lat', 'null-lon', 'nan-lat']) {
+    const row = rows.find((r) => r.settlementId === id);
+    assert.equal(row?.overAlerted, null, `${id}: not zero, and not a made-up covering count`);
+    assert.equal(row?.coveringCells, 0, `${id}: and not reported as uncovered either`);
+  }
   assert.equal(totalOverAlerted, 100, 'the total counts only the settlement it could place');
 });
 
@@ -337,12 +364,8 @@ test('a missing or cell-less fixture is refused rather than served as an empty r
     'an absent fixture names the script that writes it rather than reading as empty',
   );
 
-  const dir = mkdtempSync(join(tmpdir(), 'reach-fixture-'));
-  const write = (name: string, body: unknown): string => {
-    const path = join(dir, name);
-    writeFileSync(path, JSON.stringify(body));
-    return path;
-  };
+  const dir = fixtureDir();
+  const write = (name: string, body: unknown): string => writeFixture(dir, name, body);
 
   assert.throws(
     () => loadFixture(write('no-cells.json', { ...PROVENANCE, tilesFailed: 3 })),
@@ -438,10 +461,16 @@ test('a threat id that names no settlement is refused, not read as nothing threa
 
 test('the committed fixture and the tiling agree on the region and the request count', () => {
   // The tiling arithmetic is duplicated: `scripts/fetch-reach.mjs` is .mjs, so it carries its own
-  // copy rather than importing the TypeScript module. Nothing crossed the two, which meant the
-  // fixture could stop matching the code that claims to produce it and every gate would still
-  // pass — the region could be moved in one copy, or the tile size changed in the other, and
-  // `tilesRequested` would quietly become a number no current code produces.
+  // copy rather than importing the TypeScript module.
+  //
+  // EXACTLY WHAT THIS CROSSES, because it is less than it looks. The committed fixture's
+  // `tilesRequested` is the SCRIPT's frozen output, so comparing it against this module's tiling
+  // does cross the two implementations as of the last fetch — a fixture regenerated by a diverged
+  // script, or a fixture region edited by hand, fails here. What it does NOT do is execute the
+  // script: a change to the script's own `tileBounds` in isolation passes every test in this file
+  // and surfaces only at the next regeneration. The script is .mjs and calls `main()` on import,
+  // so it cannot simply be imported; a `--print-tiles` dry run spawned from here is what would
+  // close that, and it is not done.
   const fixture = loadFixture();
 
   assert.equal(
@@ -462,9 +491,151 @@ test('the committed fixture and the tiling agree on the region and the request c
     );
   }
 
+  // Every settlement the engine reasons about lies inside the box too. This is what grounds the
+  // margin claim in the module header: that figure is measured from these coordinates, and if a
+  // settlement ever moved outside the survey the header would be describing a different box.
+  // `import.meta.dirname`, not `__dirname`: this project is ESM, where `__dirname` is undefined.
+  const settlements = JSON.parse(
+    readFileSync(join(import.meta.dirname, '../data/pockets/settlements.json'), 'utf8'),
+  ) as { settlements: Array<{ id: string; lat: number; lon: number }> };
+  assert.ok(settlements.settlements.length > 0, 'the settlement fixture is not empty');
+  for (const s of settlements.settlements) {
+    assert.ok(
+      s.lat >= fixture.region.south && s.lat <= fixture.region.north &&
+        s.lon >= fixture.region.west && s.lon <= fixture.region.east,
+      `${s.id} at ${s.lat},${s.lon} lies outside the surveyed region`,
+    );
+  }
+
   // And the survey scope names the box it actually bounds, so the response's own description
   // cannot drift from the fixture it describes.
-  const scope = assembleReach(fixture, [], new Set()).surveyScope;
+  const scope = assembleReach(fixture, [settlement()], new Set()).surveyScope;
   assert.ok(scope.includes(fixture.region.south.toFixed(3)), 'the scope names the southern edge');
   assert.ok(scope.includes(fixture.region.east.toFixed(3)), 'and the eastern one');
+});
+
+test('a fixture whose cells are all unusable is refused, not served as zero coverage', () => {
+  // The refusal in `loadFixture` tests the length of the INPUT array, and every one of these has a
+  // non-empty one. Published, each gives `cells: 0`, `measuredFraction: null` and
+  // `totalOverAlerted: 0` — the safest number the model can produce, produced by having no usable
+  // data, which is what this module exists to prevent. Reachable without editing a file at all: a
+  // survey whose cells carry no position looks exactly like this, and the fetch script called it a
+  // success until it was taught to count USABLE cells rather than cells.
+  const cases: RawCell[][] = [
+    [{ mcc: 214, mnc: 7, lac: 1, cellid: 1 }],
+    [{ mcc: 214, mnc: 7, lac: 1, cellid: 1, lat: 37, lon: -2 }],
+    [{ mcc: 214, mnc: 7, lac: 1, cellid: 1, lat: 37, lon: -2, range: 0 }],
+    [{ lat: null, lon: null, range: FALLBACK_RANGE_M }],
+  ];
+  for (const cells of cases) {
+    assert.throws(
+      () => assembleReach({ ...PROVENANCE, cells }, [settlement()], new Set()),
+      /could become a footprint/,
+      `must not publish an over-alerting figure of zero for: ${JSON.stringify(cells)}`,
+    );
+  }
+
+  // A mixed fixture still works, and reports the entries it could not use.
+  const mixed = assembleReach(
+    { ...PROVENANCE, cells: [cell(), null as unknown as RawCell] },
+    [settlement()],
+    new Set(),
+  );
+  assert.equal(mixed.cells, 1, 'the usable cell survives');
+  assert.equal(mixed.unusable.length, 1, 'and the bad entry is reported rather than dropped');
+});
+
+test('an empty settlement list and a duplicated village are both refused', () => {
+  const fixture: ReachFixture = { ...PROVENANCE, cells: [cell()] };
+
+  // `rows: []` with `totalOverAlerted: 0` is the same empty-reads-as-all-clear shape one fixture
+  // over, and nothing up the chain checks it: `loadContext` casts `settlements.json` unvalidated.
+  assert.throws(
+    () => assembleReach(fixture, [], new Set()),
+    /no settlements to evaluate/,
+    'an empty settlement list is refused rather than served as an empty, well-formed answer',
+  );
+
+  // A village listed twice is counted twice, putting the total above the region's population —
+  // wrong in the direction that flatters the feature.
+  assert.throws(
+    () => assembleReach(fixture, [settlement(), settlement()], new Set()),
+    /appears more than once/,
+    'a duplicated settlement is refused rather than double-counted',
+  );
+});
+
+test('an unplaceable settlement is named once, and not as having coverage', () => {
+  // `unknownPopulation` is documented as "covered, unthreatened, of unknown size". Deriving it
+  // from the row shape also matched a settlement that could not be PLACED — named by
+  // `unusableSettlements` and covered by nothing — so one id appeared in both lists and a reader
+  // was told a village with no usable position has coverage. The absent-becomes-a-fact inversion,
+  // occurring in the field that exists to prevent it.
+  const set = servedFootprints([cell({ lat: 37.1909, lon: -1.9806, range: 5000 })]);
+  const { unknownPopulation, unusableSettlements } = overAlertingBy(
+    set,
+    [
+      settlement({ id: 'placed-unknown', population: null, lat: 37.1909, lon: -1.9806 }),
+      settlement({ id: 'unplaceable', population: null, lat: Number.NaN, lon: -1.98 }),
+    ],
+    new Set<string>(),
+  );
+
+  assert.deepEqual(unknownPopulation, ['placed-unknown'], 'only the placed village is of unknown size');
+  assert.deepEqual(unusableSettlements.map((u) => u.id), ['unplaceable'], 'and the other is named where it belongs');
+  for (const id of unusableSettlements.map((u) => u.id)) {
+    assert.ok(!unknownPopulation.includes(id), `${id} is not in both lists`);
+  }
+});
+
+test('a population key that is absent is unknown, not invisible', () => {
+  // An explicit `null` was covered by the null-carrying fix; an ABSENT key was not. It became
+  // `undefined`, which `?? 0` dropped from the total while the `=== null` filter did not name it,
+  // and `JSON.stringify` then omitted both fields from the row — a village vanishing from the
+  // response entirely, which is the worst of the three (absent, zero, unknown) it could have said.
+  const set = servedFootprints([cell({ lat: 37.1909, lon: -1.9806, range: 5000 })]);
+  const absent = { id: 'absent', name: 'Absent', lat: 37.1909, lon: -1.9806 } as unknown as ReachSettlement;
+
+  const { rows, totalOverAlerted, unknownPopulation } = overAlertingBy(
+    set,
+    [settlement({ id: 'known', population: 300 }), absent],
+    new Set<string>(),
+  );
+
+  assert.equal(rows.find((r) => r.settlementId === 'absent')?.population, null, 'absent becomes null, never undefined');
+  assert.deepEqual(unknownPopulation, ['absent'], 'and it is named, so the total cannot read as complete');
+  assert.equal(totalOverAlerted, 300, 'which counts only what it can');
+
+  // The other shapes of "not a population" get the same treatment: a quoted number concatenates,
+  // a NaN serialises as null while looking exactly like the honest unknown, and a negative count
+  // subtracts from a figure about people.
+  for (const bad of ['3110', Number.NaN, -1, Number.POSITIVE_INFINITY] as unknown[]) {
+    const { rows: r } = overAlertingBy(
+      set,
+      [settlement({ id: 'bad', population: bad as number })],
+      new Set<string>(),
+    );
+    assert.equal(r[0].population, null, `a population of ${String(bad)} is unknown, not published`);
+  }
+});
+
+test('provenance with the wrong DOMAIN is refused, not only the wrong type', () => {
+  // Type and finiteness are not enough for a count: `-1` and `1.5` are both finite and neither is
+  // a number of tiles. Both loaded clean and were published on the response as tile counts. And a
+  // whitespace-only string is an absence wearing a string type.
+  const dir = fixtureDir();
+  const cases: Array<[string, Record<string, unknown>]> = [
+    ['a negative tile count', { tilesFailed: -1 }],
+    ['a fractional tile count', { tilesRequested: 1.5 }],
+    ['a zero-area survey box', { maxAreaM2: 0 }],
+    ['a whitespace-only source', { source: '   ' }],
+    ['a whitespace-only vintage', { fetchedAt: '   ' }],
+  ];
+  for (const [label, over] of cases) {
+    assert.throws(
+      () => loadFixture(writeFixture(dir, `${label.replace(/\W+/g, '-')}.json`, { ...PROVENANCE, ...over, cells: [cell()] })),
+      /no usable/,
+      `${label} is refused rather than published as the fixture's own provenance`,
+    );
+  }
 });

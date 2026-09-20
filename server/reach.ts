@@ -20,9 +20,15 @@
 // The survey box bounds the CELLS' OWN POSITIONS, not the area they cover — the API filters by
 // where a tower is, so a long-range tower just outside the box that reaches a settlement inside
 // was never asked about, and its absence would publish as "no coverage". The margin is thin
-// against the survey's own data: Lubrín sits 745 m inside the western edge while the fixture
-// holds cells with ranges over 20 km. `surveyScope` states this on the response for the reader
-// who is about to read a coverage column as a fact.
+// against the survey's own data: Lubrín's centre is 1,764 m inside the western edge, while the
+// fixture holds cells with ranges over 20 km. `surveyScope` states this on the response for the
+// reader who is about to read a coverage column as a fact.
+//
+// That margin is measured from the settlement coordinates in `data/pockets/settlements.json`, and
+// `reach.test.ts` asserts every settlement lies inside the region so the two cannot drift apart.
+// An earlier revision of this comment said 745 m — a number produced by hand-typing five
+// settlement coordinates into a throwaway probe instead of reading them from the fixture, four of
+// which were wrong. Worth knowing if a similar figure appears anywhere else.
 
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -105,7 +111,12 @@ export function servedFootprints(raw: RawCell[]): FootprintSet {
       unusable.push({ id: `#${index}`, reason: `entry is not a cell object: ${String(cell)}` });
       continue;
     }
-    const id = cellId(cell);
+    // A cell carrying none of the four network coordinates yields `?-?-?-?`, the same id for every
+    // such entry — so two different refusals could be published under one identifier, which is the
+    // "an absent value read as an identifier" problem the index above exists to avoid. Appending
+    // the entry's position disambiguates them.
+    const raw = cellId(cell);
+    const id = raw === '?-?-?-?' ? `${raw}#${index}` : raw;
     // `typeof` first, for the same reason as `range` below: `Number(null)` is 0 and `Number('')` is
     // 0, so an absent coordinate would be accepted as the Greenwich meridian and the equator rather
     // than refused. Written for `range` and not here first, which let `lon: null` through.
@@ -247,12 +258,36 @@ export function overAlertingBy(
 ): ReachResult {
   const rows: ReachRow[] = [];
   const unusableSettlements: Array<{ id: string; reason: string }> = [];
+  // Collected here rather than derived from `rows` afterwards. Filtering rows on
+  // `population === null && overAlerted === null` also matches an UNPLACEABLE settlement, which
+  // `unusableSettlements` already names and which no footprint covers — so the same id would
+  // appear in both lists, and a consumer reading this one as documented ("covered, unthreatened")
+  // would be told a village it cannot place has coverage. That is the absent-becomes-a-fact
+  // inversion this field exists to prevent, occurring in the field itself.
+  const unknownPopulation: string[] = [];
 
   for (const s of settlements) {
-    // The same `typeof`-first rule the cells get, for the same reason: `Number(null)` is 0, so a
-    // missing coordinate would otherwise be read as the point (0, 0) — and every settlement would
-    // then be tested against footprints 3,000 km away and report `coveringCells: 0`, which this
-    // module publishes as the fact "no cell covers this village".
+    // `typeof`-first, the rule this function already applies to the position and the cells get,
+    // applied to the population for the same reason. The `=== null` check the null-carrying fix
+    // added covers only an explicit null, and each of the other shapes is a different wrong answer:
+    //   - an ABSENT key is `undefined`, which `?? 0` drops from the total while the `=== null`
+    //     filter does not name it, and `JSON.stringify` then omits the field from the row — a
+    //     village vanishing from the response entirely;
+    //   - a quoted `"3110"` is valid JSON and concatenates, publishing `totalOverAlerted: "03110"`
+    //     where the contract says a number;
+    //   - `NaN` makes the total `NaN`, which serialises as `null` while rendering exactly like the
+    //     honest unknown, so the signal added to distinguish "unknown" from "zero" cannot tell it
+    //     from "corrupt";
+    //   - a negative count subtracts from a figure about people.
+    const population =
+      typeof s.population === 'number' && Number.isFinite(s.population) && s.population >= 0
+        ? s.population
+        : null;
+
+    // And the same rule for the position: `Number(null)` is 0, so a missing coordinate would
+    // otherwise be read as the point (0, 0), and every settlement would then be tested against
+    // footprints 3,000 km away and report `coveringCells: 0` — which this module publishes as the
+    // fact "no cell covers this village".
     if (
       typeof s.lat !== 'number' || typeof s.lon !== 'number' ||
       !Number.isFinite(s.lat) || !Number.isFinite(s.lon)
@@ -264,7 +299,7 @@ export function overAlertingBy(
       rows.push({
         settlementId: s.id,
         name: s.name,
-        population: s.population,
+        population,
         coveringCells: 0,
         coveringCellsMeasured: 0,
         threatened: threatened.has(s.id),
@@ -277,7 +312,9 @@ export function overAlertingBy(
 
     const covering = set.cells.filter((c) => distanceMetres(s, c) <= c.rangeM);
     const isThreatened = threatened.has(s.id);
-    const population = s.population;
+    // Covered and unthreatened, but nobody recorded how many people live here: a genuine
+    // over-alert of unknown size, and the only case this list is for.
+    if (population === null && !isThreatened && covering.length > 0) unknownPopulation.push(s.id);
     rows.push({
       settlementId: s.id,
       name: s.name,
@@ -305,13 +342,12 @@ export function overAlertingBy(
     unusable: set.unusable,
     cells: set.cells.length,
     unusableSettlements,
-    // Rows with a null contribution are exactly the ones the total cannot include. A null
-    // population is the case that is otherwise invisible — an unplaceable settlement is already
-    // named by `unusableSettlements`, so between them the total's shortfall is fully accounted for.
+    // Rows with a null contribution are exactly the ones the total cannot include, and each is
+    // named by one of these two lists — `unusableSettlements` for a row that could not be placed,
+    // `unknownPopulation` for one placed but of unknown size. Between them the shortfall is
+    // accounted for; a row held by neither would be a settlement that vanished silently.
     totalOverAlerted: rows.reduce((sum, row) => sum + (row.overAlerted ?? 0), 0),
-    unknownPopulation: rows
-      .filter((row) => row.population === null && row.overAlerted === null)
-      .map((row) => row.settlementId),
+    unknownPopulation,
   };
 }
 
@@ -398,7 +434,15 @@ export function loadFixture(path: string = REACH_FIXTURE_PATH): ReachFixture {
         'rather than serving an empty region as though nothing were covered',
     );
   }
-  const parsed = JSON.parse(raw) as Partial<ReachFixture>;
+  let parsed: Partial<ReachFixture>;
+  try {
+    parsed = JSON.parse(raw) as Partial<ReachFixture>;
+  } catch {
+    // A bare SyntaxError here named no file and no field, and the route logs the failure against
+    // the generic 'reach unavailable' — so a truncated fixture, which is what a crash mid-write
+    // leaves behind, cost the operator the one thing they needed: which file to look at.
+    throw new Error(`${path} is not readable JSON; refusing to guess what a truncated fixture meant`);
+  }
   if (!Array.isArray(parsed.cells)) {
     throw new Error(`${path} carries no cells array; refusing to read it as an empty region`);
   }
@@ -424,21 +468,41 @@ export function loadFixture(path: string = REACH_FIXTURE_PATH): ReachFixture {
   // figure. A fixture that cannot state its own provenance cannot support a claim about coverage.
   const str = (field: 'source' | 'endpoint' | 'fetchedAt'): string => {
     const value = parsed[field];
-    if (typeof value !== 'string' || value === '') {
+    // A whitespace-only string is an absence wearing a string type, and the rule this refuses on
+    // is that an absence must not be published as a fact. `value === ''` alone let `"   "` through
+    // as the fixture's provenance.
+    if (typeof value !== 'string' || value.trim() === '') {
       throw new Error(`${path} has no usable \`${field}\`; refusing to publish a default in its place`);
     }
-    return value;
+    return value.trim();
   };
-  const num = (field: 'maxAreaM2' | 'tilesRequested' | 'tilesFailed' | 'measuredRangeCells'): number => {
+  // Type and finiteness are not enough for a COUNT. `-1` and `1.5` are both finite numbers and
+  // neither is a number of tiles; both loaded clean and were published on the response as counts.
+  const count = (field: 'tilesRequested' | 'tilesFailed' | 'measuredRangeCells'): number => {
     const value = parsed[field];
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
       throw new Error(`${path} has no usable \`${field}\`; refusing to publish a default in its place`);
     }
     return value;
   };
-  const region = parsed.region as ReachFixture['region'] | undefined;
+  // And an AREA has to be positive: `maxAreaM2: 0` is a limit no tile could ever satisfy, carried
+  // into `surveyScope` as the box's own description.
+  const positive = (field: 'maxAreaM2'): number => {
+    const value = parsed[field];
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+      throw new Error(`${path} has no usable \`${field}\`; refusing to publish a default in its place`);
+    }
+    return value;
+  };
+  // `region: null` is checked before the fields are read. Testing only `=== undefined` let it
+  // through to `region.south`, which threw a bare TypeError naming no field and no path — the same
+  // diagnosability gap the per-entry cell refusals were added to close.
+  const rawRegion = parsed.region as unknown;
+  if (rawRegion === null || rawRegion === undefined || typeof rawRegion !== 'object') {
+    throw new Error(`${path} has no usable region; refusing to publish coverage against an unknown survey box`);
+  }
+  const region = rawRegion as ReachFixture['region'];
   if (
-    region === undefined ||
     !Number.isFinite(region.south) || !Number.isFinite(region.west) ||
     !Number.isFinite(region.north) || !Number.isFinite(region.east)
   ) {
@@ -453,12 +517,12 @@ export function loadFixture(path: string = REACH_FIXTURE_PATH): ReachFixture {
     endpoint: str('endpoint'),
     fetchedAt: str('fetchedAt'),
     region,
-    maxAreaM2: num('maxAreaM2'),
-    tilesRequested: num('tilesRequested'),
-    tilesFailed: num('tilesFailed'),
+    maxAreaM2: positive('maxAreaM2'),
+    tilesRequested: count('tilesRequested'),
+    tilesFailed: count('tilesFailed'),
     failures: parsed.failures,
     cells: parsed.cells,
-    measuredRangeCells: num('measuredRangeCells'),
+    measuredRangeCells: count('measuredRangeCells'),
   };
 }
 
@@ -549,6 +613,24 @@ export function assembleReach(
   //
   // An EMPTY threat set is not refused. A fire that reaches no settlement is a real thing, and
   // `threatenedSettlementIds: []` on the response is how a reader sees it.
+  //
+  // An empty SETTLEMENT list is refused, and it is a different case: `rows: []` with
+  // `totalOverAlerted: 0` is the empty-reads-as-all-clear shape one fixture over, and nothing up
+  // the chain checks it — `loadContext` casts the parsed `settlements.json` without looking.
+  if (settlements.length === 0) {
+    throw new Error(
+      'no settlements to evaluate; refusing to publish an over-alerting figure of zero for a ' +
+        'response with no villages in it',
+    );
+  }
+  // A village listed twice is counted twice, and the total then exceeds the sum of the region's
+  // population — a number that is wrong in the direction that flatters the feature.
+  const duplicate = settlements.map((s) => s.id).find((id, i, all) => all.indexOf(id) !== i);
+  if (duplicate !== undefined) {
+    throw new RangeError(
+      `settlement "${duplicate}" appears more than once; refusing to count it twice in the total`,
+    );
+  }
   const known = new Set(settlements.map((s) => s.id));
   const unmatched = [...threatened].filter((id) => !known.has(id));
   if (unmatched.length > 0) {
@@ -559,6 +641,22 @@ export function assembleReach(
   }
 
   const set = servedFootprints(fixture.cells);
+  // A fixture whose entries are all UNUSABLE is an empty survey wearing a non-empty array, and it
+  // is the case the refusal in `loadFixture` does not reach: that one tests the length of the
+  // input, and `cells: [null]`, `[{}]`, or cells carrying no range all pass it. Published, they
+  // give `cells: 0`, `measuredFraction: null` and `totalOverAlerted: 0` — the safest number the
+  // model can produce, from having no usable data. Reachable without editing a file: a survey
+  // whose cells lack a position yields exactly this, and the fetch script would call it a success.
+  //
+  // The refusal lives here rather than in `servedFootprints`, which stays a pure function: an
+  // empty set from an empty input is a correct return value, and it is the PUBLICATION of it as a
+  // coverage claim that has to fail. `egress.ts` refuses its equivalent the same way.
+  if (set.cells.length === 0) {
+    throw new Error(
+      `none of the ${fixture.cells.length} cells in the fixture could become a footprint; ` +
+        'refusing to publish an over-alerting figure of zero for a survey with no usable cells',
+    );
+  }
   // The total is taken from the result rather than re-summed here. A second summation is a second
   // definition of it, and the one that would drift is the one nobody reads.
   const result = overAlertingBy(set, settlements, threatened);
