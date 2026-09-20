@@ -515,7 +515,16 @@ export function buildAlerts(options: AlertsOptions = {}): BuildAlertsResult {
   // CAP is one <alert> per pocket, one <info> per language; a multi-pocket send is
   // several documents, because <alert> is the document root.
   const documents = new Map<string, string>();
-  const validation: Record<string, ReturnType<typeof validateCapSemantics>> = {};
+  // A null-prototype object, because `pocketId` is the key and it comes from the settlement
+  // fixture. On a plain literal, `validation['__proto__'] = result` invokes the inherited accessor
+  // and sets the object's prototype instead of storing an entry — so no own entry exists, and a
+  // later read of that id returns whichever result was written last. A pocket whose CAP failed its
+  // own checks would then be served on another pocket's validation. Last of the class found by
+  // sweeping every bracket-index in `server/`; the route that reads it is guarded by a Map lookup,
+  // but the write runs for every pocket and is not.
+  const validation: Record<string, ReturnType<typeof validateCapSemantics>> = Object.create(
+    null,
+  ) as Record<string, ReturnType<typeof validateCapSemantics>>;
   for (const [pocketId, pocketPackages] of groupByPocket(packages)) {
     const settlement = byPocket.get(pocketId);
     if (!settlement) continue;
