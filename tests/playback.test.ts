@@ -186,3 +186,34 @@ test('fractional recording bounds round up and inconsistent timeline duration di
   data.timeline.durationSeconds=7199;
   assert.equal(replayTimeline(data),null);
 });
+
+
+test('latest requests keep polling through live-to-replay fallback and recover live data', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});
+  let calls=0;
+  const playback=new FirePlayback(async()=>({...frame(),provenance:++calls===2?'replay':'live'}));
+  t.after(()=>playback.dispose());
+  await playback.start();
+  t.mock.timers.tick(600000);await flush();
+  assert.equal(calls,2);assert.equal(playback.getState().data?.provenance,'replay');
+  t.mock.timers.tick(600000);await flush();
+  assert.equal(calls,3);assert.equal(playback.getState().data?.provenance,'live');
+  playback.pause();t.mock.timers.tick(600000);await flush();assert.equal(calls,3);
+});
+
+
+test('latest polling retries initial and later transport failures, while pause cancels recovery', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});
+  let calls=0;const failing=new Set([1,3,5]);
+  const playback=new FirePlayback(async()=>{if(failing.has(++calls))throw new Error('offline');return {...frame(),provenance:'live'};});
+  t.after(()=>playback.dispose());
+  await playback.start();assert.equal(playback.getState().data,null);assert.equal(calls,1);
+  t.mock.timers.tick(14999);await flush();assert.equal(calls,1);
+  t.mock.timers.tick(1);await flush();assert.equal(calls,2);assert.equal(playback.getState().error,null);
+  const committed=playback.getState().data;
+  t.mock.timers.tick(600000);await flush();assert.equal(calls,3);
+  assert.equal(playback.getState().error,'offline');assert.equal(playback.getState().data,committed);
+  t.mock.timers.tick(15000);await flush();assert.equal(calls,4);assert.equal(playback.getState().error,null);
+  t.mock.timers.tick(600000);await flush();assert.equal(calls,5);
+  playback.pause();t.mock.timers.tick(3600000);await flush();assert.equal(calls,5);
+});

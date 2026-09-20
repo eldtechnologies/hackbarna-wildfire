@@ -148,3 +148,18 @@ test('initial fire failure has an alert, and later failure accurately describes 
   assert.equal(alert.hidden,true);assert.equal(retry.hidden,false);
   assert.match(status.textContent!,/last loaded time/);
 });
+
+
+test('cached-page restoration follows latest intent through a replay fallback', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});
+  const dom=new JSDOM();let calls=0;
+  const playback=new FirePlayback(async()=>({...data(),provenance:++calls===2?'replay':'live'}));
+  const unbind=bindPlaybackLifecycle(playback,dom.window as unknown as Window);
+  t.after(()=>{unbind();playback.dispose();dom.window.close();});
+  await playback.start();t.mock.timers.tick(600000);await Promise.resolve();await Promise.resolve();
+  assert.equal(playback.getState().data?.provenance,'replay');
+  dom.window.dispatchEvent(new dom.window.PageTransitionEvent('pagehide',{persisted:true}));
+  dom.window.dispatchEvent(new dom.window.PageTransitionEvent('pageshow',{persisted:true}));
+  await Promise.resolve();await Promise.resolve();
+  assert.equal(calls,3);assert.equal(playback.getState().data?.provenance,'live');
+});

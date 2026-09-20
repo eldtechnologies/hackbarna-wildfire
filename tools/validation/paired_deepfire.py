@@ -77,7 +77,7 @@ def main():
             "Use a fresh run directory with protocol.json, eligible.json and weather/, so predictions cannot silently be reused."
         )
     PROTOCOL, rows = paired_inputs(OUT, ARCH)
-    checked_bytes(REPO / 'tools/next_run/inputs.py',
+    input_source = checked_bytes(REPO / 'tools/next_run/inputs.py',
                   json.loads((EVIDENCE / 'paired-input-source-lock.json').read_text())['inputs.py'])
     with frozen_trainer(TRAINER) as namespace:
         quality = importlib.import_module(namespace + '.quality')
@@ -94,7 +94,7 @@ def main():
             namespace + ".paired_inputs", REPO / "tools/next_run/inputs.py"
         )
         inputs = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(inputs)
+        exec(compile(input_source, str(REPO / "tools/next_run/inputs.py"), "exec"), inputs.__dict__)
         InputFrame = inputs.InputFrame
 
         class CachedTerrain(Terrain):
