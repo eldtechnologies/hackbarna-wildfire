@@ -217,3 +217,23 @@ test('latest polling retries initial and later transport failures, while pause c
   t.mock.timers.tick(600000);await flush();assert.equal(calls,5);
   playback.pause();t.mock.timers.tick(3600000);await flush();assert.equal(calls,5);
 });
+
+test('source switches cancel older work and replay seeks pin a live fallback recording', async t => {
+  const old = deferred<FiresResponse>();
+  const sources: (string | undefined)[] = [];
+  const playback = new FirePlayback(async (at, _signal, source) => {
+    sources.push(source);
+    if (source === 'configured') return old.promise;
+    return {...frame(at), source: 'replay', requestedSource: source, fallbackReason: source === 'live' ? 'live_unavailable' : undefined};
+  });
+  t.after(() => playback.dispose());
+  const slow = playback.selectSource('configured');
+  await playback.selectSource('live');
+  old.resolve({...frame(), source:'configured'}); await slow;
+  assert.equal(playback.getState().data?.source, 'replay');
+  assert.equal(playback.getState().source, 'live');
+  await playback.seek(1800);
+  assert.equal(sources.at(-1), 'replay');
+  assert.equal(playback.getState().source, 'replay');
+  assert.equal(replayPosition(playback.getState().data), 1800);
+});

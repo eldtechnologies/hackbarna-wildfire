@@ -34,6 +34,7 @@ interface FrameFile extends RawFiresPayload {
 interface RecordingFile {
   scenario?: string;
   recordedAt?: string;
+  dataKind?: string;
   frames?: FrameFile[];
 }
 
@@ -53,7 +54,7 @@ function isRecording(file: unknown): file is RecordingFile {
 //   3. REPLAY_SNAPSHOT set to an empty value: the newest .json in the
 //      directory, so a fresh recording automatically becomes the demo
 //      scenario. Unset serves the pinned default above.
-async function pickSnapshot(): Promise<string | null> {
+async function pickSnapshot(snapshotFile: string): Promise<string | null> {
   let entries: string[];
   try {
     entries = await readdir(SNAPSHOTS_DIR);
@@ -63,15 +64,15 @@ async function pickSnapshot(): Promise<string | null> {
   const jsonFiles = entries.filter((name) => name.endsWith('.json'));
   if (jsonFiles.length === 0) return null;
 
-  if (SNAPSHOT_FILE) {
-    const exact = jsonFiles.find((name) => name === SNAPSHOT_FILE);
+  if (snapshotFile) {
+    const exact = jsonFiles.find((name) => name === snapshotFile);
     if (exact) return exact;
     const prefix = jsonFiles
-      .filter((name) => name.startsWith(`${SNAPSHOT_FILE}-`))
+      .filter((name) => name.startsWith(`${snapshotFile}-`))
       .sort();
     if (prefix.length > 0) return prefix[prefix.length - 1];
     throw new Error(
-      `REPLAY_SNAPSHOT '${SNAPSHOT_FILE}' matches no snapshot in data/snapshots/`,
+      `REPLAY_SNAPSHOT '${snapshotFile}' matches no snapshot in data/snapshots/`,
     );
   }
 
@@ -122,8 +123,10 @@ export function frameAt(frames: FrameFile[], atSeconds: number): FrameFile {
 export class ReplayProvider implements FireDataProvider {
   readonly mode = 'replay' as const;
 
+  constructor(private readonly snapshotFile = SNAPSHOT_FILE) {}
+
   async getFires(atSeconds?: number): Promise<FiresResponse> {
-    const file = await pickSnapshot();
+    const file = await pickSnapshot(this.snapshotFile);
     if (!file) {
       throw new Error('no snapshot found in data/snapshots/');
     }
@@ -131,6 +134,10 @@ export class ReplayProvider implements FireDataProvider {
       await readFile(path.join(SNAPSHOTS_DIR, file), 'utf8'),
     ) as SnapshotFile | RecordingFile;
 
+    const dataKind = (parsed as RecordingFile).dataKind;
+    if (dataKind !== undefined && dataKind !== 'observations') {
+      throw new Error(`recording ${file} does not contain satellite observations`);
+    }
     const scenario = parsed.scenario ?? path.basename(file, '.json');
     let payload:RawFiresPayload;
     let timeline:ReplayTimeline;

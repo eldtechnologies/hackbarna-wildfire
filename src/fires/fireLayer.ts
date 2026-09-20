@@ -31,6 +31,7 @@ import { buildFireCases, projectAt, type FireCase, type Projection } from './spr
 import { isLayerVisible, onVisibilityChanged } from '../layers/registry';
 
 export interface FireLayerState {
+  clusters?: FiresResponse['clusters'];
   cases: FireCase[];
   selectedCase: FireCase | null;
   selectedId: string | null;
@@ -208,11 +209,17 @@ export class FireLayer {
 
     if (target && target.steps.length > 0) this.buildGhost(target);
 
-    if (options.flyTo) {
-      if (target) this.flyToCase(target);
-      else this.viewer.camera.flyTo({destination:Cartesian3.fromDegrees(cluster.centroid.lon,cluster.centroid.lat,40_000),duration:1.2});
-    }
+    if (options.flyTo) this.reframe();
     this.notify();
+  }
+
+  reframe(): void {
+    const target = this.getSelectedCase();
+    const cluster = this.clusters.find(c => c.id === this.selectedId);
+    if (target) this.flyToCase(target);
+    else if (cluster) this.viewer.camera.flyTo({
+      destination: Cartesian3.fromDegrees(cluster.centroid.lon, cluster.centroid.lat, 40_000), duration: 1.2,
+    });
   }
 
   deselect(): void {
@@ -254,6 +261,7 @@ export class FireLayer {
     const selectedCase = this.getSelectedCase();
     return {
       cases: this.cases,
+      clusters: this.clusters,
       selectedCase,
       selectedId:this.selectedId,
       scrubHours: this.scrubHours,

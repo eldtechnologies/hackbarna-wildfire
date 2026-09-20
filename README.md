@@ -136,6 +136,24 @@ Stepping the cursor through the July capture is where you watch the fire itself 
 perimeter runs from about 33 km² to about 92 km² across the capture. That is observation, not
 prediction.
 
+The source selector changes data for this browser only: **Live satellite observations**
+and **Recorded fire · Los Gallardos**. A configured
+`REPLAY_SNAPSHOT` is also available as **Configured recording**. Source and cursor
+travel together through fire, threat, situation and growth requests (`source=live|replay|configured`).
+
+Use **RESET** to reset spread playback, **REFRAME** to repeat the fire camera flight,
+and **IBERIA** to return to the overview. **PANELS** hides or restores the inspectors
+for a clear map view on smaller screens. The fire list includes clusters without
+perimeters. Threat ring headings always show their counts when assets are available;
+expand a ring for its assets. Reports show the first eight computed priorities,
+with **SHOW ALL** for the full list.
+
+**SENSOR** applies a high-contrast monochrome visual filter to the map. It does not
+supply FLIR imagery or measured temperatures. **MAP: OFFLINE GRID** uses a locally
+rendered coordinate grid under the fire and infrastructure layers. Imagery errors
+also switch to this grid, with a visible status. Satellite imagery needs internet;
+local replay, geometry and the template report do not.
+
 ### The spread simulation
 
 The spread scrubber is a different control from the playback panel, and it is deliberately
@@ -146,8 +164,8 @@ and loops.
 
 When the selected fire carries no forecast polygons the controls are **disabled**, with the reason
 shown next to them: *"No spread forecast available at this observation time."* A recorded
-observation is not a prediction, and the panel does not let you mistake one for the other. Neither
-committed scenario delivers forecast steps through the API, so that is what a fresh checkout shows.
+observation is not a prediction, and the panel does not let you mistake one for the other. The
+committed Los Gallardos capture contains no forecast steps, so that is what a fresh checkout shows.
 
 When it does have steps, the projection interpolates between the provider's forecast polygons.
 **It is not a wind field.** The fire schema carries no measured wind, so the drift bearing is
@@ -293,7 +311,9 @@ follows, so a misconfigured live mode shows as REPLAY rather than as a failure.
 
 - **`replay`** (default) serves a snapshot from `data/snapshots/`. No key, no Deepfire quota.
 - **`live`** calls the Deepfire OGC API Features collections and normalises the response. On any
-  failure it falls back to replay transparently, so a dead API or venue wifi never blanks the demo.
+  failure it falls back to the pinned real Los Gallardos capture, regardless of `REPLAY_SNAPSHOT`.
+  An eight-second deadline aborts collection requests and retry backoff; the UI names the fallback.
+  Seeking that fallback stays on the recording even if the live API recovers.
 
 `live` ignores the `at` cursor: Deepfire has no event timeline, and only the replay path has frame
 semantics.
@@ -304,7 +324,8 @@ semantics.
 2. `REPLAY_SNAPSHOT` as a scenario prefix: the newest `<name>-*.json`. A value that matches nothing
    is an error (`502`), never a silent substitute.
 3. `REPLAY_SNAPSHOT` set to an empty value: the newest `.json` in the directory, so a fresh
-   recording automatically becomes the demo scenario.
+   recording automatically becomes the demo scenario. Recordings explicitly marked as
+   non-observation data are rejected rather than shown as satellite observations.
 4. Unset: the default `los-gallardos-2026-07-09.json`.
 
 Two formats live in that directory, both in the raw Deepfire shape so replay goes through the same
@@ -314,7 +335,7 @@ normaliser as live data:
   window, bbox, hotspots, clusters, perimeters}`, e.g. `los-gallardos-2026-07-09.json` — a real
   capture of the July 2026 Los Gallardos fire, 2,743 detections over 9–11 July.
 - **Recording** (an event timeline): `{scenario, recordedAt, intervalSeconds, frames: [{t,
-  hotspots, clusters, spread}]}`, produced by the record script against the mock.
+  hotspots, clusters, spread}]}`, produced by the record script against a compatible flat observation endpoint.
 
 Both get a `timeline` block at `/api/fires`, and both go through causal replay: a detection
 appears only once its assumed delivery time has passed (MTG-I1 17 minutes; VIIRS and MODIS 3
@@ -322,41 +343,15 @@ hours; Sentinel-3 6 hours, unless the capture recorded an actual `available_at`)
 association remains retrospective upstream metadata, so this is a **causal evidence replay under
 declared assumptions**, not a reconstruction of what an operator received.
 
-### Recording a scenario
+### Recording observations
 
-The record script speaks the mock's flat shape, not the real API's OGC collections, so recordings
-come from `npm run mock:deepfire`:
-
-```bash
-npm run mock:deepfire &
-
-# one moment
-DEEPFIRE_BASE_URL=http://localhost:4590 npm run record:snapshot -- --scenario <name>
-
-# a timeline: 8 frames, 15 seconds apart
-DEEPFIRE_BASE_URL=http://localhost:4590 npm run record:snapshot -- --scenario <name> --frames 8 --interval 15
-```
-
-Files land as `data/snapshots/<scenario>-<UTCstamp>.json`. The mock runs its own clock at
-`MOCK_SPEED` simulated seconds per real second (default 120), so an 8-frame recording captures
-hours of fire growth in under two minutes.
-
-### A note on the committed drill
-
-`data/snapshots/castelltallat-drill-*.json` is such a recording: 8 frames, 10 to 13 hotspots,
-spread entries at each horizon. **It serves an empty globe.** Because the mock's simulated clock
-runs ahead of the clock the frames are stamped with, its detections are already "in the future"
-when they are recorded, and causal replay drops an observation until its delivery time passes.
-Every frame of the drill is inside the 17-minute minimum latency, so no cursor shows anything.
-
-It stays in the tree as a worked example of the recording format. To watch the console do
-something, use the default Los Gallardos capture.
-
-### Mock Deepfire server
-
-`npm run mock:deepfire` serves the flat raw shape on <http://localhost:4590> (`MOCK_PORT`,
-`MOCK_SPEED`). It exists for rehearsing recordings; it does not serve the OGC paths the live
-provider calls, so it cannot stand in for `DATA_MODE=live`.
+The optional recorder reads flat `/hotspots`, `/clusters` and `/spread` arrays from a
+compatible observation endpoint. It does not call Deepfire's OGC collections directly.
+Point `DEEPFIRE_BASE_URL` at that endpoint and run
+`npm run record:snapshot -- --scenario <name> --frames 8 --interval 15`.
+A single frame uses the flat capture format; multiple frames retain their capture times.
+The recorder preserves source timestamps without inventing observation, delivery or
+forecast issue times. Files land as `data/snapshots/<scenario>-<UTCstamp>.json`.
 
 ## The egress engine
 
@@ -503,10 +498,9 @@ tests/        Client tests
 | `npm test` | Node's built-in runner over `server/**/*.test.ts` and `tests/**/*.test.ts` |
 | `npm run build` | Production bundle into `dist/` |
 | `npm run preview` | Serve the built bundle (proxies `/api` like the dev server) |
-| `npm run mock:deepfire` | Stand-in Deepfire server for recording |
 | `npm run record:snapshot` | Capture a scenario into `data/snapshots/` |
 
-31 test files, 360 tests. The server is well covered — geometry, the cut-time sweep, CAP schema
+34 test files, 373 tests. The server is well covered — geometry, the cut-time sweep, CAP schema
 validation, the ledger, HTTP error paths and startup. The Cesium client is covered thinly: jsdom
 suites exercise the situation panel's request lifecycle and the fire layers' state, and everything
 that *draws* on the globe is still verified by running it and looking. That is a deliberate trade

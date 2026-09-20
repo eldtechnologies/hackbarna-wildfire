@@ -114,3 +114,34 @@ test('application wiring commits one cursor before selection and report requests
   playback.pause();
   assert.equal(calls.length,4,'loading and pause notifications do not fetch again');
 });
+
+test('reframe only moves the camera and preserves forecast horizon, playback and selected geometry', t => {
+  const dom=new JSDOM('<canvas></canvas>');
+  Object.defineProperty(globalThis,'document',{value:dom.window.document,configurable:true});
+  t.after(()=>{delete (globalThis as {document?:Document}).document;dom.window.close();});
+  const canvasGlobals = {HTMLCanvasElement:dom.window.HTMLCanvasElement, HTMLImageElement:dom.window.HTMLImageElement,
+    ImageBitmap:class {}, OffscreenCanvas:class {}};
+  for (const [name,value] of Object.entries(canvasGlobals)) {
+    const previous=Object.getOwnPropertyDescriptor(globalThis,name);
+    Object.defineProperty(globalThis,name,{value,configurable:true});
+    t.after(()=>{if(previous)Object.defineProperty(globalThis,name,previous);else Reflect.deleteProperty(globalThis,name);});
+  }
+  let flights=0;
+  const viewer={dataSources:{add:()=>{},remove:()=>{}},camera:{flyTo:()=>{flights++;}},
+    scene:{canvas:dom.window.document.querySelector('canvas'),pick:()=>undefined,
+      primitives:{add:()=>{},remove:()=>{}},preRender:{addEventListener:()=>()=>{}}}} as unknown as Viewer;
+  const layer=new FireLayer(viewer);t.after(()=>layer.dispose());
+  const data=frame();
+  const polygon=[{lat:37,lon:-2},{lat:37.1,lon:-2},{lat:37.1,lon:-1.9},{lat:37,lon:-2}];
+  data.perimeters=[{clusterId:'c1',observedAt:data.asOf!,areaKm2:1,polygon,partIndex:0,partCount:1}];
+  data.spread=[{clusterId:'c1',horizonHours:8,at:'2026-07-09T08:00:00Z',polygon:polygon.map(p=>({lat:p.lat+.01,lon:p.lon+.01}))}];
+  layer.setData(data);layer.select('c1');layer.setScrub(4);layer.setPlaying(true);
+  const before=layer.getState();layer.reframe();
+  assert.equal(flights,1);
+  const after=layer.getState();
+  assert.equal(after.selectedCase,before.selectedCase);
+  assert.equal(after.scrubHours,4);
+  assert.equal(after.playing,true);
+  assert.deepEqual(after.projection,before.projection);
+  layer.deselect();layer.reframe();assert.equal(flights,1);
+});

@@ -52,7 +52,8 @@ export function initReplayPanel(playback: FirePlayback, root: HTMLElement): void
     const timeline = replayTimeline(state.data);
     const position = replayPosition(state.data);
     const duration = timeline?.durationSeconds ?? 0;
-    const unavailable = !timeline;
+    const switchingSource = state.loading && state.source !== undefined && state.source !== state.data?.requestedSource;
+    const unavailable = !timeline || switchingSource;
     time.textContent = state.data?.asOf ? timestamp(state.data.asOf) : '';
     buttons.start.disabled = buttons.back.disabled = unavailable || position === 0;
     buttons.end.disabled = buttons.forward.disabled = unavailable || position >= duration;

@@ -1,3 +1,4 @@
+import type { FireSource } from '../../shared/fires';
 // Fire selection + threat panel: renders a minimal marker per fire cluster so
 // a fire can be picked, and on selection fetches /api/threats and shows the
 // threatened-asset list grouped by ring. Kept deliberately thin: the full
@@ -39,6 +40,7 @@ export class FireSelectionLayer {
   private request:AbortController | null=null;
   private trackedKey:string | null=null;
   private markerIds: string[] = [];
+  private names = new Map<string, string>();
   private removeVisibilityListener: () => void;
 
   constructor(
@@ -75,6 +77,7 @@ export class FireSelectionLayer {
   }
 
   setData(fires: FiresResponse): void {
+    this.names = new Map(fires.clusters.map(c => [c.id, clusterDisplayName(c)]));
     for (const id of this.markerIds) this.viewer.entities.removeById(id);
     this.markerIds = [];
     const clustersVisible = isLayerVisible('clusters');
@@ -105,8 +108,8 @@ export class FireSelectionLayer {
     }
   }
 
-  track(fireId:string | null, atSeconds?:number, evidenceKey='latest'):void {
-    const key=fireId===null?null:JSON.stringify([fireId,atSeconds,evidenceKey]);
+  track(fireId:string | null, atSeconds?:number, evidenceKey='latest', source?: FireSource):void {
+    const key=fireId===null?null:JSON.stringify([fireId,atSeconds,evidenceKey,source]);
     if(key===this.trackedKey) return;
     this.trackedKey=key;
     this.request?.abort();
@@ -115,12 +118,12 @@ export class FireSelectionLayer {
     }
     const request=this.request=new AbortController();
     this.renderLoading(fireId);
-    fetchThreats(fireId,atSeconds,request.signal).then(threats=>{
+    fetchThreats(fireId,atSeconds,request.signal,source).then(threats=>{
       if(!request.signal.aborted)this.render(threats);
     }).catch(err=>{
       if(request.signal.aborted)return;
       console.error('[fire-selection] threats fetch failed:',err);
-      this.renderError(fireId,atSeconds,evidenceKey);
+      this.renderError(fireId,atSeconds,evidenceKey,source);
     });
   }
 
@@ -129,18 +132,18 @@ export class FireSelectionLayer {
     this.panel.replaceChildren();
     const title = document.createElement('div');
     title.className = 'threat-title';
-    title.textContent = `THREAT ANALYSIS / ${fireId}`;
+    title.textContent = `THREAT ANALYSIS / ${this.names.get(fireId) ?? fireId}`;
     const body = document.createElement('div');
     body.className = 'threat-body';
     body.textContent = 'ANALYZING...';
     this.panel.append(title, body);
   }
 
-  private renderError(fireId:string,atSeconds?:number,evidenceKey?:string):void {
+  private renderError(fireId:string,atSeconds?:number,evidenceKey?:string,source?:FireSource):void {
     const body=this.panel.querySelector('.threat-body');
     if(body) body.textContent='ANALYSIS UNAVAILABLE';
     const retry=document.createElement('button');retry.className='hud-btn';retry.textContent='RETRY ANALYSIS';
-    retry.addEventListener('click',()=>{this.trackedKey=null;this.track(fireId,atSeconds,evidenceKey);});
+    retry.addEventListener('click',()=>{this.trackedKey=null;this.track(fireId,atSeconds,evidenceKey,source);});
     this.panel.appendChild(retry);
   }
 
@@ -150,12 +153,12 @@ export class FireSelectionLayer {
 
     const title = document.createElement('div');
     title.className = 'threat-title';
-    title.textContent = `THREAT ANALYSIS / ${clusterDisplayName({name:null,id:threats.fireId})}`;
+    title.textContent = `THREAT ANALYSIS / ${this.names.get(threats.fireId) ?? clusterDisplayName({name:null,id:threats.fireId})}`;
 
     const meta = document.createElement('div');
     meta.className = 'threat-meta';
     const corridorNote =
-      threats.corridorCount > 0 ? `${threats.corridorCount} IN SPREAD CORRIDOR` : '';
+      `${threats.corridorCount} IN SPREAD CORRIDOR`;
     meta.textContent = `${threats.threatened.length} ASSETS ${corridorNote}`.trim()
       + (threats.hasPerimeter ? '' : ' / CENTROID PROXIMITY, NO OBSERVED PERIMETER');
 
@@ -172,13 +175,18 @@ export class FireSelectionLayer {
     } else {
       for (const ring of threats.rings) {
         const group = threats.threatened.filter((t) => t.ring === ring.ring);
-        if (group.length === 0) continue;
+
         const heading = document.createElement('div');
         heading.className = 'threat-ring-heading';
         const label = ring.ring === 'inside' && !threats.hasPerimeter
           ? 'WITHIN 50 M OF DETECTION CENTROID' : RING_LABEL[ring.ring];
         heading.textContent = `${label} (${group.length})`;
-        body.appendChild(heading);
+        const details = document.createElement('details');
+        details.className = 'threat-group';
+        const toggle = document.createElement('summary');
+        toggle.appendChild(heading);
+        details.appendChild(toggle);
+        body.appendChild(details);
         for (const t of group) {
           const row = document.createElement('div');
           row.className = 'threat-asset' + (t.inSpreadCorridor ? ' corridor' : '');
@@ -190,7 +198,7 @@ export class FireSelectionLayer {
           const dist = t.ring === 'inside' ? '0 KM' : `${t.distanceKm.toFixed(1)} KM`;
           right.textContent = `${CATEGORY_LABEL[t.category].toUpperCase()} / ${dist}${t.inSpreadCorridor ? ' / CORRIDOR' : ''}`;
           row.append(left, right);
-          body.appendChild(row);
+          details.appendChild(row);
         }
       }
     }

@@ -31,7 +31,7 @@ test('frameAt tolerates unsorted recordings', () => {
 });
 
 test('durationSeconds ceils so at=durationSeconds reaches the final frame', () => {
-  // Regression: Math.round turned the drill's 105.037 s span into 105, which
+  // Regression: Math.round turned a recording's 105.037 s span into 105, which
   // left the last frame unreachable for a scrubber bounded by the timeline.
   const timeline = buildTimeline('test', FRAMES);
   assert.equal(timeline.durationSeconds, 31);

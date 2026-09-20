@@ -18,8 +18,8 @@ export function connectFireViews(playback: FirePlayback, views: {
   views.fires.onStateChange(({selectedId}) => {
     const at = replayTimeline(evidence) ? replayPosition(evidence) : undefined;
     const key = evidence?.asOf ?? evidence?.fetchedAt ?? 'latest';
-    views.selection.track(selectedId, at, key);
-    views.agent.track(selectedId, at, key);
+    views.selection.track(selectedId, at, key, evidence?.source);
+    views.agent.track(selectedId, at, key, evidence?.source);
   });
   playback.subscribe(({data}) => {
     if (!data || data === evidence) return;

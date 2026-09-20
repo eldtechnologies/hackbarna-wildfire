@@ -1,22 +1,8 @@
-// Records fire data from the mock Deepfire server (npm run mock:deepfire, or
-// any server speaking the same flat {hotspots, clusters, spread} shape) into
-// data/snapshots/ as timestamped JSON. The real Deepfire API speaks OGC
-// FeatureCollections on different paths, so it cannot be recorded with this
-// script today. Output is in the raw shape so replay goes through the same
-// normalizer as live data.
-//
-// Single capture (one moment):
-//   DEEPFIRE_BASE_URL=http://localhost:4590 npm run record:snapshot -- --scenario castelltallat
-//
-// Continuous recording (accelerated event capture):
-//   npm run mock:deepfire &
-//   DEEPFIRE_BASE_URL=http://localhost:4590 \
-//   npm run record:snapshot -- --scenario castelltallat-drill --frames 8 --interval 15
-//
-// Args:
-//   --scenario <name>  snapshot name, file becomes <name>-<UTCstamp>.json (default: capture)
-//   --frames <n>       number of frames to record (default: 1 = flat snapshot)
-//   --interval <sec>   seconds between frames (default: 30)
+// Records a compatible observation endpoint's flat /hotspots, /clusters and
+// /spread arrays. This is not an OGC API client. Capture times and source
+// timestamps are preserved without adding simulated delivery or issue times.
+// DEEPFIRE_BASE_URL=<compatible-endpoint> npm run record:snapshot -- --scenario capture
+// Add --frames <n> --interval <seconds> to record multiple frames.
 
 import { writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -108,22 +94,24 @@ try {
     // Flat snapshot: same shape as the other files in data/snapshots/.
     const frame = await captureFrame();
     const file = path.join(outDir, `${args.scenario}-${timestamp()}.json`);
-    await writeFile(file, JSON.stringify({ scenario: args.scenario, ...frame }, null, 2));
+    await writeFile(file, JSON.stringify({ scenario: args.scenario, dataKind: 'observations', ...frame }, null, 2));
     console.log(`[record] wrote ${file}`);
     process.exit(0);
   }
 
-  // Multi-frame recording for accelerated timeline replay.
+  // Multiple frames retain the actual capture clock.
   const frames = [];
   for (let i = 0; i < args.frames; i++) {
     if (i > 0) await new Promise((r) => setTimeout(r, args.intervalSec * 1000));
     const payload = await captureFrame();
-    frames.push({ t: new Date().toISOString(), ...payload });
+    frames.push({t: new Date().toISOString(), ...payload});
     console.log(`[record] frame ${i + 1}/${args.frames} captured`);
   }
   const file = path.join(outDir, `${args.scenario}-${timestamp()}.json`);
   const recording = {
     scenario: args.scenario,
+    dataKind: 'observations',
+    timeBasis: 'capture',
     recordedAt: new Date().toISOString(),
     intervalSeconds: args.intervalSec,
     frames,

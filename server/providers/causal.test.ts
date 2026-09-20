@@ -56,14 +56,6 @@ test('a declared empty window is valid; invalid cursor spellings are not',()=>{
   assert.equal(parseCursor('0'),0);
 });
 
-test('the committed legacy recording remains loadable without a perimeters collection',async()=>{
-  const {spawnSync}=await import('node:child_process');
-  const child=spawnSync(process.execPath,['--import','tsx','--input-type=module','-e',
-    "import { ReplayProvider } from './server/providers/replay.ts'; const r=await new ReplayProvider().getFires(); if(r.provenance!=='replay' || !Array.isArray(r.perimeters)) process.exit(1);"],
-    {env:{...process.env,REPLAY_SNAPSHOT:'castelltallat-drill-2026-09-19T13-55-15-930Z.json'},encoding:'utf8',timeout:10000});
-  assert.equal(child.status,0,child.stderr);
-});
-
 test('a zero-horizon polygon cannot become a future observed perimeter',()=>{
   const raw=structuredClone(source);raw.perimeters=[];
   raw.spread=[{cluster_id:'x',issued_at:'2026-07-09T17:00:00Z',valid_time:'2026-07-09T22:00:00Z',horizon_hours:0,

@@ -8,7 +8,7 @@
 import { getFires } from './providers';
 import {FactNarrator, type NarrationFact} from './narration';
 import { getThreats, latestPerimeter, futureSpreadSteps } from './threats';
-import type { LatLon } from '../shared/fires';
+import type { FireSource, LatLon } from '../shared/fires';
 import { CATEGORY_LABEL, RING_SEVERITY } from '../shared/threats';
 import type {
   EvacuationRecommendation,
@@ -194,11 +194,11 @@ const narrator=new FactNarrator({
 
 // --- Packet assembly -------------------------------------------------
 
-export async function getSituation(fireId: string, atSeconds?: number): Promise<SituationResponse | null> {
+export async function getSituation(fireId: string, atSeconds?: number, source?: FireSource): Promise<SituationResponse | null> {
   // One fires fetch for both the packet and the threat analysis, so the
   // figures cannot come from different snapshots. atSeconds scrubs a recorded
   // timeline (same semantics as /api/fires?at=); absent serves the live edge.
-  const fires = await getFires(atSeconds);
+  const fires = await getFires(atSeconds, source);
   const cluster = fires.clusters.find((c) => c.id === fireId);
   if (!cluster) return null;
   const threats = await getThreats(fireId, fires);

@@ -1,6 +1,7 @@
-import type { FiresResponse, ReplayTimeline } from '../../shared/fires';
+import type { FireSource, FiresResponse, ReplayTimeline } from '../../shared/fires';
 
 export interface PlaybackState {
+  source?: FireSource;
   data: FiresResponse | null;
   loading: boolean;
   playing: boolean;
@@ -24,7 +25,7 @@ export function replayPosition(data: FiresResponse | null): number {
     Math.ceil((Date.parse(data!.asOf!) - Date.parse(timeline.start)) / 1000)) : 0;
 }
 
-type LoadFires = (atSeconds?: number, signal?: AbortSignal) => Promise<FiresResponse>;
+type LoadFires = (atSeconds?: number, signal?: AbortSignal, source?: FireSource) => Promise<FiresResponse>;
 
 /** One committed snapshot feeds every layer. A seek cannot be overwritten by an older request. */
 export class FirePlayback {
@@ -47,6 +48,12 @@ export class FirePlayback {
 
   async start(): Promise<void> { await this.load(); }
 
+  async selectSource(source: FireSource): Promise<void> {
+    this.pause();
+    this.update({source});
+    await this.load(undefined, false);
+  }
+
   pause(): void {
     clearTimeout(this.timer);
     this.request?.controller.abort();
@@ -58,6 +65,7 @@ export class FirePlayback {
     const timeline = replayTimeline(this.state.data);
     if (!timeline || !Number.isFinite(seconds) || this.disposed) return;
     clearTimeout(this.timer);
+    this.update({source: this.state.data?.source ?? this.state.source});
     await this.load(Math.min(timeline.durationSeconds, Math.max(0, Math.round(seconds))), false);
   }
 
@@ -65,7 +73,7 @@ export class FirePlayback {
     const timeline = replayTimeline(this.state.data);
     if (!timeline || this.state.loading || this.state.playing || this.disposed) return;
     clearTimeout(this.timer);
-    this.update({ playing: true });
+    this.update({ playing: true, source: this.state.data?.source ?? this.state.source });
     const current = replayPosition(this.state.data);
     await this.load(current >= timeline.durationSeconds ? 0 : Math.min(current + 1800, timeline.durationSeconds));
   }
@@ -100,7 +108,9 @@ export class FirePlayback {
     const generation = ++this.generation;
     this.update({ loading: true, error: null, playing });
     try {
-      const data = await this.loadFires(seconds, request.signal);
+      // A replay seek stays with the committed recording if a live feed recovers.
+      const source = seconds === undefined ? this.state.source : this.state.data?.source ?? this.state.source;
+      const data = await this.loadFires(seconds, request.signal, source);
       if (generation !== this.generation || this.disposed) return;
       const timeline = replayTimeline(data);
       if (seconds !== undefined &&

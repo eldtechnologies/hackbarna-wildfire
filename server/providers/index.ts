@@ -1,51 +1,56 @@
-// Provider selection. DATA_MODE=replay serves snapshots directly (default for
-// development and demo fallback). DATA_MODE=live tries Deepfire first and
-// falls back to the replay snapshot on any failure, so a dead API or venue
-// wifi never blanks the globe. The response provenance field says which
-// source actually served the data.
-
+// Source selection is per request; changing one browser never changes another.
 import { LiveProvider } from './live';
 import { ReplayProvider } from './replay';
-import type { FireDataProvider, FiresResponse } from '../../shared/fires';
+import { CursorError } from './availability';
+import { BoundedCache } from '../bounded-cache';
+import type { FireDataProvider, FireSource, FiresResponse } from '../../shared/fires';
 
-const DATA_MODE = process.env.DATA_MODE ?? 'replay';
+const DEFAULT_SOURCE: FireSource = process.env.DATA_MODE === 'live' ? 'live'
+  : process.env.REPLAY_SNAPSHOT !== undefined ? 'configured' : 'replay';
+const providers: Record<FireSource, FireDataProvider> = {
+  live: new LiveProvider(),
+  configured: new ReplayProvider(),
+  replay: new ReplayProvider('los-gallardos-2026-07-09.json'),
+};
+// Live outages always fall back to a pinned real observation capture, even if
+// REPLAY_SNAPSHOT configures a different recording for the normal replay source.
+const fallback = new ReplayProvider('los-gallardos-2026-07-09.json');
 
-const live = new LiveProvider();
-const replay = new ReplayProvider();
-
-export function getProvider(): FireDataProvider {
-  return DATA_MODE === 'live' ? live : replay;
+export function parseSource(raw: unknown): FireSource | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === 'live' || raw === 'replay' || raw === 'configured') return raw;
+  throw new CursorError('source must be live, replay or configured');
 }
 
-// Reuse a recent response for the same cursor. Computed analyses use their
-// actual input evidence as identity, never this response's fetch timestamp.
-const FIRES_MEMO_TTL_MS = 5000;
-let firesMemo: { value: FiresResponse; expiresAt: number; at: number | undefined } | null = null;
+export function getProvider(source: FireSource = DEFAULT_SOURCE): FireDataProvider {
+  return providers[source];
+}
 
-const pendingReads = new Map<number | undefined, Promise<FiresResponse>>();
+const recent = new BoundedCache<FiresResponse>(32, 5000);
+const pendingReads = new Map<string, Promise<FiresResponse>>();
 
-async function getFiresUncached(atSeconds?: number): Promise<FiresResponse> {
-  if (DATA_MODE !== 'live') {
-    return replay.getFires(atSeconds);
-  }
+async function readSource(at: number | undefined, source: FireSource): Promise<FiresResponse> {
   try {
-    return await live.getFires(atSeconds);
-  } catch (err) {
-    console.warn('[providers] live fetch failed, falling back to replay:', err);
-    return replay.getFires(atSeconds);
+    const data = await getProvider(source).getFires(at);
+    return {...data, source, requestedSource: source};
+  } catch (error) {
+    if (source !== 'live') throw error;
+    console.warn('[providers] live unavailable; serving recorded observations');
+    return {...await fallback.getFires(at), source: 'replay', requestedSource: source,
+      fallbackReason: 'live_unavailable'};
   }
 }
 
-export async function getFires(atSeconds?: number): Promise<FiresResponse> {
-  if (firesMemo && firesMemo.expiresAt > Date.now() && firesMemo.at === atSeconds) {
-    return firesMemo.value;
-  }
-  const pending = pendingReads.get(atSeconds);
+export async function getFires(atSeconds?: number, source: FireSource = DEFAULT_SOURCE): Promise<FiresResponse> {
+  const key = JSON.stringify([source, atSeconds]);
+  const cached = recent.get(key);
+  if (cached) return cached;
+  const pending = pendingReads.get(key);
   if (pending) return pending;
-  const job = getFiresUncached(atSeconds).then(value => {
-    firesMemo = { value, expiresAt: Date.now() + FIRES_MEMO_TTL_MS, at: atSeconds };
+  const job = readSource(atSeconds, source).then(value => {
+    recent.set(key, value);
     return value;
-  }).finally(() => pendingReads.delete(atSeconds));
-  pendingReads.set(atSeconds,job);
+  }).finally(() => pendingReads.delete(key));
+  pendingReads.set(key, job);
   return job;
 }

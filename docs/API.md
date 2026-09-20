@@ -41,6 +41,19 @@ it as an offset timestamp rather than assuming `Z`.
 A quantity the source did not supply is `null`, never a synthesized number — a null fire radiative
 power means "not measured", a zero means "measured zero".
 
+### The `?source=` selector
+
+`/api/fires`, `/api/threats`, `/api/situation` and `/api/growth` accept an optional
+`source=live|replay|configured`. Selection is local to each request; it does not change the
+server default or another browser. `replay` always selects Los Gallardos; `configured` uses
+`REPLAY_SNAPSHOT`. An absent source uses the server's configured default. Invalid values
+return `400`.
+
+Fire responses include `requestedSource` and `source`. A live failure returns
+`requestedSource: "live"`, `source: "replay"`, and `fallbackReason: "live_unavailable"`.
+The live request deadline is eight seconds; fallback always uses the pinned real capture.
+These fields travel with the cursor, so reports and the map use the same evidence.
+
 ### The `?at=` cursor
 
 Seven routes take `at`, in seconds since the scenario origin. It is the same cursor the console's
@@ -83,9 +96,10 @@ per-moment ones, and an `at` passed to them is ignored.
 The fire picture: hotspots, clusters, observed perimeters and any spread projection, filtered to
 what was in hand at the cursor.
 
-Query: `at` (optional).
+Query: `at`, `source` (both optional).
 
-Returns `provenance`, `fetchedAt`, `scenario`, `asOf`, `availability`, `timeline`, `hotspots`,
+Returns `source`, `requestedSource`, optional `fallbackReason`, `provenance`, `fetchedAt`,
+`scenario`, `asOf`, `availability`, `timeline`, `hotspots`,
 `clusters`, `perimeters`, `spread`.
 
 `timeline` carries `start`, `end`, `durationSeconds` and the `frames` array, so a client can build
@@ -95,7 +109,7 @@ resolved, which is not necessarily the cursor you asked for.
 `400` malformed cursor · `502` fire data unavailable (no snapshot matched, or live failed and
 replay failed too).
 
-Served from a 5-second memo keyed on the cursor, with identical concurrent requests sharing one
+Served from a 5-second memo keyed on source and cursor, with identical concurrent requests sharing one
 upstream fetch.
 
 ### `GET /api/infrastructure`
@@ -133,7 +147,7 @@ Read once per process.
 Proximity analysis for one fire: every asset inside the perimeter, inside the 5/10/20 km rings, or
 inside the projected spread corridor.
 
-Query: `fireId` (required), `at` (optional).
+Query: `fireId` (required), `at`, `source` (optional).
 
 Returns `fireId`, `infrastructureStatus`, `infrastructureCoverage`, `hasPerimeter`, `rings`,
 `threatened`, `corridorCount`, `computedAt`.
@@ -161,7 +175,7 @@ invalidate the entry, so refetching the same fire at a different cursor reuses t
 The situation report: server-rendered facts, deterministic proximity priorities, and an optional
 model that may only order them.
 
-Query: `fireId` (required), `at` (optional).
+Query: `fireId` (required), `at`, `source` (optional).
 
 Returns `fireId`, `summary`, `recommendations`, `narrator`, `packet`.
 
@@ -195,7 +209,7 @@ module load. If you change the variable under a running server the two can disag
 
 Descriptive motion of a fire's detection centroid, beside two offline corpus baselines.
 
-Query: `clusterId` (required), `at` (optional).
+Query: `clusterId` (required), `at`, `source` (optional).
 
 Returns `clusterId`, `at`, `provenance`, `scenario`, `target`, `validation`, `roadUse`,
 `availabilityPolicy`, `evidenceWindowHours`, `model`, `baselines`, `scores`, `scoreScope`,

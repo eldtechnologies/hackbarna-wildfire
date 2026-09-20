@@ -163,3 +163,28 @@ test('cached-page restoration follows latest intent through a replay fallback', 
   await Promise.resolve();await Promise.resolve();
   assert.equal(calls,3);assert.equal(playback.getState().data?.provenance,'live');
 });
+
+test('hotspot-only clusters stay selectable and forecast reset and reframe are independently usable', t => {
+  const dom = new JSDOM('<main></main>');
+  Object.defineProperty(globalThis,'document',{value:dom.window.document,configurable:true});
+  t.after(()=>{delete (globalThis as {document?:Document}).document;dom.window.close();});
+  let render!:(state:FireLayerState)=>void;
+  let reframes=0; const scrubs:number[]=[];
+  const layer={onStateChange:(listener:typeof render)=>{render=listener;},select:()=>{},reframe:()=>{reframes++;},
+    deselect:()=>{},setScrub:(value:number)=>scrubs.push(value),setPlaying:()=>{}} as unknown as FireLayer;
+  const root=dom.window.document.querySelector('main')!;
+  initFirePanels(layer,root);
+  const response=data(); const cases=buildFireCases(response);
+  const extra={...response.clusters[0],id:'detection',name:'Hotspot cluster'};
+  const state:FireLayerState={cases,clusters:[...response.clusters,extra],selectedCase:null,selectedId:'detection',scrubHours:0,playing:false,projection:null};
+  render(state);
+  assert.match(root.textContent!,/Hotspot clusterHOTSPOTS ONLY/);
+  root.querySelector<HTMLButtonElement>('[aria-label="Reframe selected fire"]')!.click();
+  assert.equal(reframes,1);
+  assert.equal(root.querySelector<HTMLButtonElement>('[aria-label="Play spread forecast"]')!.disabled,true);
+  const forecast={...cases[0],maxHorizonHours:8};
+  render({...state,cases:[forecast],selectedCase:forecast,selectedId:'fire',scrubHours:3});
+  const reset=root.querySelector<HTMLButtonElement>('[aria-label="Reset spread forecast"]')!;
+  assert.equal(reset.disabled,false);reset.click();assert.deepEqual(scrubs,[0]);
+  assert.match(root.textContent!,/Forecast from .*not recorded observations/);
+});
